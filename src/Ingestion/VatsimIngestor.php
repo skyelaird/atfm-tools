@@ -191,7 +191,6 @@ final class VatsimIngestor
             $flight->first_seen_at   = $now;
             $flight->adep            = $adep ?: null;
             $flight->ades            = $ades ?: null;
-            $flight->eobt            = $eobt;
             if ($adesAirport !== null) {
                 $flight->planned_exit_min = $adesAirport['default_exit_min'];
             }
@@ -204,6 +203,18 @@ final class VatsimIngestor
                 $flight->first_disconnect_at = null;
                 $flight->reconnect_count     = ($flight->reconnect_count ?? 0) + 1;
             }
+        }
+
+        // EOBT: always refresh from current flight plan (the pilot may have
+        // refiled, or our date-rollover heuristic may have been wrong on the
+        // first-seen pass).
+        if ($eobt !== null) {
+            $flight->eobt = $eobt;
+            // Clear downstream derived times so the computation below will
+            // regenerate them if the EOBT has actually moved.
+            $flight->tobt = null;
+            $flight->tsat = null;
+            $flight->ttot = null;
         }
 
         // Update classification from flight plan
