@@ -68,7 +68,77 @@ final class Kernel
                 : self::json($res->withStatus(404), ['error' => 'not found']);
         });
 
+        // Plugin endpoint — consumed by Roger's CDM plugin and any other
+        // client written against ECFMP/flow's PluginApiController. Response
+        // shape is kept intentionally identical to upstream ECFMP/flow so
+        // CDMConfig.xml's <FlowRestrictions url="..."/> can be pointed here
+        // and the plugin will work without any code changes.
+        //
+        // NB: CDM only retains measures whose type is minimum_departure_interval
+        // or per_hour, and parses starttime/endtime via fixed substrings assuming
+        // the format "YYYY-MM-DDTHH:mm:ssZ" (length 20, no microseconds).
+        $app->get('/api/v1/plugin', function ($req, $res) {
+            $deleted = (($req->getQueryParams()['deleted'] ?? '0') === '1');
+
+            $query = FlowMeasure::with('fir')->orderBy('start_time');
+            if ($deleted) {
+                $query->withTrashed();
+            }
+
+            $measures = $query->get()->map(fn (FlowMeasure $fm) => self::serializeMeasureForPlugin($fm))->all();
+
+            $firs = Fir::orderBy('identifier')->get()->map(fn (Fir $f) => [
+                'id'         => $f->id,
+                'identifier' => $f->identifier,
+                'name'       => $f->name,
+            ])->all();
+
+            return self::json($res, [
+                'events'                     => [],
+                'flight_information_regions' => $firs,
+                'flow_measures'              => $measures,
+            ]);
+        });
+
         return $app;
+    }
+
+    /**
+     * Format a datetime the way CDM's substring parser expects:
+     * YYYY-MM-DDTHH:mm:ssZ  (length 20, UTC, no microseconds).
+     */
+    private static function formatIsoUtc(\DateTimeInterface $dt): string
+    {
+        return (new \DateTimeImmutable('@' . $dt->getTimestamp()))
+            ->setTimezone(new \DateTimeZone('UTC'))
+            ->format('Y-m-d\TH:i:s\Z');
+    }
+
+    /**
+     * Transform a FlowMeasure into the shape ECFMP/flow's PluginApiController
+     * returns (which CDM is hardcoded to parse). Filters are stored in the
+     * database already in the array-of-{type,value} shape CDM expects, so
+     * they pass through unchanged.
+     */
+    private static function serializeMeasureForPlugin(FlowMeasure $fm): array
+    {
+        $filters = is_array($fm->filters) ? $fm->filters : [];
+
+        return [
+            'id'         => (int) $fm->id,
+            'ident'      => (string) $fm->identifier,
+            'event_id'   => null,
+            'reason'     => (string) $fm->reason,
+            'starttime'  => self::formatIsoUtc($fm->start_time),
+            'endtime'    => self::formatIsoUtc($fm->end_time),
+            'measure'    => [
+                'type'  => (string) $fm->type,
+                'value' => $fm->value,
+            ],
+            'filters'    => $filters,
+            'notified_flight_information_regions' => $fm->fir_id !== null ? [(int) $fm->fir_id] : [],
+            'withdrawn_at' => $fm->deleted_at ? self::formatIsoUtc($fm->deleted_at) : null,
+        ];
     }
 
     private static function json(ResponseInterface $res, mixed $payload): ResponseInterface
