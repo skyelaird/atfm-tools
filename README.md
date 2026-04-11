@@ -120,14 +120,50 @@ git commit -m "Bump atfm-flow submodule"
 git push
 ```
 
-## Deploying to IONOS
+## Deploying to WHC (Web Hosting Canada)
 
-1. Fill in `IONOS_SSH_*` variables in `.env`.
-2. Create the `atfm` MySQL database through the IONOS control panel; put
-   its credentials in the server-side `.env`.
-3. Point the domain's DocumentRoot at `public/`.
-4. Run `./scripts/deploy-ionos.sh` from your local machine.
-5. SSH in once and run `php bin/migrate.php` to create the tables.
+Primary deployment target. WHC's Web Hosting Pro ships PHP 8.4 CLI, Composer
+pre-installed, MariaDB, SSH, and cPanel — everything this project needs.
+
+### First-time setup
+
+1. **Pick PHP version**: cPanel → *Software* → *Select PHP Version* → set to
+   **8.2** or higher → click *Set as current*. This changes the PHP used by
+   web requests; CLI PHP is independent.
+2. **Create the MySQL database**: cPanel → *Databases* → *MySQL Databases*.
+   Create database `ogzqox66_atfm`, create user `ogzqox66_atfm` with a
+   password, grant ALL privileges to the user on the database.
+3. **SSH in, clone, install, configure**:
+   ```bash
+   ssh ogzqox66@173.209.32.98 -p 27
+   cd ~
+   git clone https://github.com/skyelaird/atfm-tools.git
+   cd atfm-tools
+   composer install --no-dev --optimize-autoloader
+   cp .env.example .env
+   nano .env                      # fill in DB_DATABASE, DB_USERNAME, DB_PASSWORD
+   chmod 600 .env
+   php bin/migrate.php
+   php bin/seed.php               # optional demo data
+   ```
+4. **Create the subdomain**: cPanel → *Domains* → *Create a new subdomain*.
+   - Subdomain: `atfm`
+   - Domain: `momentaryshutter.com`
+   - **Document Root**: `/home/ogzqox66/atfm-tools/public`
+     *(important — points Apache at Slim's front controller, not the repo root)*
+5. **Test**: `https://atfm.momentaryshutter.com/api/health`
+
+### Subsequent updates
+
+Every time you push to GitHub's `main` branch, deploy with:
+
+```bash
+ssh ogzqox66@173.209.32.98 -p 27
+~/atfm-tools/scripts/deploy-whc.sh
+```
+
+The script pulls, runs `composer install --no-dev`, and re-runs the
+idempotent migration.
 
 ## License
 
