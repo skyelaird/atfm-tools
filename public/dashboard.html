@@ -775,30 +775,6 @@ function renderAirportDetail(d) {
         body.appendChild(resSection);
     }
 
-    // Runways
-    if (d.runways.length > 0) {
-        const rwySection = el('section', {}, el('h3', {}, `Runways (${d.runways.length})`));
-        const wrap = el('div', { class: 'table-wrap' });
-        const table = el('table');
-        table.appendChild(el('thead', {}, el('tr', {},
-            ...['Ident', 'Heading', 'Threshold', 'Opposite end', 'Width'].map(h => el('th', {}, h))
-        )));
-        const tbody = el('tbody');
-        for (const r of d.runways) {
-            tbody.appendChild(el('tr', {},
-                el('td', { class: 'mono' }, r.runway_ident),
-                el('td', { class: 'mono' }, String(r.heading_deg).padStart(3, '0') + '°'),
-                el('td', { class: 'mono muted' }, `${r.threshold_lat.toFixed(5)}, ${r.threshold_lon.toFixed(5)}`),
-                el('td', { class: 'mono muted' }, `${r.opposite_threshold_lat.toFixed(5)}, ${r.opposite_threshold_lon.toFixed(5)}`),
-                el('td', { class: 'mono' }, r.width_ft + ' ft')
-            ));
-        }
-        table.appendChild(tbody);
-        wrap.appendChild(table);
-        rwySection.appendChild(wrap);
-        body.appendChild(rwySection);
-    }
-
     // Inbound flights
     body.appendChild(flightTable(
         `Inbound (${d.inbound.length})`,
