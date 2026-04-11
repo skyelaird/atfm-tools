@@ -284,16 +284,50 @@ final class VatsimIngestor
             $flight->phase_updated_at = $now;
         }
 
-        // Observed A-CDM times — only set once, ratchet-style
-        if ($phase === Flight::PHASE_TAXI_OUT && $flight->asat === null) {
-            $flight->asat = $now;
-            $flight->aobt = $now;
+        // Observed A-CDM times — ratchet-style: once we see a downstream
+        // state, any upstream milestone that's still null gets backfilled
+        // with "now" as a conservative estimate. A flight we first notice
+        // mid-cruise won't have accurate ASAT/ATOT timestamps, but at
+        // least every airborne flight shows an ATOT value as the user expects.
+        if (in_array($phase, [
+            Flight::PHASE_TAXI_OUT,
+            Flight::PHASE_DEPARTED,
+            Flight::PHASE_ENROUTE,
+            Flight::PHASE_ARRIVING,
+            Flight::PHASE_FINAL,
+            Flight::PHASE_ON_RUNWAY,
+            Flight::PHASE_VACATED,
+            Flight::PHASE_TAXI_IN,
+            Flight::PHASE_ARRIVED,
+        ], true)) {
+            if ($flight->asat === null) {
+                $flight->asat = $now;
+            }
+            if ($flight->aobt === null) {
+                $flight->aobt = $now;
+            }
         }
-        if ($phase === Flight::PHASE_DEPARTED && $flight->atot === null) {
-            $flight->atot = $now;
-            if ($flight->asat !== null) {
-                $diffSeconds = $now->getTimestamp() - $flight->asat->getTimestamp();
-                $flight->actual_exot_min = max(0, (int) round($diffSeconds / 60));
+        if (in_array($phase, [
+            Flight::PHASE_DEPARTED,
+            Flight::PHASE_ENROUTE,
+            Flight::PHASE_ARRIVING,
+            Flight::PHASE_FINAL,
+            Flight::PHASE_ON_RUNWAY,
+            Flight::PHASE_VACATED,
+            Flight::PHASE_TAXI_IN,
+            Flight::PHASE_ARRIVED,
+        ], true)) {
+            if ($flight->atot === null) {
+                $flight->atot = $now;
+                // Only compute EXOT if we observed BOTH transitions (not backfilled
+                // on the same cycle — check phase_updated_at). Otherwise the delta
+                // is meaningless and we'd pollute the reports with 0-min EXOTs.
+                if ($flight->asat !== null && $flight->asat < $now) {
+                    $diffSeconds = $now->getTimestamp() - $flight->asat->getTimestamp();
+                    if ($diffSeconds >= 60) {  // at least 1 min apart → plausible
+                        $flight->actual_exot_min = (int) round($diffSeconds / 60);
+                    }
+                }
             }
         }
         if ($phase === Flight::PHASE_ARRIVING && $flight->eldt === null) {

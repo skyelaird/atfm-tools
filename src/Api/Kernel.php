@@ -154,7 +154,7 @@ final class Kernel
 
             $flights = Flight::query()
                 ->whereNotNull('ctot')
-                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED])
                 ->where('ctot', '>=', $now->format('Y-m-d H:i:s'))
                 ->get(['callsign', 'ctot', 'ctl_element']);
 
@@ -346,14 +346,17 @@ final class Kernel
                 $q->whereNull('deleted_at');
             }])->orderBy('icao')->get();
 
-            // Include per-airport live traffic counts
-            $out = $airports->map(function (Airport $a) {
+            // Per-airport live traffic counts. DISCONNECTED flights are
+            // excluded from live counts — they can re-animate but shouldn't
+            // clutter the "what's happening now" view.
+            $excludePhases = [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED];
+            $out = $airports->map(function (Airport $a) use ($excludePhases) {
                 $arr = $a->toArray();
                 $arr['inbound_count'] = Flight::where('ades', $a->icao)
-                    ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                    ->whereNotIn('phase', $excludePhases)
                     ->count();
                 $arr['outbound_count'] = Flight::where('adep', $a->icao)
-                    ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                    ->whereNotIn('phase', $excludePhases)
                     ->count();
                 return $arr;
             });
@@ -383,9 +386,10 @@ final class Kernel
 
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
-            // Current inbound (not yet terminal)
+            // Current inbound (not yet terminal, not disconnected)
+            $liveExclude = [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED];
             $inbound = Flight::where('ades', $icao)
-                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                ->whereNotIn('phase', $liveExclude)
                 ->orderByRaw('COALESCE(ctot, eldt, eobt) ASC')
                 ->limit(100)
                 ->get()
@@ -406,9 +410,9 @@ final class Kernel
                     'last_alt'        => $f->last_altitude_ft,
                 ])->values()->all();
 
-            // Current outbound (not yet terminal)
+            // Current outbound (not yet terminal, not disconnected)
             $outbound = Flight::where('adep', $icao)
-                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                ->whereNotIn('phase', $liveExclude)
                 ->orderBy('eobt')
                 ->limit(100)
                 ->get()
@@ -791,9 +795,9 @@ final class Kernel
 
         $app->get('/api/v1/debug/flights/active', function ($req, $res) {
             $flights = Flight::whereNotNull('ctot')
-                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED])
                 ->orderBy('ctot')
-                ->get(['callsign', 'cid', 'adep', 'ades', 'eobt', 'ttot', 'ctot', 'ctl_element', 'ctl_type', 'delay_minutes', 'delay_status', 'phase']);
+                ->get(['callsign', 'cid', 'aircraft_type', 'adep', 'ades', 'eobt', 'ttot', 'ctot', 'ctl_element', 'ctl_type', 'delay_minutes', 'delay_status', 'phase']);
             return self::json($res, $flights->toArray());
         });
 

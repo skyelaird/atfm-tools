@@ -1,0 +1,383 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>atfm-tools — Reports</title>
+    <style>
+        :root {
+            --bg: #0f1419; --bg-elev: #1a2028; --bg-elev-hi: #242c38;
+            --border: #2a3340;
+            --text: #d7dee8; --text-dim: #8a94a3; --text-bright: #f0f4fa;
+            --accent: #5eead4; --accent-dim: #2a6b5f;
+            --warn: #facc15; --warn-dim: #5e4a0f;
+            --alert: #f87171; --alert-dim: #5e1f1f;
+            --ok: #4ade80; --ok-dim: #1e4a2e;
+            --info: #60a5fa; --info-dim: #1e3a5f;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; padding: 0;
+            background: var(--bg); color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+            font-size: 14px; line-height: 1.45;
+        }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .mono { font-family: "SF Mono", Consolas, Monaco, monospace; font-variant-numeric: tabular-nums; }
+
+        header {
+            position: sticky; top: 0; z-index: 100;
+            background: var(--bg-elev);
+            border-bottom: 1px solid var(--border);
+            padding: 0.65rem 1rem;
+            display: flex; align-items: center; gap: 1rem;
+            flex-wrap: wrap;
+        }
+        header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+        header h1 .version { color: var(--text-dim); font-weight: 400; margin-left: 0.4rem; font-size: 0.85rem; }
+        header .nav-pills { display: flex; gap: 0.5rem; margin-left: auto; align-items: center; }
+        .pill {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.25rem 0.7rem; border-radius: 3px;
+            background: var(--bg-elev-hi); border: 1px solid var(--border);
+            font-size: 0.8rem; color: var(--text-dim); cursor: pointer;
+        }
+        .pill:hover { color: var(--text-bright); }
+        .pill.active { color: var(--accent); border-color: var(--accent-dim); background: rgba(94,234,212,0.08); }
+        a.pill { text-decoration: none; }
+
+        main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
+        section { margin-bottom: 1.5rem; }
+        section h2 {
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
+            color: var(--text-dim); font-weight: 600; margin: 0 0 0.6rem 0;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+
+        .totals-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 0.75rem;
+        }
+        .stat-card {
+            background: var(--bg-elev); border: 1px solid var(--border);
+            border-radius: 4px; padding: 0.85rem 1rem;
+        }
+        .stat-card .lbl { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+        .stat-card .val {
+            font-size: 1.6rem; font-weight: 700; color: var(--text-bright);
+            font-family: Consolas, monospace; margin-top: 0.2rem;
+        }
+        .stat-card .val .unit { font-size: 0.8rem; color: var(--text-dim); font-weight: 400; margin-left: 0.3rem; }
+
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        thead th {
+            text-align: left; padding: 0.45rem 0.5rem;
+            background: var(--bg-elev); color: var(--text-dim);
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        thead th.sortable { cursor: pointer; user-select: none; }
+        thead th.sortable:hover { color: var(--text-bright); background: var(--bg-elev-hi); }
+        thead th.sortable::after { content: '↕'; opacity: 0.25; margin-left: 0.3rem; font-size: 0.75rem; }
+        thead th.sortable.sort-asc::after  { content: '↑'; opacity: 1; color: var(--accent); }
+        thead th.sortable.sort-desc::after { content: '↓'; opacity: 1; color: var(--accent); }
+        tbody td { padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--border); }
+        tbody tr:hover { background: var(--bg-elev); }
+        .table-wrap {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .empty-row { text-align: center; color: var(--text-dim); padding: 1rem; }
+        .muted { color: var(--text-dim); }
+        .num { text-align: right; font-family: Consolas, monospace; }
+        .warn-val { color: var(--warn); }
+        .alert-val { color: var(--alert); }
+        .ok-val { color: var(--ok); }
+
+        footer {
+            margin-top: 2rem; padding: 1rem; text-align: center;
+            color: var(--text-dim); font-size: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>atfm-tools <span class="version">reports</span></h1>
+    <div class="nav-pills" id="window-pills">
+        <span class="pill" data-hours="6">6h</span>
+        <span class="pill" data-hours="12">12h</span>
+        <span class="pill active" data-hours="24">24h</span>
+        <span class="pill" data-hours="48">48h</span>
+        <span class="pill" data-hours="168">7d</span>
+    </div>
+    <div style="display:flex; gap:0.5rem;">
+        <a href="/dashboard.html" class="pill">← dashboard</a>
+        <a href="/map.html" class="pill">map →</a>
+    </div>
+</header>
+
+<main>
+
+    <section>
+        <h2>Window totals <span class="muted" id="window-label">last 24h</span></h2>
+        <div class="totals-grid" id="totals-grid">
+            <div class="stat-card"><div class="lbl">Loading…</div><div class="val">—</div></div>
+        </div>
+    </section>
+
+    <section>
+        <h2>Per-airport movements &amp; observed taxi times</h2>
+        <div class="table-wrap">
+            <table id="airports-table">
+                <thead>
+                    <tr>
+                        <th data-sort="icao">ICAO</th>
+                        <th data-sort="arrivals" class="num">Arr</th>
+                        <th data-sort="departures" class="num">Dep</th>
+                        <th data-sort="avg_exot_min" class="num" title="Average observed taxi-out time (TSAT→takeoff) in min">Avg EXOT</th>
+                        <th data-sort="p50_exot_min" class="num">p50 EXOT</th>
+                        <th data-sort="p90_exot_min" class="num">p90 EXOT</th>
+                        <th data-sort="avg_exit_min" class="num" title="Average observed taxi-in time (landing→in-block) in min">Avg EXIT</th>
+                        <th data-sort="p50_exit_min" class="num">p50 EXIT</th>
+                        <th data-sort="p90_exit_min" class="num">p90 EXIT</th>
+                        <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT − EOBT) in min — how late pilots actually push back vs filed">Avg EOBT Δ</th>
+                        <th data-sort="p90_eobt_delay_min" class="num">p90 EOBT Δ</th>
+                        <th data-sort="avg_eta_error_min" class="num" title="Filed-ETA accuracy: observed ALDT − (AOBT + filed enroute_time) in min">Avg ETA err</th>
+                        <th data-sort="p90_eta_error_min" class="num">p90 ETA err</th>
+                        <th data-sort="eta_sample_n" class="num">ETA n</th>
+                    </tr>
+                </thead>
+                <tbody id="airports-tbody">
+                    <tr><td colspan="14" class="empty-row">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section>
+        <h2>Top aircraft types</h2>
+        <div class="table-wrap">
+            <table id="types-table">
+                <thead>
+                    <tr>
+                        <th data-sort="aircraft_type">Type</th>
+                        <th data-sort="count" class="num">Count</th>
+                        <th data-sort="avg_exot_min" class="num">Avg EXOT</th>
+                        <th data-sort="avg_exit_min" class="num">Avg EXIT</th>
+                    </tr>
+                </thead>
+                <tbody id="types-tbody">
+                    <tr><td colspan="4" class="empty-row">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <footer>
+        Data window auto-refreshes every 60 s. Metrics are computed from the
+        <span class="mono">flights</span> table. EXOT/EXIT come from observed
+        ASAT→ATOT and ALDT→AIBT deltas as pilots progress through the state
+        machine. ETA error requires the pilot to have filed an
+        <span class="mono">enroute_time</span> — sample size will grow as
+        more flights complete.
+        <div style="margin-top: 0.5rem;">
+            <a href="https://github.com/skyelaird/atfm-tools">source</a>
+            · <a href="https://github.com/skyelaird/atfm-tools/blob/main/docs/ARCHITECTURE.md">architecture</a>
+            · <a href="https://github.com/skyelaird/atfm-tools/blob/main/docs/GLOSSARY.md">glossary</a>
+        </div>
+    </footer>
+
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, ...children) => {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+        if (k === 'class') e.className = v;
+        else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+        else if (v != null) e.setAttribute(k, v);
+    }
+    for (const c of children) {
+        if (c == null) continue;
+        e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    }
+    return e;
+};
+const fmt = (v, digits = 1) => (v == null ? '—' : Number(v).toFixed(digits));
+const fmtInt = (v) => (v == null ? '—' : String(Math.round(v)));
+
+// Sortable table helper
+const sortStates = {
+    airports: { key: 'icao', dir: 'asc' },
+    types:    { key: 'count', dir: 'desc' },
+};
+function wireSortableTable(tableId) {
+    const table = $(tableId);
+    if (!table || table.dataset.sortableWired) return;
+    table.dataset.sortableWired = '1';
+    const stateKey = tableId.replace(/-table$/, '');
+    table.querySelectorAll('thead th').forEach(th => {
+        const key = th.dataset.sort;
+        if (!key) return;
+        th.classList.add('sortable');
+        th.addEventListener('click', () => {
+            const cur = sortStates[stateKey] || { key: null, dir: 'asc' };
+            if (cur.key === key) cur.dir = (cur.dir === 'asc' ? 'desc' : 'asc');
+            else { cur.key = key; cur.dir = 'asc'; }
+            sortStates[stateKey] = cur;
+            rerender();
+        });
+    });
+}
+function updateSortIndicators(tableId) {
+    const table = $(tableId);
+    if (!table) return;
+    const stateKey = tableId.replace(/-table$/, '');
+    const state = sortStates[stateKey];
+    table.querySelectorAll('thead th').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (state && state.key && th.dataset.sort === state.key) {
+            th.classList.add(state.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+        }
+    });
+}
+function sortRowsFor(tableId, rows, accessors) {
+    const stateKey = tableId.replace(/-table$/, '');
+    const state = sortStates[stateKey];
+    if (!state || !state.key || !accessors[state.key]) return rows;
+    const copy = rows.slice();
+    const acc = accessors[state.key];
+    copy.sort((a, b) => {
+        const av = acc(a); const bv = acc(b);
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        if (typeof av === 'number' && typeof bv === 'number') return av - bv;
+        return String(av).localeCompare(String(bv));
+    });
+    if (state.dir === 'desc') copy.reverse();
+    return copy;
+}
+
+let currentHours = 24;
+let lastData = null;
+
+async function refresh() {
+    try {
+        const r = await fetch(`/api/v1/reports/summary?hours=${currentHours}`);
+        const d = await r.json();
+        lastData = d;
+        rerender();
+    } catch (err) {
+        console.error('reports refresh failed', err);
+    }
+}
+
+function rerender() {
+    if (!lastData) return;
+    const d = lastData;
+
+    $('window-label').textContent = `last ${d.window.hours}h`;
+
+    // Totals
+    $('totals-grid').innerHTML = '';
+    const t = d.totals;
+    const addTotal = (lbl, val, unit) => {
+        $('totals-grid').appendChild(el('div', { class: 'stat-card' },
+            el('div', { class: 'lbl' }, lbl),
+            el('div', { class: 'val mono' },
+                String(val),
+                unit ? el('span', { class: 'unit' }, ' ' + unit) : null
+            )
+        ));
+    };
+    addTotal('flights seen',        t.flights_seen);
+    addTotal('CTOTs issued',        t.ctots_issued);
+    addTotal('compliant departed',  t.compliant_departed);
+    addTotal('non-compliant',       t.non_compliant);
+    addTotal('compliance rate',     t.compliance_rate != null ? (t.compliance_rate * 100).toFixed(0) + '%' : '—');
+
+    // Airports
+    wireSortableTable('airports-table');
+    const aTbody = $('airports-tbody');
+    aTbody.innerHTML = '';
+    const aAcc = {
+        icao: r => r.icao, arrivals: r => r.arrivals, departures: r => r.departures,
+        avg_exot_min: r => r.avg_exot_min, p50_exot_min: r => r.p50_exot_min, p90_exot_min: r => r.p90_exot_min,
+        avg_exit_min: r => r.avg_exit_min, p50_exit_min: r => r.p50_exit_min, p90_exit_min: r => r.p90_exit_min,
+        avg_eobt_delay_min: r => r.avg_eobt_delay_min, p90_eobt_delay_min: r => r.p90_eobt_delay_min,
+        avg_eta_error_min: r => r.avg_eta_error_min, p90_eta_error_min: r => r.p90_eta_error_min,
+        eta_sample_n: r => r.eta_sample_n,
+    };
+    const aRows = sortRowsFor('airports-table', d.airports, aAcc);
+    updateSortIndicators('airports-table');
+    for (const r of aRows) {
+        aTbody.appendChild(el('tr', {},
+            el('td', { class: 'mono' }, r.icao + (r.name ? '' : '')),
+            el('td', { class: 'num' }, String(r.arrivals)),
+            el('td', { class: 'num' }, String(r.departures)),
+            el('td', { class: 'num' }, fmt(r.avg_exot_min)),
+            el('td', { class: 'num muted' }, fmt(r.p50_exot_min)),
+            el('td', { class: 'num muted' }, fmt(r.p90_exot_min)),
+            el('td', { class: 'num' }, fmt(r.avg_exit_min)),
+            el('td', { class: 'num muted' }, fmt(r.p50_exit_min)),
+            el('td', { class: 'num muted' }, fmt(r.p90_exit_min)),
+            el('td', { class: 'num' }, fmt(r.avg_eobt_delay_min)),
+            el('td', { class: 'num muted' }, fmt(r.p90_eobt_delay_min)),
+            el('td', { class: 'num' }, fmt(r.avg_eta_error_min)),
+            el('td', { class: 'num muted' }, fmt(r.p90_eta_error_min)),
+            el('td', { class: 'num muted' }, String(r.eta_sample_n || 0))
+        ));
+    }
+    if (aRows.length === 0) {
+        aTbody.appendChild(el('tr', {}, el('td', { colspan: '14', class: 'empty-row' }, 'No data yet.')));
+    }
+
+    // Top aircraft
+    wireSortableTable('types-table');
+    const typesTbody = $('types-tbody');
+    typesTbody.innerHTML = '';
+    const tAcc = {
+        aircraft_type: r => r.aircraft_type,
+        count:         r => r.count,
+        avg_exot_min:  r => r.avg_exot_min,
+        avg_exit_min:  r => r.avg_exit_min,
+    };
+    const tRows = sortRowsFor('types-table', d.top_aircraft, tAcc);
+    updateSortIndicators('types-table');
+    for (const r of tRows) {
+        typesTbody.appendChild(el('tr', {},
+            el('td', { class: 'mono' }, r.aircraft_type),
+            el('td', { class: 'num' }, String(r.count)),
+            el('td', { class: 'num muted' }, fmt(r.avg_exot_min)),
+            el('td', { class: 'num muted' }, fmt(r.avg_exit_min))
+        ));
+    }
+    if (tRows.length === 0) {
+        typesTbody.appendChild(el('tr', {}, el('td', { colspan: '4', class: 'empty-row' }, 'No data yet.')));
+    }
+}
+
+// Window picker
+document.querySelectorAll('#window-pills .pill').forEach(p => {
+    p.addEventListener('click', () => {
+        document.querySelectorAll('#window-pills .pill').forEach(x => x.classList.remove('active'));
+        p.classList.add('active');
+        currentHours = Number(p.dataset.hours);
+        refresh();
+    });
+});
+
+refresh();
+setInterval(refresh, 60000);  // 60s auto-refresh
+</script>
+
+</body>
+</html>
