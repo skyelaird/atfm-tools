@@ -701,6 +701,42 @@ implies, without regression.
 **flight_key changes** (pilot refiles with different `deptime` or ADES) create a
 new flight record. The old one ends up WITHDRAWN after 10 h.
 
+## 7.1 ETA estimation cascade
+
+VATSIM's data feed does not publish a computed ETA. The allocator needs
+a usable arrival time for every flight inbound to a regulated airport.
+`src/Allocator/EtaEstimator.php` implements a 5-tier cascade and
+returns the highest-tier estimate it can compute:
+
+| Tier | Source | Applies when | Formula | Confidence |
+|---|---|---|---|---|
+| **1** | **FILED** | Pilot filed `enroute_time` (HHMM) in the flight plan, flight is on ground | `EOBT + taxi + enroute_time` | 90 |
+| **2** | **OBSERVED_POS** | Flight is airborne with known lat/lon | `now + great_circle(pos, dest) / observed_gs` | 85 |
+| **3** | **CALC_FILED_TAS** | On ground, filed `cruise_tas` is present and plausible (120-650 kt) | `EOBT + taxi + great_circle(adep, ades) / filed_tas` | 70 |
+| **4** | **CALC_TYPE_TAS** | On ground, aircraft_type is in `AircraftTas::TABLE` | `EOBT + taxi + great_circle / type_table_tas` | 55 |
+| **5** | **CALC_DEFAULT** | On ground, unknown type | `EOBT + taxi + great_circle / 430 kt` | 40 |
+| —  | **NONE** | No EOBT, no position, or unknown ADEP coords | (skip flight this cycle) | 0 |
+
+**Why OBSERVED_POS beats FILED for airborne flights**: physical reality is
+always better than pre-flight planning once the flight exists. Filed
+enroute_time is typically SimBrief-quality — it includes winds at filing
+time — but doesn't account for mid-flight ATC routing changes, speed
+choices, or wind shifts. Observed groundspeed + current position captures
+all of those implicitly.
+
+**Why FILED beats TAS-based calculation for ground flights**: pilots who
+file `enroute_time` typically got it from SimBrief, which includes wind
+compensation for the forecast period. Our geometric recomputation has no
+wind model at all. So a filed value from a serious filer is better than
+our computation.
+
+The allocator does not need to know which tier produced an ETA for its
+slot-assignment decision — it just uses the epoch. Future ROT analysis
+can stratify ETA accuracy by source to measure how each tier performs
+in practice.
+
+See §2 for why we deliberately don't integrate wind/GRIB data.
+
 ## 8. Allocation algorithm (CASA-light priority ladder)
 
 Runs every 5 minutes via `bin/compute-ctots.php`. Stateless across runs except

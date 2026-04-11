@@ -279,38 +279,15 @@ final class CtotAllocator
         }
     }
 
-    /** Estimate arrival epoch for a flight heading to `airport`, or null if unknown. */
+    /**
+     * Estimate arrival epoch for a flight heading to `airport`, or null if
+     * unknown. Delegates to EtaEstimator which implements the tiered
+     * cascade (filed → observed position → filed TAS → type table → default).
+     */
     private function estimateArrivalEpoch(Flight $flight, Airport $airport, DateTimeImmutable $now): ?int
     {
-        // If airborne with a known position, project from current position.
-        if ($flight->isAirborne() && $flight->last_lat !== null && $flight->last_lon !== null) {
-            $eta = Geo::etaMinutesFromPosition(
-                (float) $flight->last_lat,
-                (float) $flight->last_lon,
-                (float) $airport->latitude,
-                (float) $airport->longitude,
-                $flight->last_groundspeed_kts
-            );
-            return $now->getTimestamp() + ($eta * 60);
-        }
-
-        // On ground: need valid EOBT + ADEP coordinates.
-        if ($flight->eobt === null || $flight->adep === null) {
-            return null;
-        }
-        $adepCoords = AirportCoords::coords($flight->adep);
-        if ($adepCoords === null) {
-            return null; // unknown ADEP — unmeasurable this cycle
-        }
-
-        $distNm = Geo::distanceNm(
-            $adepCoords[0], $adepCoords[1],
-            (float) $airport->latitude, (float) $airport->longitude
-        );
-        $cruiseMin = Geo::flightMinutes($distNm, $flight->fp_cruise_tas);
-        $taxiMin = $flight->planned_exot_min ?? (int) $airport->default_exot_min;
-
-        return $flight->eobt->getTimestamp() + ($taxiMin * 60) + ($cruiseMin * 60);
+        $est = EtaEstimator::estimate($flight, $airport, $now);
+        return $est['epoch'];
     }
 
     /**
