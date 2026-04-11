@@ -1,0 +1,12 @@
+[submodule "vendor-forks/atfm-flow"]
+	path = vendor-forks/atfm-flow
+	url = https://github.com/skyelaird/ECFMP-flow.git
+[submodule "vendor-forks/atfm-plugin-sdk"]
+	path = vendor-forks/atfm-plugin-sdk
+	url = https://github.com/skyelaird/ECFMP-plugin-sdk.git
+[submodule "vendor-forks/atfm-protobuf"]
+	path = vendor-forks/atfm-protobuf
+	url = https://github.com/skyelaird/ecfmp-protobuf.git
+[submodule "vendor-forks/atfm-map-data"]
+	path = vendor-forks/atfm-map-data
+	url = https://github.com/skyelaird/map_data.git

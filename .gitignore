@@ -1,0 +1,26 @@
+/vendor/
+/node_modules/
+.env
+.env.*
+!.env.example
+
+# PHP
+composer.lock
+*.log
+
+# OS / editors
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# Build artefacts
+/dist/
+/build/
+/public/build/
+/public/proto-gen/
+
+# Local-only
+/local/
+/tmp/
