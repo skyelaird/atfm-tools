@@ -256,21 +256,25 @@ final class Kernel
                 ->get()
                 ->filter(fn (AirportRestriction $r) => $r->isActiveAt($now));
 
-            // Derive system OpLevel per PERTI TMU taxonomy.
+            // Derive system OpLevel per PERTI TMU taxonomy, using FIR-based
+            // scope analysis (not airport count):
             //   Level 1 Steady State     — 0 active restrictions
-            //   Level 2 Localized Impact — 1-2 airports affected
-            //   Level 3 Regional Impact  — 3-4 airports affected
-            //   Level 4 NAS-Wide Impact  — 5+ airports affected
-            // Max of (derived system level, highest per-restriction op_level) wins.
-            $affectedAirports = $restrictionRows->pluck('airport_id')->unique()->count();
-            $derived = match (true) {
-                $affectedAirports === 0 => 1,
-                $affectedAirports <= 2  => 2,
-                $affectedAirports <= 4  => 3,
-                default                 => 4,
-            };
-            $maxTagged = (int) $restrictionRows->max(fn ($r) => (int) ($r->op_level ?? 2));
-            $systemOpLevel = max($derived, $maxTagged ?: 1);
+            //   Level 2 Localized Impact — within a single FIR
+            //   Level 3 Regional Impact  — source FIR + directly adjacent FIRs
+            //   Level 4 NAS-Wide Impact  — beyond the 1-hop neighborhood
+            // Adjacency graph lives in Atfm\Allocator\FirMap. Max of the
+            // derived level and the highest per-restriction op_level wins.
+            $affectedAirportIcaos = $restrictionRows
+                ->map(fn ($r) => $r->airport?->icao)
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+            $affectedAirports = count($affectedAirportIcaos);
+            $affectedFirs     = \Atfm\Allocator\FirMap::affectedFirs($affectedAirportIcaos);
+            $derived          = \Atfm\Allocator\FirMap::deriveOpLevel($affectedAirportIcaos);
+            $maxTagged        = (int) $restrictionRows->max(fn ($r) => (int) ($r->op_level ?? 2));
+            $systemOpLevel    = max($derived, $maxTagged ?: 1);
 
             return self::json($res, [
                 'time_utc'             => $now->format('c'),
@@ -279,6 +283,8 @@ final class Kernel
                 'active_ctot_count'    => $activeCtots,
                 'active_restrictions'  => $restrictionRows->count(),
                 'affected_airports'    => $affectedAirports,
+                'affected_airport_icaos' => $affectedAirportIcaos,
+                'affected_firs'        => $affectedFirs,
                 'op_level'             => $systemOpLevel,
                 'op_level_label'       => AirportRestriction::OP_LEVEL_LABELS[$systemOpLevel] ?? '',
                 'last_ingest_at'       => $lastFlightUpdate,
