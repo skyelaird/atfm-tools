@@ -30,9 +30,9 @@ atfm-tools/
 ├── .gitmodules             submodule wiring
 ├── vendor-forks/           git submodules → personal forks of ECFMP repos
 ├── src/                    your new tool code
-│   ├── api/                thin REST client that talks to atfm-flow
-│   ├── measures/           flow-measure logic
-│   └── map/                FIR map rendering helpers
+│   ├── Api/                thin REST client that talks to atfm-flow
+│   ├── Measures/           flow-measure logic
+│   └── Map/                FIR map rendering helpers
 ├── public/                 what you upload to IONOS webspace
 │   ├── index.php
 │   ├── assets/
