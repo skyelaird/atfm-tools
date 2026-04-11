@@ -65,6 +65,27 @@ final class CtotAllocator
 
         $stats['restrictions_active'] = $restrictions->count();
 
+        // Release any previously-issued CTOTs whose restriction is no longer
+        // active (deleted, expired, or window closed). Without this, CTOTs
+        // from yesterday's programs would persist forever on flight records.
+        $activeRestrictionIds = $restrictions->pluck('restriction_id')->all();
+        $stale = Flight::query()
+            ->whereNotNull('ctot')
+            ->whereNotNull('ctl_restriction_id')
+            ->whereNotIn('ctl_restriction_id', $activeRestrictionIds ?: [''])
+            ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+            ->get();
+        foreach ($stale as $flight) {
+            $flight->ctot               = null;
+            $flight->ctl_type           = null;
+            $flight->ctl_element        = null;
+            $flight->ctl_restriction_id = null;
+            $flight->delay_minutes      = null;
+            $flight->delay_status       = null;
+            $flight->save();
+            $stats['ctots_released']++;
+        }
+
         foreach ($restrictions as $restriction) {
             $airport = $restriction->airport;
             if (! $airport) {
