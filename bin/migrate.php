@@ -300,6 +300,17 @@ if (! $schema->hasTable('imported_ctots')) {
     echo "• imported_ctots already exists\n";
 }
 
+//
+// v0.3.1: add op_level to airport_restrictions (PERTI TMU OpLevel taxonomy).
+//
+if ($schema->hasTable('airport_restrictions') && ! $schema->hasColumn('airport_restrictions', 'op_level')) {
+    $schema->table('airport_restrictions', function (Blueprint $t) {
+        $t->unsignedTinyInteger('op_level')->default(2)->after('reason')
+            ->comment('1=Steady State, 2=Localized, 3=Regional, 4=NAS-Wide');
+    });
+    echo "✓ added airport_restrictions.op_level\n";
+}
+
 if (! $schema->hasTable('aar_calculations')) {
     $schema->create('aar_calculations', function (Blueprint $t) {
         $t->id();

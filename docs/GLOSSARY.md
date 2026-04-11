@@ -234,6 +234,30 @@ More aggressive than a GDP.
 FAA flow regulation for en-route capacity constraints (vs GDP for airport
 constraints). Out of scope for atfm-tools (we don't do en-route).
 
+### OpLevel — TMU Operations Level
+PERTI's (and FAA TMU's) classification of the overall traffic-management
+intensity across the system. Four levels:
+
+| Level | Label | Meaning |
+|---|---|---|
+| **1** | **Steady State** | No active flow management; routine operations |
+| **2** | **Localized Impact** | Single airport or small region affected |
+| **3** | **Regional Impact** | Multiple airports or an FIR affected |
+| **4** | **NAS-Wide Impact** | Large-scale disruption across the network |
+
+- **In PERTI**: `tmi_advisories.op_level` (from the TMU OpLevel dropdown we
+  saw at perti.vatcscc.org during exploration)
+- **In atfm-tools**:
+  - `airport_restrictions.op_level` — per-restriction tag (default 2)
+  - System-level `op_level` derived at runtime and returned by
+    `/api/v1/status`. Derivation rule:
+    - 0 active restrictions → Level 1
+    - 1-2 affected airports → Level 2
+    - 3-4 affected airports → Level 3
+    - 5+ affected airports  → Level 4
+    - Max of the derived level and the highest per-restriction `op_level` wins.
+- **Displayed on the dashboard** as a prominent colored pill in the header.
+
 ### TMI — Traffic Management Initiative
 Umbrella FAA term for any active flow regulation (GDP, GS, AFP, reroute,
 MIT, MINIT, STOP, etc.). vATCSCC's PERTI uses this as its top-level

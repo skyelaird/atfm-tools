@@ -69,6 +69,30 @@
         .pill.ok    { border-color: var(--ok-dim);    background: rgba(74,222,128,0.08);  color: var(--ok); }
         .pill.warn  { border-color: var(--warn-dim);  background: rgba(250,204,21,0.08);  color: var(--warn); }
         .pill.alert { border-color: var(--alert-dim); background: rgba(248,113,113,0.08); color: var(--alert); }
+
+        /* OpLevel pill — big, prominent, lives at the left of the status row */
+        .oplevel-pill {
+            display: inline-flex; align-items: center; gap: 0.5rem;
+            padding: 0.35rem 0.85rem; border-radius: 4px;
+            background: var(--bg-elev-hi); border: 1px solid var(--border);
+            font-size: 0.85rem; font-weight: 600;
+            margin-right: 0.5rem;
+        }
+        .oplevel-pill .num {
+            font-family: Consolas, monospace;
+            font-size: 1.1rem; line-height: 1;
+            background: rgba(255,255,255,0.08);
+            padding: 0.15rem 0.4rem; border-radius: 3px;
+        }
+        .oplevel-pill .lvl {
+            font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em;
+            color: var(--text-dim);
+        }
+        .oplevel-pill .label { font-size: 0.85rem; }
+        .oplevel-pill.level-1 { border-color: var(--ok-dim);    background: rgba(74,222,128,0.08);  color: var(--ok); }
+        .oplevel-pill.level-2 { border-color: var(--warn-dim);  background: rgba(250,204,21,0.1);   color: var(--warn); }
+        .oplevel-pill.level-3 { border-color: #d97706;          background: rgba(251,146,60,0.12);  color: #fb923c; }
+        .oplevel-pill.level-4 { border-color: var(--alert-dim); background: rgba(248,113,113,0.12); color: var(--alert); }
         .pill .label { color: var(--text-dim); }
         .pill .value { color: inherit; font-weight: 600; }
         .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
@@ -238,6 +262,11 @@
     <h1>atfm-tools <span class="version" id="version">v0.3</span></h1>
     <div class="clock" id="clock">––:––:––Z</div>
     <div class="status-pills">
+        <span class="oplevel-pill level-1" id="pill-oplevel" title="PERTI TMU Operations Level — system-wide flow management intensity">
+            <span class="lvl">OpLevel</span>
+            <span class="num" id="oplevel-num">1</span>
+            <span class="label" id="oplevel-label">Steady State</span>
+        </span>
         <span class="pill" id="pill-ingest"><span class="dot"></span><span class="label">ingest</span> <span class="value" id="ingest-age">—</span></span>
         <span class="pill" id="pill-alloc"><span class="dot"></span><span class="label">alloc</span> <span class="value" id="alloc-age">—</span></span>
         <span class="pill"><span class="label">flights</span> <span class="value mono" id="flight-count">—</span></span>
@@ -328,6 +357,7 @@
                             <th>Airport</th>
                             <th>Cap</th>
                             <th>Reason</th>
+                            <th>OpLvl</th>
                             <th>Type</th>
                             <th>Window</th>
                             <th>Tier</th>
@@ -336,7 +366,7 @@
                         </tr>
                     </thead>
                     <tbody id="restrictions-tbody">
-                        <tr><td colspan="9" class="empty-row">None active.</td></tr>
+                        <tr><td colspan="10" class="empty-row">None active.</td></tr>
                     </tbody>
                 </table>
             </div>
@@ -489,6 +519,10 @@ function renderStatus(s) {
     $('pill-ctots').className = (s.active_ctot_count > 0) ? 'pill warn' : 'pill';
     $('restriction-count').textContent = s.active_restrictions ?? 0;
     $('pill-restrictions').className = (s.active_restrictions > 0) ? 'pill alert' : 'pill';
+    const lvl = s.op_level ?? 1;
+    $('oplevel-num').textContent = lvl;
+    $('oplevel-label').textContent = s.op_level_label || 'Steady State';
+    $('pill-oplevel').className = 'oplevel-pill level-' + lvl;
     $('version').textContent = 'v' + (s.version || '0.3');
 }
 
@@ -558,7 +592,7 @@ function renderRestrictions(rows) {
     tbody.innerHTML = '';
     $('restrictions-inline-count').textContent = rows.length;
     if (rows.length === 0) {
-        tbody.appendChild(el('tr', {}, el('td', { colspan: '9', class: 'empty-row' }, 'None active.')));
+        tbody.appendChild(el('tr', {}, el('td', { colspan: '10', class: 'empty-row' }, 'None active.')));
         return;
     }
     for (const r of rows) {
@@ -567,6 +601,7 @@ function renderRestrictions(rows) {
             el('td', { class: 'mono' }, r.airport_icao),
             el('td', { class: 'mono' }, `${r.capacity}/hr`),
             el('td', {}, r.reason),
+            el('td', { class: 'mono' }, `L${r.op_level || 2}`),
             el('td', {}, r.type),
             el('td', { class: 'mono' }, `${r.start_utc}–${r.end_utc}`),
             el('td', { class: 'mono' }, r.tier_minutes + 'm'),
@@ -641,6 +676,7 @@ $('restriction-form').addEventListener('submit', async (e) => {
     delete body.icao;
     body.capacity     = Number(body.capacity);
     body.tier_minutes = Number(body.tier_minutes);
+    body.op_level     = Number(body.op_level);
     try {
         await fetchJson(`/api/v1/airports/${icao}/restrictions`, {
             method: 'POST',

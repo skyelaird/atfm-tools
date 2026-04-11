@@ -60,6 +60,13 @@ final class Kernel
 
     private static function registerHealth(App $app): void
     {
+        // Root → bounce to the dashboard so the naked domain is useful.
+        $app->get('/', function ($req, $res) {
+            return $res
+                ->withHeader('Location', '/dashboard.html')
+                ->withStatus(302);
+        });
+
         $app->get('/api/health', function ($req, $res) {
             return self::json($res, [
                 'status'  => 'ok',
@@ -249,12 +256,31 @@ final class Kernel
                 ->get()
                 ->filter(fn (AirportRestriction $r) => $r->isActiveAt($now));
 
+            // Derive system OpLevel per PERTI TMU taxonomy.
+            //   Level 1 Steady State     — 0 active restrictions
+            //   Level 2 Localized Impact — 1-2 airports affected
+            //   Level 3 Regional Impact  — 3-4 airports affected
+            //   Level 4 NAS-Wide Impact  — 5+ airports affected
+            // Max of (derived system level, highest per-restriction op_level) wins.
+            $affectedAirports = $restrictionRows->pluck('airport_id')->unique()->count();
+            $derived = match (true) {
+                $affectedAirports === 0 => 1,
+                $affectedAirports <= 2  => 2,
+                $affectedAirports <= 4  => 3,
+                default                 => 4,
+            };
+            $maxTagged = (int) $restrictionRows->max(fn ($r) => (int) ($r->op_level ?? 2));
+            $systemOpLevel = max($derived, $maxTagged ?: 1);
+
             return self::json($res, [
                 'time_utc'             => $now->format('c'),
                 'airport_count'        => $airportCount,
                 'active_flight_count'  => $activeFlights,
                 'active_ctot_count'    => $activeCtots,
                 'active_restrictions'  => $restrictionRows->count(),
+                'affected_airports'    => $affectedAirports,
+                'op_level'             => $systemOpLevel,
+                'op_level_label'       => AirportRestriction::OP_LEVEL_LABELS[$systemOpLevel] ?? '',
                 'last_ingest_at'       => $lastFlightUpdate,
                 'last_allocation_at'   => $lastRun?->started_at?->format('c'),
                 'last_allocation_stats' => $lastRun ? [
@@ -290,6 +316,8 @@ final class Kernel
                     'airport_name'                => $r->airport?->name,
                     'capacity'                    => (int) $r->capacity,
                     'reason'                      => $r->reason,
+                    'op_level'                    => (int) ($r->op_level ?? 2),
+                    'op_level_label'              => AirportRestriction::OP_LEVEL_LABELS[(int) ($r->op_level ?? 2)] ?? '',
                     'type'                        => $r->type,
                     'runway'                      => $r->runway,
                     'tier_minutes'                => (int) $r->tier_minutes,
@@ -361,6 +389,7 @@ final class Kernel
             $r->airport_id     = $airport->id;
             $r->capacity       = (int) ($body['capacity'] ?? $airport->base_arrival_rate);
             $r->reason         = (string) ($body['reason'] ?? 'ATC_CAPACITY');
+            $r->op_level       = max(1, min(4, (int) ($body['op_level'] ?? 2)));
             $r->type           = (string) ($body['type']   ?? 'ARR');
             $r->runway         = $body['runway'] ?? null;
             $r->runway_config  = $body['runway_config'] ?? null;

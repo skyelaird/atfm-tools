@@ -21,12 +21,26 @@ final class AirportRestriction extends Model
 
     protected $table = 'airport_restrictions';
 
+    // PERTI TMU OpLevel taxonomy (docs/GLOSSARY.md)
+    public const OP_LEVEL_STEADY_STATE = 1;
+    public const OP_LEVEL_LOCALIZED    = 2;
+    public const OP_LEVEL_REGIONAL     = 3;
+    public const OP_LEVEL_NAS_WIDE     = 4;
+
+    public const OP_LEVEL_LABELS = [
+        1 => 'Steady State',
+        2 => 'Localized Impact',
+        3 => 'Regional Impact',
+        4 => 'NAS-Wide Impact',
+    ];
+
     protected $fillable = [
         'restriction_id',
         'airport_id',
         'runway_config',
         'capacity',
         'reason',
+        'op_level',
         'type',
         'runway',
         'tier_minutes',
@@ -40,6 +54,7 @@ final class AirportRestriction extends Model
 
     protected $casts = [
         'capacity'                    => 'int',
+        'op_level'                    => 'int',
         'tier_minutes'                => 'int',
         'compliance_window_early_min' => 'int',
         'compliance_window_late_min'  => 'int',
