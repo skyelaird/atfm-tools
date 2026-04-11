@@ -161,12 +161,20 @@ final class VatsimIngestor
 
         $phase = Phase::compute($lat, $lon, $altitude, $gs, $adepAirport, $adesAirport);
 
-        // Parse EOBT (HHMM) into today-UTC datetime.
+        // Parse EOBT (HHMM) into a datetime. VATSIM's flight_plan.deptime is
+        // HHMM with no date, so we have to guess the date. Heuristic:
+        //   - default to today at HHMM
+        //   - if that's more than 30 min in the past, roll it forward 24 h
+        //     (pilot is filing for the upcoming day, not the current one)
         $eobt = null;
         if (! empty($fp['deptime'])) {
             $dep = str_pad((string) $fp['deptime'], 4, '0', STR_PAD_LEFT);
             if (preg_match('/^(\d{2})(\d{2})$/', $dep, $m)) {
-                $eobt = $now->setTime((int) $m[1], (int) $m[2], 0)->format('Y-m-d H:i:s');
+                $candidate = $now->setTime((int) $m[1], (int) $m[2], 0);
+                if ($candidate->getTimestamp() < $now->getTimestamp() - 1800) {
+                    $candidate = $candidate->modify('+1 day');
+                }
+                $eobt = $candidate->format('Y-m-d H:i:s');
             }
         }
 
