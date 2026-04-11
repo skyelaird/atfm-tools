@@ -360,6 +360,193 @@ final class Kernel
                 : self::json($res->withStatus(404), ['error' => 'not found']);
         });
 
+        // Composite detail view for the dashboard airport-card click.
+        // Returns airport meta, active restrictions, current inbound + outbound
+        // flights, recent arrivals, runway thresholds, and rolling movement
+        // stats in a single call.
+        $app->get('/api/v1/airports/{icao}/detail', function ($req, $res, array $args) {
+            $icao = strtoupper($args['icao']);
+            $airport = Airport::with(['thresholds', 'restrictions' => function ($q) {
+                $q->whereNull('deleted_at');
+            }])->where('icao', $icao)->first();
+
+            if (! $airport) {
+                return self::json($res->withStatus(404), ['error' => 'not found']);
+            }
+
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+
+            // Current inbound (not yet terminal)
+            $inbound = Flight::where('ades', $icao)
+                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                ->orderByRaw('COALESCE(ctot, eldt, eobt) ASC')
+                ->limit(100)
+                ->get()
+                ->map(fn (Flight $f) => [
+                    'callsign'        => $f->callsign,
+                    'cid'             => (int) $f->cid,
+                    'aircraft_type'   => $f->aircraft_type,
+                    'adep'            => $f->adep,
+                    'phase'           => $f->phase,
+                    'eobt'            => $f->eobt?->format('c'),
+                    'ttot'            => $f->ttot?->format('c'),
+                    'eldt'            => $f->eldt?->format('c'),
+                    'ctot'            => $f->ctot?->format('c'),
+                    'cta'             => $f->cta?->format('c'),
+                    'delay_minutes'   => $f->delay_minutes,
+                    'delay_status'    => $f->delay_status,
+                    'last_gs'         => $f->last_groundspeed_kts,
+                    'last_alt'        => $f->last_altitude_ft,
+                ])->values()->all();
+
+            // Current outbound (not yet terminal)
+            $outbound = Flight::where('adep', $icao)
+                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                ->orderBy('eobt')
+                ->limit(100)
+                ->get()
+                ->map(fn (Flight $f) => [
+                    'callsign'      => $f->callsign,
+                    'cid'           => (int) $f->cid,
+                    'aircraft_type' => $f->aircraft_type,
+                    'ades'          => $f->ades,
+                    'phase'         => $f->phase,
+                    'eobt'          => $f->eobt?->format('c'),
+                    'tobt'          => $f->tobt?->format('c'),
+                    'tsat'          => $f->tsat?->format('c'),
+                    'ttot'          => $f->ttot?->format('c'),
+                    'ctot'          => $f->ctot?->format('c'),
+                    'atot'          => $f->atot?->format('c'),
+                    'delay_minutes' => $f->delay_minutes,
+                ])->values()->all();
+
+            // Recent arrivals (last 6h, terminal)
+            $since = $now->modify('-6 hours');
+            $recentArrivals = Flight::where('ades', $icao)
+                ->where('phase', Flight::PHASE_ARRIVED)
+                ->where('aldt', '>=', $since->format('Y-m-d H:i:s'))
+                ->orderBy('aldt', 'desc')
+                ->limit(50)
+                ->get()
+                ->map(fn (Flight $f) => [
+                    'callsign'        => $f->callsign,
+                    'aircraft_type'   => $f->aircraft_type,
+                    'adep'            => $f->adep,
+                    'aldt'            => $f->aldt?->format('c'),
+                    'aibt'            => $f->aibt?->format('c'),
+                    'actual_exit_min' => $f->actual_exit_min,
+                ])->values()->all();
+
+            // Recent departures (last 6h)
+            $recentDepartures = Flight::where('adep', $icao)
+                ->whereNotNull('atot')
+                ->where('atot', '>=', $since->format('Y-m-d H:i:s'))
+                ->orderBy('atot', 'desc')
+                ->limit(50)
+                ->get()
+                ->map(fn (Flight $f) => [
+                    'callsign'        => $f->callsign,
+                    'aircraft_type'   => $f->aircraft_type,
+                    'ades'            => $f->ades,
+                    'eobt'            => $f->eobt?->format('c'),
+                    'asat'            => $f->asat?->format('c'),
+                    'atot'            => $f->atot?->format('c'),
+                    'actual_exot_min' => $f->actual_exot_min,
+                    'delay_minutes'   => $f->delay_minutes,
+                ])->values()->all();
+
+            // Hourly-bucketed movement counts for the last 24 hours
+            $hourly = [];
+            for ($i = 23; $i >= 0; $i--) {
+                $bucketStart = $now->modify("-{$i} hours")->setTime((int) $now->modify("-{$i} hours")->format('H'), 0, 0);
+                $bucketEnd   = $bucketStart->modify('+1 hour');
+                $arr = Flight::where('ades', $icao)
+                    ->whereBetween('aldt', [$bucketStart->format('Y-m-d H:i:s'), $bucketEnd->format('Y-m-d H:i:s')])
+                    ->count();
+                $dep = Flight::where('adep', $icao)
+                    ->whereBetween('atot', [$bucketStart->format('Y-m-d H:i:s'), $bucketEnd->format('Y-m-d H:i:s')])
+                    ->count();
+                $hourly[] = [
+                    'hour'       => $bucketStart->format('Hi') . 'Z',
+                    'arrivals'   => $arr,
+                    'departures' => $dep,
+                ];
+            }
+
+            // Rolling stats
+            $lastHour = $now->modify('-1 hour');
+            $arrivalsLastHour = Flight::where('ades', $icao)
+                ->where('aldt', '>=', $lastHour->format('Y-m-d H:i:s'))
+                ->count();
+            $departuresLastHour = Flight::where('adep', $icao)
+                ->whereNotNull('atot')
+                ->where('atot', '>=', $lastHour->format('Y-m-d H:i:s'))
+                ->count();
+            $avgExotLastDay = Flight::where('adep', $icao)
+                ->where('atot', '>=', $now->modify('-24 hours')->format('Y-m-d H:i:s'))
+                ->whereNotNull('actual_exot_min')
+                ->avg('actual_exot_min');
+            $avgExitLastDay = Flight::where('ades', $icao)
+                ->where('aibt', '>=', $now->modify('-24 hours')->format('Y-m-d H:i:s'))
+                ->whereNotNull('actual_exit_min')
+                ->avg('actual_exit_min');
+
+            return self::json($res, [
+                'airport'           => [
+                    'icao'                  => $airport->icao,
+                    'name'                  => $airport->name,
+                    'latitude'              => (float) $airport->latitude,
+                    'longitude'             => (float) $airport->longitude,
+                    'elevation_ft'          => (int) $airport->elevation_ft,
+                    'base_arrival_rate'     => (int) $airport->base_arrival_rate,
+                    'observed_arrival_rate' => $airport->observed_arrival_rate,
+                    'observed_rate_sample_n'=> (int) $airport->observed_rate_sample_n,
+                    'base_departure_rate'   => (int) $airport->base_departure_rate,
+                    'default_exot_min'      => (int) $airport->default_exot_min,
+                    'default_exit_min'      => (int) $airport->default_exit_min,
+                    'is_cdm_airport'        => (bool) $airport->is_cdm_airport,
+                    'arrived_geofence_nm'   => (int) $airport->arrived_geofence_nm,
+                    'final_threshold_nm'    => (int) $airport->final_threshold_nm,
+                ],
+                'restrictions'      => $airport->restrictions->map(fn (AirportRestriction $r) => [
+                    'restriction_id'              => $r->restriction_id,
+                    'capacity'                    => (int) $r->capacity,
+                    'reason'                      => $r->reason,
+                    'op_level'                    => (int) ($r->op_level ?? 2),
+                    'op_level_label'              => AirportRestriction::OP_LEVEL_LABELS[(int) ($r->op_level ?? 2)] ?? '',
+                    'type'                        => $r->type,
+                    'runway'                      => $r->runway,
+                    'tier_minutes'                => (int) $r->tier_minutes,
+                    'compliance_window_early_min' => (int) $r->compliance_window_early_min,
+                    'compliance_window_late_min'  => (int) $r->compliance_window_late_min,
+                    'start_utc'                   => $r->start_utc,
+                    'end_utc'                     => $r->end_utc,
+                    'active_from'                 => $r->active_from?->format('c'),
+                    'expires_at'                  => $r->expires_at?->format('c'),
+                ])->values(),
+                'runways'           => $airport->thresholds->map(fn (RunwayThreshold $t) => [
+                    'runway_ident'           => $t->runway_ident,
+                    'heading_deg'            => (int) $t->heading_deg,
+                    'threshold_lat'          => (float) $t->threshold_lat,
+                    'threshold_lon'          => (float) $t->threshold_lon,
+                    'opposite_threshold_lat' => (float) $t->opposite_threshold_lat,
+                    'opposite_threshold_lon' => (float) $t->opposite_threshold_lon,
+                    'width_ft'               => (int) $t->width_ft,
+                ])->values(),
+                'inbound'           => $inbound,
+                'outbound'          => $outbound,
+                'recent_arrivals'   => $recentArrivals,
+                'recent_departures' => $recentDepartures,
+                'hourly_movements'  => $hourly,
+                'stats'             => [
+                    'arrivals_last_hour'   => $arrivalsLastHour,
+                    'departures_last_hour' => $departuresLastHour,
+                    'avg_actual_exot_min'  => $avgExotLastDay !== null ? round((float) $avgExotLastDay, 1) : null,
+                    'avg_actual_exit_min'  => $avgExitLastDay !== null ? round((float) $avgExitLastDay, 1) : null,
+                ],
+            ]);
+        });
+
         $app->post('/api/v1/airports', function ($req, $res) {
             $body = (array) $req->getParsedBody();
             $airport = Airport::updateOrCreate(

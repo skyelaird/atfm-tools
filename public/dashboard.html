@@ -254,6 +254,81 @@
             border-top: 1px solid var(--border);
         }
         footer a.badge img { vertical-align: middle; }
+
+        /* ---------- Modal (airport detail) ---------- */
+        .modal-backdrop {
+            position: fixed; inset: 0; z-index: 200;
+            background: rgba(0,0,0,0.7);
+            display: none; align-items: flex-start; justify-content: center;
+            padding: 2rem 1rem; overflow-y: auto;
+        }
+        .modal-backdrop.open { display: flex; }
+        .modal {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            max-width: 1280px; width: 100%;
+            max-height: calc(100vh - 4rem);
+            display: flex; flex-direction: column;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+        }
+        .modal-header {
+            padding: 1rem 1.25rem;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 1rem;
+            position: sticky; top: 0; background: var(--bg-elev); z-index: 1;
+        }
+        .modal-header h2 {
+            margin: 0; font-size: 1.3rem; color: var(--text-bright);
+            font-family: Consolas, monospace; text-transform: none; letter-spacing: 0;
+        }
+        .modal-header .sub {
+            font-size: 0.85rem; color: var(--text-dim); font-weight: 400;
+            font-family: inherit;
+        }
+        .modal-close {
+            margin-left: auto;
+            background: transparent; color: var(--text-dim);
+            border: 1px solid var(--border); border-radius: 3px;
+            padding: 0.3rem 0.7rem; font-size: 0.9rem; cursor: pointer;
+        }
+        .modal-close:hover { color: var(--alert); border-color: var(--alert); }
+        .modal-body {
+            padding: 1rem 1.25rem;
+            overflow-y: auto; flex: 1;
+        }
+        .modal-body section { margin-bottom: 1.25rem; }
+        .modal-body section h3 {
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
+            color: var(--text-dim); font-weight: 600; margin: 0 0 0.5rem 0;
+        }
+        .stats-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 0.75rem; margin-bottom: 1rem;
+        }
+        .stat-card {
+            background: var(--bg); border: 1px solid var(--border);
+            border-radius: 4px; padding: 0.6rem 0.8rem;
+        }
+        .stat-card .lbl { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+        .stat-card .val { font-size: 1.2rem; font-weight: 700; color: var(--text-bright); font-family: Consolas, monospace; margin-top: 0.15rem; }
+        .stat-card .val .unit { font-size: 0.75rem; color: var(--text-dim); font-weight: 400; margin-left: 0.25rem; }
+        .hourly-bar {
+            display: flex; gap: 2px; align-items: flex-end;
+            height: 60px; padding: 0.5rem 0; border-top: 1px dashed var(--border);
+        }
+        .hourly-bar .bucket {
+            flex: 1; display: flex; flex-direction: column-reverse;
+            min-width: 0;
+        }
+        .hourly-bar .bucket .arr { background: var(--accent); min-height: 1px; }
+        .hourly-bar .bucket .dep { background: var(--info); min-height: 1px; }
+        .hourly-bar .bucket .lbl {
+            font-size: 0.55rem; text-align: center; color: var(--text-dim);
+            margin-top: 0.15rem;
+        }
+        .modal-body .table-wrap { background: var(--bg); }
+        .modal-body table { font-size: 0.78rem; }
     </style>
 </head>
 <body>
@@ -445,6 +520,18 @@
 
 </main>
 
+<!-- Airport detail modal -->
+<div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal" id="modal">
+        <div class="modal-header">
+            <h2 id="modal-icao">—</h2>
+            <span class="sub" id="modal-name">—</span>
+            <button class="modal-close" id="modal-close">Close ✕</button>
+        </div>
+        <div class="modal-body" id="modal-body">Loading…</div>
+    </div>
+</div>
+
 <footer>
     <div>
         <a class="badge" href="https://whc.ca/hosted-in-canada/?aff=3153&gbid=6en"
@@ -543,7 +630,10 @@ function renderAirports(airports) {
     for (const a of airports) {
         const activeRestrictions = (a.restrictions || []).filter(r => !r.deleted_at);
         const hasRestriction = activeRestrictions.length > 0;
-        const card = el('div', { class: 'airport-card' + (hasRestriction ? ' active-restriction' : '') },
+        const card = el('div', {
+                class: 'airport-card' + (hasRestriction ? ' active-restriction' : ''),
+                onclick: () => openAirportDetail(a.icao),
+            },
             el('div', { class: 'icao' }, a.icao),
             el('div', { class: 'name' }, a.name),
             el('div', { class: 'metrics' },
@@ -566,6 +656,227 @@ function renderAirports(airports) {
         grid.appendChild(card);
         select.appendChild(el('option', { value: a.icao }, a.icao));
     }
+}
+
+// ---------- Airport detail modal ----------
+async function openAirportDetail(icao) {
+    $('modal-icao').textContent = icao;
+    $('modal-name').textContent = '';
+    $('modal-body').textContent = 'Loading…';
+    $('modal-backdrop').classList.add('open');
+    try {
+        const d = await fetchJson(`/api/v1/airports/${icao}/detail`);
+        renderAirportDetail(d);
+    } catch (err) {
+        $('modal-body').textContent = 'Failed to load: ' + err.message;
+    }
+}
+
+function closeModal() {
+    $('modal-backdrop').classList.remove('open');
+}
+$('modal-close').addEventListener('click', closeModal);
+$('modal-backdrop').addEventListener('click', (e) => {
+    if (e.target === $('modal-backdrop')) closeModal();
+});
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('modal-backdrop').classList.contains('open')) closeModal();
+});
+
+function renderAirportDetail(d) {
+    const a = d.airport;
+    $('modal-name').textContent = a.name;
+    const body = $('modal-body');
+    body.innerHTML = '';
+
+    // Stats grid
+    const statsSection = el('section', {},
+        el('h3', {}, 'Stats'),
+        el('div', { class: 'stats-grid' },
+            statCard('base arr rate', a.base_arrival_rate, '/hr'),
+            statCard('observed', a.observed_arrival_rate || '—', a.observed_arrival_rate ? '/hr' : null),
+            statCard('arrivals last hr', d.stats.arrivals_last_hour, null),
+            statCard('departures last hr', d.stats.departures_last_hour, null),
+            statCard('avg actual exot', d.stats.avg_actual_exot_min ?? '—', d.stats.avg_actual_exot_min != null ? 'min' : null),
+            statCard('avg actual exit', d.stats.avg_actual_exit_min ?? '—', d.stats.avg_actual_exit_min != null ? 'min' : null),
+            statCard('default exot', a.default_exot_min, 'min'),
+            statCard('default exit', a.default_exit_min, 'min'),
+        )
+    );
+    body.appendChild(statsSection);
+
+    // Hourly movement histogram
+    const maxMovement = Math.max(1, ...d.hourly_movements.map(h => h.arrivals + h.departures));
+    const hourlyDiv = el('div', { class: 'hourly-bar' });
+    for (const h of d.hourly_movements) {
+        const arrH = (h.arrivals / maxMovement) * 40;
+        const depH = (h.departures / maxMovement) * 40;
+        hourlyDiv.appendChild(
+            el('div', { class: 'bucket', title: `${h.hour} arr=${h.arrivals} dep=${h.departures}` },
+                el('div', { class: 'lbl' }, h.hour.substring(0, 2)),
+                el('div', { class: 'dep', style: `height:${depH}px` }),
+                el('div', { class: 'arr', style: `height:${arrH}px` })
+            )
+        );
+    }
+    body.appendChild(el('section', {},
+        el('h3', {}, 'Last 24h movements — arrivals (teal) + departures (blue)'),
+        hourlyDiv
+    ));
+
+    // Active restrictions
+    if (d.restrictions.length > 0) {
+        const resSection = el('section', {}, el('h3', {}, `Active restrictions (${d.restrictions.length})`));
+        const wrap = el('div', { class: 'table-wrap' });
+        const table = el('table');
+        table.appendChild(el('thead', {}, el('tr', {},
+            ...['ID', 'Cap', 'Reason', 'OpLvl', 'Type', 'Window', 'Tier', 'Compliance'].map(h => el('th', {}, h))
+        )));
+        const tbody = el('tbody');
+        for (const r of d.restrictions) {
+            tbody.appendChild(el('tr', {},
+                el('td', { class: 'mono' }, r.restriction_id),
+                el('td', { class: 'mono' }, `${r.capacity}/hr`),
+                el('td', {}, r.reason),
+                el('td', { class: 'mono' }, `L${r.op_level}`),
+                el('td', {}, r.type),
+                el('td', { class: 'mono' }, `${r.start_utc}–${r.end_utc}`),
+                el('td', { class: 'mono' }, r.tier_minutes + 'm'),
+                el('td', { class: 'mono muted' }, `±${r.compliance_window_early_min}/${r.compliance_window_late_min}`)
+            ));
+        }
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        resSection.appendChild(wrap);
+        body.appendChild(resSection);
+    }
+
+    // Runways
+    if (d.runways.length > 0) {
+        const rwySection = el('section', {}, el('h3', {}, `Runways (${d.runways.length})`));
+        const wrap = el('div', { class: 'table-wrap' });
+        const table = el('table');
+        table.appendChild(el('thead', {}, el('tr', {},
+            ...['Ident', 'Heading', 'Threshold', 'Opposite end', 'Width'].map(h => el('th', {}, h))
+        )));
+        const tbody = el('tbody');
+        for (const r of d.runways) {
+            tbody.appendChild(el('tr', {},
+                el('td', { class: 'mono' }, r.runway_ident),
+                el('td', { class: 'mono' }, String(r.heading_deg).padStart(3, '0') + '°'),
+                el('td', { class: 'mono muted' }, `${r.threshold_lat.toFixed(5)}, ${r.threshold_lon.toFixed(5)}`),
+                el('td', { class: 'mono muted' }, `${r.opposite_threshold_lat.toFixed(5)}, ${r.opposite_threshold_lon.toFixed(5)}`),
+                el('td', { class: 'mono' }, r.width_ft + ' ft')
+            ));
+        }
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        rwySection.appendChild(wrap);
+        body.appendChild(rwySection);
+    }
+
+    // Inbound flights
+    body.appendChild(flightTable(
+        `Inbound (${d.inbound.length})`,
+        ['Callsign', 'Type', 'From', 'Phase', 'EOBT', 'ELDT', 'CTOT', 'Δ'],
+        d.inbound.map(f => [
+            { cls: 'mono', text: f.callsign },
+            { cls: 'mono muted', text: f.aircraft_type || '—' },
+            { cls: 'mono', text: f.adep || '—' },
+            { html: phaseChip(f.phase) },
+            { cls: 'mono muted', text: hhmmz(f.eobt) },
+            { cls: 'mono muted', text: hhmmz(f.eldt) },
+            { cls: 'mono', text: hhmmz(f.ctot) },
+            { cls: 'mono', text: f.delay_minutes ? '+' + f.delay_minutes : '—' },
+        ])
+    ));
+
+    // Outbound flights
+    body.appendChild(flightTable(
+        `Outbound (${d.outbound.length})`,
+        ['Callsign', 'Type', 'To', 'Phase', 'EOBT', 'TTOT', 'CTOT', 'ATOT'],
+        d.outbound.map(f => [
+            { cls: 'mono', text: f.callsign },
+            { cls: 'mono muted', text: f.aircraft_type || '—' },
+            { cls: 'mono', text: f.ades || '—' },
+            { html: phaseChip(f.phase) },
+            { cls: 'mono muted', text: hhmmz(f.eobt) },
+            { cls: 'mono muted', text: hhmmz(f.ttot) },
+            { cls: 'mono', text: hhmmz(f.ctot) },
+            { cls: 'mono muted', text: hhmmz(f.atot) },
+        ])
+    ));
+
+    // Recent arrivals (last 6h)
+    body.appendChild(flightTable(
+        `Recent arrivals (${d.recent_arrivals.length})`,
+        ['Callsign', 'Type', 'From', 'ALDT', 'AIBT', 'Actual EXIT'],
+        d.recent_arrivals.map(f => [
+            { cls: 'mono', text: f.callsign },
+            { cls: 'mono muted', text: f.aircraft_type || '—' },
+            { cls: 'mono', text: f.adep || '—' },
+            { cls: 'mono', text: hhmmz(f.aldt) },
+            { cls: 'mono muted', text: hhmmz(f.aibt) },
+            { cls: 'mono', text: f.actual_exit_min ? f.actual_exit_min + 'm' : '—' },
+        ])
+    ));
+
+    // Recent departures (last 6h)
+    body.appendChild(flightTable(
+        `Recent departures (${d.recent_departures.length})`,
+        ['Callsign', 'Type', 'To', 'ASAT', 'ATOT', 'Actual EXOT', 'Delay'],
+        d.recent_departures.map(f => [
+            { cls: 'mono', text: f.callsign },
+            { cls: 'mono muted', text: f.aircraft_type || '—' },
+            { cls: 'mono', text: f.ades || '—' },
+            { cls: 'mono muted', text: hhmmz(f.asat) },
+            { cls: 'mono', text: hhmmz(f.atot) },
+            { cls: 'mono', text: f.actual_exot_min ? f.actual_exot_min + 'm' : '—' },
+            { cls: 'mono muted', text: f.delay_minutes ? '+' + f.delay_minutes : '—' },
+        ])
+    ));
+}
+
+function statCard(label, value, unit) {
+    return el('div', { class: 'stat-card' },
+        el('div', { class: 'lbl' }, label),
+        el('div', { class: 'val mono' },
+            String(value),
+            unit ? el('span', { class: 'unit' }, ' ' + unit) : null
+        )
+    );
+}
+function phaseChip(phase) {
+    const span = document.createElement('span');
+    span.className = 'phase ' + (phase || '');
+    span.textContent = phase || '—';
+    return span;
+}
+function flightTable(title, headers, rows) {
+    const section = el('section', {}, el('h3', {}, title));
+    if (rows.length === 0) {
+        section.appendChild(el('div', { class: 'muted', style: 'padding: 0.5rem 0;' }, 'None.'));
+        return section;
+    }
+    const wrap = el('div', { class: 'table-wrap' });
+    const table = el('table');
+    const thead = el('thead', {}, el('tr', {}, ...headers.map(h => el('th', {}, h))));
+    table.appendChild(thead);
+    const tbody = el('tbody');
+    for (const row of rows) {
+        const tr = el('tr');
+        for (const cell of row) {
+            const td = el('td', cell.cls ? { class: cell.cls } : {});
+            if (cell.html) td.appendChild(cell.html);
+            else td.textContent = cell.text ?? '';
+            tr.appendChild(td);
+        }
+        tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    section.appendChild(wrap);
+    return section;
 }
 
 function renderCtots(flights) {
