@@ -155,7 +155,16 @@
             background: var(--bg-elev); color: var(--text-dim);
             font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
             border-bottom: 1px solid var(--border);
+            white-space: nowrap;
         }
+        thead th.sortable {
+            cursor: pointer; user-select: none;
+            position: relative;
+        }
+        thead th.sortable:hover { color: var(--text-bright); background: var(--bg-elev-hi); }
+        thead th.sortable::after { content: '↕'; opacity: 0.25; margin-left: 0.3rem; font-size: 0.75rem; }
+        thead th.sortable.sort-asc::after  { content: '↑'; opacity: 1; color: var(--accent); }
+        thead th.sortable.sort-desc::after { content: '↓'; opacity: 1; color: var(--accent); }
         tbody td {
             padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--border);
         }
@@ -376,18 +385,18 @@
     <section>
         <h2>Active CTOTs <span class="count" id="ctots-count">0</span></h2>
         <div class="table-wrap">
-            <table>
+            <table id="ctots-table">
                 <thead>
                     <tr>
-                        <th>Callsign</th>
-                        <th>Type</th>
-                        <th>Route</th>
-                        <th>Phase</th>
-                        <th>EOBT</th>
-                        <th>TTOT</th>
-                        <th>CTOT</th>
-                        <th>Δ</th>
-                        <th>Reason</th>
+                        <th data-sort="callsign">Callsign</th>
+                        <th data-sort="aircraft_type">Type</th>
+                        <th data-sort="route">Route</th>
+                        <th data-sort="phase">Phase</th>
+                        <th data-sort="eobt">EOBT</th>
+                        <th data-sort="ttot">TTOT</th>
+                        <th data-sort="ctot">CTOT</th>
+                        <th data-sort="delay_minutes">Δ</th>
+                        <th data-sort="ctl_element">Reason</th>
                     </tr>
                 </thead>
                 <tbody id="ctots-tbody">
@@ -448,17 +457,17 @@
                 </form>
             </div>
             <div class="table-wrap" style="margin-top: 0.5rem;">
-                <table>
+                <table id="restrictions-table">
                     <thead>
                         <tr>
-                            <th>ID</th>
-                            <th>Airport</th>
-                            <th>Cap</th>
-                            <th>Reason</th>
-                            <th>OpLvl</th>
-                            <th>Type</th>
-                            <th>Window</th>
-                            <th>Tier</th>
+                            <th data-sort="restriction_id">ID</th>
+                            <th data-sort="airport_icao">Airport</th>
+                            <th data-sort="capacity">Cap</th>
+                            <th data-sort="reason">Reason</th>
+                            <th data-sort="op_level">OpLvl</th>
+                            <th data-sort="type">Type</th>
+                            <th data-sort="start_utc">Window</th>
+                            <th data-sort="tier_minutes">Tier</th>
                             <th>Compliance</th>
                             <th></th>
                         </tr>
@@ -565,6 +574,63 @@
 <script>
 // ---------- Helpers ----------
 const $  = (id) => document.getElementById(id);
+
+// ---------- Table sorting ----------
+const sortStates = {
+    ctots:        { key: 'ctot', dir: 'asc' },
+    restrictions: { key: 'airport_icao', dir: 'asc' },
+};
+function wireSortableTable(tableId) {
+    const table = $(tableId);
+    if (!table || table.dataset.sortableWired) return;
+    table.dataset.sortableWired = '1';
+    const headers = table.querySelectorAll('thead th');
+    const stateKey = tableId.replace(/-table$/, '');
+    headers.forEach(th => {
+        const key = th.dataset.sort;
+        if (!key) return;
+        th.classList.add('sortable');
+        th.addEventListener('click', () => {
+            const cur = sortStates[stateKey] || { key: null, dir: 'asc' };
+            if (cur.key === key) {
+                cur.dir = cur.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                cur.key = key; cur.dir = 'asc';
+            }
+            sortStates[stateKey] = cur;
+            refresh();
+        });
+    });
+}
+function updateSortIndicators(tableId) {
+    const table = $(tableId);
+    if (!table) return;
+    const stateKey = tableId.replace(/-table$/, '');
+    const state = sortStates[stateKey];
+    table.querySelectorAll('thead th').forEach(th => {
+        th.classList.remove('sort-asc', 'sort-desc');
+        if (state && state.key && th.dataset.sort === state.key) {
+            th.classList.add(state.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+        }
+    });
+}
+function sortRowsFor(tableId, rows, accessors) {
+    const stateKey = tableId.replace(/-table$/, '');
+    const state = sortStates[stateKey];
+    if (!state || !state.key || !accessors[state.key]) return rows;
+    const copy = rows.slice();
+    const acc = accessors[state.key];
+    copy.sort((a, b) => {
+        const av = acc(a); const bv = acc(b);
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        if (typeof av === 'number' && typeof bv === 'number') return av - bv;
+        return String(av).localeCompare(String(bv));
+    });
+    if (state.dir === 'desc') copy.reverse();
+    return copy;
+}
 const el = (tag, attrs = {}, ...children) => {
     const e = document.createElement(tag);
     for (const [k, v] of Object.entries(attrs)) {
@@ -880,14 +946,27 @@ function flightTable(title, headers, rows) {
 }
 
 function renderCtots(flights) {
+    wireSortableTable('ctots-table');
     const tbody = $('ctots-tbody');
     tbody.innerHTML = '';
     $('ctots-count').textContent = flights.length;
     if (flights.length === 0) {
         tbody.appendChild(el('tr', {}, el('td', { colspan: '9', class: 'empty-row' }, 'No active CTOTs.')));
+        updateSortIndicators('ctots-table');
         return;
     }
-    flights.sort((a, b) => (a.ctot || '').localeCompare(b.ctot || ''));
+    flights = sortRowsFor('ctots-table', flights, {
+        callsign:      f => f.callsign,
+        aircraft_type: f => f.aircraft_type,
+        route:         f => (f.adep || '') + '→' + (f.ades || ''),
+        phase:         f => f.phase,
+        eobt:          f => f.eobt,
+        ttot:          f => f.ttot,
+        ctot:          f => f.ctot,
+        delay_minutes: f => f.delay_minutes,
+        ctl_element:   f => f.ctl_element,
+    });
+    updateSortIndicators('ctots-table');
     for (const f of flights) {
         const delay = f.delay_minutes ?? 0;
         const delayClass = delay <= 0 ? 'on' : (delay <= 10 ? 'small' : 'big');
@@ -907,13 +986,26 @@ function renderCtots(flights) {
 }
 
 function renderRestrictions(rows) {
+    wireSortableTable('restrictions-table');
     const tbody = $('restrictions-tbody');
     tbody.innerHTML = '';
     $('restrictions-inline-count').textContent = rows.length;
     if (rows.length === 0) {
         tbody.appendChild(el('tr', {}, el('td', { colspan: '10', class: 'empty-row' }, 'None active.')));
+        updateSortIndicators('restrictions-table');
         return;
     }
+    rows = sortRowsFor('restrictions-table', rows, {
+        restriction_id: r => r.restriction_id,
+        airport_icao:   r => r.airport_icao,
+        capacity:       r => r.capacity,
+        reason:         r => r.reason,
+        op_level:       r => r.op_level,
+        type:           r => r.type,
+        start_utc:      r => r.start_utc,
+        tier_minutes:   r => r.tier_minutes,
+    });
+    updateSortIndicators('restrictions-table');
     for (const r of rows) {
         tbody.appendChild(el('tr', {},
             el('td', { class: 'mono' }, r.restriction_id),
