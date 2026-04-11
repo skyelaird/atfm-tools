@@ -18,6 +18,10 @@
         .fm-item { border-top: 1px solid #eee; padding: 0.35rem 0; }
         .fm-item:first-child { border-top: 0; }
         .fm-id { font-weight: 600; }
+        .badges { position: absolute; bottom: 10px; right: 10px; z-index: 1000;
+            background: rgba(255,255,255,0.9); padding: 6px 8px; border-radius: 4px;
+            box-shadow: 0 1px 4px rgba(0,0,0,0.15); }
+        .badges a { display: inline-block; }
     </style>
 </head>
 <body>
@@ -25,6 +29,13 @@
     <div class="info-panel">
         <h3>Active flow measures</h3>
         <div id="fm-list">Loading&hellip;</div>
+    </div>
+    <div class="badges">
+        <a href="https://whc.ca/hosted-in-canada/?aff=3153&amp;gbid=6en"
+           onclick="window.open(this.href, 'popupWindow', 'width=450, height=695, status=no, scrollbars=no, menubar=no'); return false;">
+            <img src="https://s.whc.ca/badges/hosted-in-canada-badge-2.svg"
+                 width="160" alt="Proudly Hosted in Canada" />
+        </a>
     </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
