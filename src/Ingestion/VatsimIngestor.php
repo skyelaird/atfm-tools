@@ -340,15 +340,30 @@ final class VatsimIngestor
                 $flight->eldt = $now->modify("+{$etaMin} minutes");
             }
         }
-        if ($phase === Flight::PHASE_ARRIVED) {
+
+        // ALDT ratchet: any phase that implies we've already landed backfills
+        // ALDT. Per ICAO 9971 A-CDM chronology: ON_RUNWAY → VACATED → TAXI_IN →
+        // ARRIVED all imply ALDT has happened.
+        if (in_array($phase, [
+            Flight::PHASE_ON_RUNWAY,
+            Flight::PHASE_VACATED,
+            Flight::PHASE_TAXI_IN,
+            Flight::PHASE_ARRIVED,
+        ], true)) {
             if ($flight->aldt === null) {
                 $flight->aldt = $now;
             }
+        }
+
+        // AIBT ratchet: only ARRIVED implies full in-block.
+        if ($phase === Flight::PHASE_ARRIVED) {
             if ($flight->aibt === null) {
                 $flight->aibt = $now;
-                if ($flight->aldt !== null) {
-                    $diffSeconds = $flight->aibt->getTimestamp() - $flight->aldt->getTimestamp();
-                    $flight->actual_exit_min = max(0, (int) round($diffSeconds / 60));
+                if ($flight->aldt !== null && $flight->aldt < $now) {
+                    $diffSeconds = $now->getTimestamp() - $flight->aldt->getTimestamp();
+                    if ($diffSeconds >= 60) {
+                        $flight->actual_exit_min = (int) round($diffSeconds / 60);
+                    }
                 }
             }
         }
