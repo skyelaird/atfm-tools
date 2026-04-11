@@ -1,0 +1,14 @@
+# Route everything that is not a real file or directory through index.php.
+# Works on Apache (Laragon, IONOS shared hosting).
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Handle the root URL explicitly
+    RewriteRule ^$ index.php [QSA,L]
+
+    # Send anything that isn't a real file/dir to index.php
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^ index.php [QSA,L]
+</IfModule>

@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>atfm-tools &mdash; FIR map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <style>
+        html, body { margin: 0; padding: 0; height: 100%; font-family: system-ui, sans-serif; }
+        #map { position: absolute; inset: 0; }
+        .info-panel {
+            position: absolute; top: 10px; right: 10px; z-index: 1000;
+            background: rgba(255,255,255,0.95); padding: 0.75rem 1rem;
+            border-radius: 4px; box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+            max-width: 280px; font-size: 13px;
+        }
+        .info-panel h3 { margin: 0 0 0.25rem 0; font-size: 14px; }
+        .fm-item { border-top: 1px solid #eee; padding: 0.35rem 0; }
+        .fm-item:first-child { border-top: 0; }
+        .fm-id { font-weight: 600; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="info-panel">
+        <h3>Active flow measures</h3>
+        <div id="fm-list">Loading&hellip;</div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+    (async function () {
+        const map = L.map('map').setView([45, 0], 3);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 10,
+            attribution: '&copy; OpenStreetMap contributors',
+        }).addTo(map);
+
+        // 1. Load global FIR polygons from the map_data fork (copied into /assets)
+        let firs;
+        try {
+            const res = await fetch('/assets/FIR_ECFMP.geojson');
+            firs = await res.json();
+        } catch (err) {
+            console.warn('FIR geojson not available:', err);
+            firs = { type: 'FeatureCollection', features: [] };
+        }
+
+        const firLayer = L.geoJSON(firs, {
+            style: { color: '#3388ff', weight: 1, fillOpacity: 0.02 },
+            onEachFeature: (feature, layer) => {
+                const p = feature.properties || {};
+                layer.bindTooltip(`${p.ICAOCODE || ''} &mdash; ${p.FIRname || ''}`);
+            },
+        }).addTo(map);
+
+        // 2. Load active flow measures from our API
+        const listEl = document.getElementById('fm-list');
+        try {
+            const res = await fetch('/api/v1/flow-measure?state=active');
+            const measures = await res.json();
+
+            if (!measures.length) {
+                listEl.textContent = 'None right now.';
+                return;
+            }
+
+            listEl.innerHTML = measures.map(m => `
+                <div class="fm-item">
+                    <div class="fm-id">${m.identifier}</div>
+                    <div>${(m.fir && m.fir.identifier) || '?'} &middot; ${m.type}</div>
+                    <div style="color:#666">${m.reason || ''}</div>
+                </div>
+            `).join('');
+
+            // Highlight the FIRs that have active measures
+            const activeFirs = new Set(measures.map(m => m.fir && m.fir.identifier).filter(Boolean));
+            firLayer.eachLayer(layer => {
+                const icao = layer.feature && layer.feature.properties && layer.feature.properties.ICAOCODE;
+                if (icao && activeFirs.has(icao)) {
+                    layer.setStyle({ color: '#ff6b00', weight: 2, fillOpacity: 0.15 });
+                }
+            });
+        } catch (err) {
+            listEl.textContent = 'API unreachable: ' + err.message;
+        }
+    })();
+    </script>
+</body>
+</html>
