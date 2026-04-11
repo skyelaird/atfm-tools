@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>atfm-tools — FMP Dashboard</title>
+    <style>
+        :root {
+            --bg: #0f1419;
+            --bg-elev: #1a2028;
+            --bg-elev-hi: #242c38;
+            --border: #2a3340;
+            --text: #d7dee8;
+            --text-dim: #8a94a3;
+            --text-bright: #f0f4fa;
+            --accent: #5eead4;
+            --accent-dim: #2a6b5f;
+            --warn: #facc15;
+            --warn-dim: #5e4a0f;
+            --alert: #f87171;
+            --alert-dim: #5e1f1f;
+            --ok: #4ade80;
+            --ok-dim: #1e4a2e;
+            --info: #60a5fa;
+            --info-dim: #1e3a5f;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0;
+            padding: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+            font-size: 14px;
+            line-height: 1.45;
+        }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .mono { font-family: "SF Mono", "Consolas", "Monaco", "Courier New", monospace; font-variant-numeric: tabular-nums; }
+
+        /* ---------- Top bar ---------- */
+        header {
+            position: sticky; top: 0; z-index: 100;
+            background: var(--bg-elev);
+            border-bottom: 1px solid var(--border);
+            padding: 0.65rem 1rem;
+            display: flex; align-items: center; gap: 1rem;
+            flex-wrap: wrap;
+        }
+        header h1 {
+            margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright);
+            letter-spacing: 0.02em;
+        }
+        header h1 .version { color: var(--text-dim); font-weight: 400; margin-left: 0.4rem; font-size: 0.85rem; }
+        .clock {
+            font-family: "SF Mono", Consolas, monospace;
+            font-size: 1.1rem; color: var(--accent);
+            font-variant-numeric: tabular-nums;
+            padding: 0 0.75rem;
+            border-left: 1px solid var(--border);
+        }
+        .status-pills { display: flex; gap: 0.5rem; margin-left: auto; align-items: center; flex-wrap: wrap; }
+        .pill {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.2rem 0.55rem; border-radius: 3px;
+            background: var(--bg-elev-hi); border: 1px solid var(--border);
+            font-size: 0.8rem; color: var(--text-dim);
+        }
+        .pill.ok    { border-color: var(--ok-dim);    background: rgba(74,222,128,0.08);  color: var(--ok); }
+        .pill.warn  { border-color: var(--warn-dim);  background: rgba(250,204,21,0.08);  color: var(--warn); }
+        .pill.alert { border-color: var(--alert-dim); background: rgba(248,113,113,0.08); color: var(--alert); }
+        .pill .label { color: var(--text-dim); }
+        .pill .value { color: inherit; font-weight: 600; }
+        .dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
+
+        /* ---------- Layout ---------- */
+        main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
+        section { margin-bottom: 1.5rem; }
+        section h2 {
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
+            color: var(--text-dim); font-weight: 600; margin: 0 0 0.6rem 0;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        section h2 .count {
+            color: var(--text-bright); background: var(--bg-elev-hi);
+            padding: 0.05rem 0.4rem; border-radius: 3px;
+            font-weight: 600; text-transform: none; letter-spacing: 0;
+        }
+
+        /* ---------- Airport cards ---------- */
+        .airports {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 0.65rem;
+        }
+        .airport-card {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: border-color 0.1s, background 0.1s;
+        }
+        .airport-card:hover { border-color: var(--accent-dim); background: var(--bg-elev-hi); }
+        .airport-card.active-restriction { border-color: var(--alert-dim); }
+        .airport-card .icao {
+            font-size: 1.2rem; font-weight: 700; color: var(--text-bright);
+            font-family: Consolas, monospace;
+        }
+        .airport-card .name {
+            font-size: 0.72rem; color: var(--text-dim);
+            margin: 0.15rem 0 0.55rem 0; line-height: 1.3;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .airport-card .metrics {
+            display: flex; gap: 0.75rem; font-size: 0.78rem;
+        }
+        .airport-card .metric .lbl { color: var(--text-dim); font-size: 0.7rem; }
+        .airport-card .metric .val { color: var(--text-bright); font-weight: 600; }
+        .airport-card .restriction-badge {
+            display: inline-block; margin-top: 0.5rem;
+            background: rgba(248,113,113,0.15); color: var(--alert);
+            border: 1px solid var(--alert-dim); padding: 0.1rem 0.35rem;
+            border-radius: 3px; font-size: 0.72rem; font-weight: 600;
+        }
+
+        /* ---------- Tables ---------- */
+        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        thead th {
+            text-align: left; padding: 0.4rem 0.5rem;
+            background: var(--bg-elev); color: var(--text-dim);
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+        }
+        tbody td {
+            padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--border);
+        }
+        tbody tr:hover { background: var(--bg-elev); }
+        .table-wrap {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .empty-row { text-align: center; color: var(--text-dim); padding: 1rem; }
+
+        /* ---------- Status coloring ---------- */
+        .phase      { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.72rem; font-weight: 600; }
+        .phase.FILED      { background: rgba(139,148,158,0.15); color: var(--text); }
+        .phase.TAXI_OUT   { background: rgba(250,204,21,0.15);  color: var(--warn); }
+        .phase.DEPARTED   { background: rgba(96,165,250,0.15);  color: var(--info); }
+        .phase.ENROUTE    { background: rgba(94,234,212,0.15);  color: var(--accent); }
+        .phase.ARRIVING   { background: rgba(94,234,212,0.2);   color: var(--accent); }
+        .phase.FINAL      { background: rgba(74,222,128,0.15);  color: var(--ok); }
+        .phase.ON_RUNWAY  { background: rgba(74,222,128,0.2);   color: var(--ok); }
+        .phase.TAXI_IN    { background: rgba(250,204,21,0.15);  color: var(--warn); }
+        .phase.ARRIVED    { background: rgba(139,148,158,0.12); color: var(--text-dim); }
+        .phase.DISCONNECTED { background: rgba(248,113,113,0.15); color: var(--alert); }
+        .phase.WITHDRAWN  { background: rgba(139,148,158,0.12); color: var(--text-dim); }
+
+        .delay { font-family: Consolas, monospace; text-align: right; font-weight: 600; }
+        .delay.on      { color: var(--text-dim); }
+        .delay.small   { color: var(--warn); }
+        .delay.big     { color: var(--alert); }
+
+        /* ---------- Forms ---------- */
+        .panel {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 0.85rem;
+        }
+        .panel + .panel { margin-top: 0.75rem; }
+        form.inline {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 0.5rem;
+            align-items: end;
+        }
+        form.inline label {
+            display: flex; flex-direction: column; gap: 0.2rem;
+            font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        form.inline input, form.inline select {
+            background: var(--bg); color: var(--text);
+            border: 1px solid var(--border); border-radius: 3px;
+            padding: 0.35rem 0.5rem; font-size: 0.85rem; font-family: inherit;
+        }
+        form.inline input:focus, form.inline select:focus { border-color: var(--accent); outline: none; }
+        form.inline button {
+            background: var(--accent); color: var(--bg);
+            border: 0; border-radius: 3px;
+            padding: 0.4rem 0.8rem; font-weight: 600; cursor: pointer;
+            font-size: 0.85rem;
+        }
+        form.inline button:hover { background: #7fefe0; }
+
+        button.small {
+            background: transparent; color: var(--text-dim);
+            border: 1px solid var(--border); border-radius: 3px;
+            padding: 0.2rem 0.55rem; cursor: pointer; font-size: 0.75rem;
+        }
+        button.small:hover { border-color: var(--alert); color: var(--alert); }
+        button.small.primary { border-color: var(--accent-dim); color: var(--accent); }
+        button.small.primary:hover { background: var(--accent-dim); color: var(--accent); }
+
+        /* ---------- Collapsible panel ---------- */
+        details > summary {
+            cursor: pointer; list-style: none; user-select: none;
+            display: flex; align-items: center; gap: 0.5rem;
+            color: var(--text-dim); font-size: 0.7rem; text-transform: uppercase;
+            letter-spacing: 0.1em; font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        details > summary::-webkit-details-marker { display: none; }
+        details > summary::before { content: '▶'; font-size: 0.7rem; transition: transform 0.1s; }
+        details[open] > summary::before { transform: rotate(90deg); }
+
+        /* ---------- Misc ---------- */
+        .muted { color: var(--text-dim); }
+        .badge-delay-reason {
+            background: rgba(248,113,113,0.1); color: var(--alert);
+            padding: 0.05rem 0.4rem; border-radius: 3px; font-size: 0.72rem;
+            font-family: Consolas, monospace;
+        }
+        footer {
+            margin-top: 2rem; padding: 1rem; text-align: center;
+            color: var(--text-dim); font-size: 0.75rem;
+            border-top: 1px solid var(--border);
+        }
+        footer a.badge img { vertical-align: middle; }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>atfm-tools <span class="version" id="version">v0.3</span></h1>
+    <div class="clock" id="clock">––:––:––Z</div>
+    <div class="status-pills">
+        <span class="pill" id="pill-ingest"><span class="dot"></span><span class="label">ingest</span> <span class="value" id="ingest-age">—</span></span>
+        <span class="pill" id="pill-alloc"><span class="dot"></span><span class="label">alloc</span> <span class="value" id="alloc-age">—</span></span>
+        <span class="pill"><span class="label">flights</span> <span class="value mono" id="flight-count">—</span></span>
+        <span class="pill" id="pill-ctots"><span class="label">ctots</span> <span class="value mono" id="ctot-count">—</span></span>
+        <span class="pill" id="pill-restrictions"><span class="label">restrictions</span> <span class="value mono" id="restriction-count">—</span></span>
+        <a href="/map.html" class="pill" style="text-decoration: none;">map →</a>
+    </div>
+</header>
+
+<main>
+
+    <section>
+        <h2>Airports <span class="count" id="airports-count">0</span></h2>
+        <div class="airports" id="airports-grid">Loading…</div>
+    </section>
+
+    <section>
+        <h2>Active CTOTs <span class="count" id="ctots-count">0</span></h2>
+        <div class="table-wrap">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Callsign</th>
+                        <th>Type</th>
+                        <th>Route</th>
+                        <th>Phase</th>
+                        <th>EOBT</th>
+                        <th>TTOT</th>
+                        <th>CTOT</th>
+                        <th>Δ</th>
+                        <th>Reason</th>
+                    </tr>
+                </thead>
+                <tbody id="ctots-tbody">
+                    <tr><td colspan="9" class="empty-row">Loading…</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <section>
+        <details open>
+            <summary>Restrictions <span class="count" id="restrictions-inline-count">0</span></summary>
+            <div class="panel">
+                <form class="inline" id="restriction-form">
+                    <label>Airport
+                        <select name="icao" id="restriction-icao-select" required></select>
+                    </label>
+                    <label>Capacity (/hr)
+                        <input name="capacity" type="number" min="0" value="12" required>
+                    </label>
+                    <label>Reason
+                        <select name="reason">
+                            <option>ATC_CAPACITY</option>
+                            <option>WEATHER</option>
+                            <option>RUNWAY_CLOSED</option>
+                            <option>STAFFING</option>
+                            <option>EVENT</option>
+                            <option>OTHER</option>
+                        </select>
+                    </label>
+                    <label>Type
+                        <select name="type">
+                            <option>ARR</option>
+                            <option>DEP</option>
+                            <option>BOTH</option>
+                        </select>
+                    </label>
+                    <label>Start UTC
+                        <input name="start_utc" value="0000" placeholder="HHMM" pattern="[0-9]{4}" required>
+                    </label>
+                    <label>End UTC
+                        <input name="end_utc" value="2359" placeholder="HHMM" pattern="[0-9]{4}" required>
+                    </label>
+                    <label>Tier (min)
+                        <input name="tier_minutes" type="number" min="30" max="720" value="120" required>
+                    </label>
+                    <label>&nbsp;
+                        <button type="submit">Create</button>
+                    </label>
+                </form>
+            </div>
+            <div class="table-wrap" style="margin-top: 0.5rem;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Airport</th>
+                            <th>Cap</th>
+                            <th>Reason</th>
+                            <th>Type</th>
+                            <th>Window</th>
+                            <th>Tier</th>
+                            <th>Compliance</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="restrictions-tbody">
+                        <tr><td colspan="9" class="empty-row">None active.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </section>
+
+    <section>
+        <details>
+            <summary>Event sources <span class="count" id="events-count">0</span></summary>
+            <div class="panel">
+                <form class="inline" id="event-form">
+                    <label>Event code
+                        <input name="event_code" placeholder="xXpFB" required>
+                    </label>
+                    <label>Label
+                        <input name="label" placeholder="CTP 2024" required>
+                    </label>
+                    <label>&nbsp;
+                        <button type="submit">Add</button>
+                    </label>
+                </form>
+            </div>
+            <div class="table-wrap" style="margin-top: 0.5rem;">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Event code</th>
+                            <th>Label</th>
+                            <th>Active</th>
+                            <th>Start</th>
+                            <th>End</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="events-tbody">
+                        <tr><td colspan="6" class="empty-row">None configured.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </section>
+
+    <section>
+        <details>
+            <summary>Recent allocation runs</summary>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Started</th>
+                            <th>Airports</th>
+                            <th>Restrictions</th>
+                            <th>Flights</th>
+                            <th>Frozen</th>
+                            <th>Issued</th>
+                            <th>Released</th>
+                            <th>Reissued</th>
+                            <th>Elapsed</th>
+                        </tr>
+                    </thead>
+                    <tbody id="allocation-tbody">
+                        <tr><td colspan="9" class="empty-row">No runs yet.</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    </section>
+
+</main>
+
+<footer>
+    <div>
+        <a class="badge" href="https://whc.ca/hosted-in-canada/?aff=3153&gbid=6en"
+           onclick="window.open(this.href,'popupWindow','width=450,height=695,status=no,scrollbars=no,menubar=no'); return false;">
+            <img src="https://s.whc.ca/badges/hosted-in-canada-badge-2.svg" width="140" alt="Proudly Hosted in Canada" />
+        </a>
+    </div>
+    <div style="margin-top: 0.5rem;">
+        atfm-tools —
+        <a href="https://github.com/skyelaird/atfm-tools">source</a> ·
+        <a href="https://github.com/skyelaird/atfm-tools/blob/main/docs/ARCHITECTURE.md">architecture</a> ·
+        <a href="https://github.com/skyelaird/atfm-tools/blob/main/docs/GLOSSARY.md">glossary</a>
+    </div>
+</footer>
+
+<script>
+// ---------- Helpers ----------
+const $  = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, ...children) => {
+    const e = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+        if (k === 'class') e.className = v;
+        else if (k.startsWith('on')) e.addEventListener(k.slice(2), v);
+        else e.setAttribute(k, v);
+    }
+    for (const c of children) {
+        if (c == null) continue;
+        e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    }
+    return e;
+};
+const hhmm = (isoOrNull) => {
+    if (!isoOrNull) return '—';
+    const d = new Date(isoOrNull);
+    if (isNaN(d)) return '—';
+    return d.toISOString().slice(11, 16).replace(':', '');
+};
+const hhmmz = (isoOrNull) => {
+    const v = hhmm(isoOrNull);
+    return v === '—' ? v : v + 'Z';
+};
+const ageShort = (isoOrNull) => {
+    if (!isoOrNull) return '—';
+    const diffSec = Math.round((Date.now() - new Date(isoOrNull).getTime()) / 1000);
+    if (isNaN(diffSec)) return '—';
+    if (diffSec < 60)    return diffSec + 's ago';
+    if (diffSec < 3600)  return Math.round(diffSec / 60) + 'm ago';
+    return Math.round(diffSec / 3600) + 'h ago';
+};
+const freshnessClass = (isoOrNull, okSec, warnSec) => {
+    if (!isoOrNull) return 'alert';
+    const diffSec = Math.round((Date.now() - new Date(isoOrNull).getTime()) / 1000);
+    if (diffSec < okSec)   return 'ok';
+    if (diffSec < warnSec) return 'warn';
+    return 'alert';
+};
+const fetchJson = async (url, init = {}) => {
+    const r = await fetch(url, { headers: { Accept: 'application/json' }, ...init });
+    if (!r.ok) throw new Error(`${url} → ${r.status}`);
+    return r.json();
+};
+
+// ---------- Clock ----------
+function updateClock() {
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    $('clock').textContent = `${pad(now.getUTCHours())}:${pad(now.getUTCMinutes())}:${pad(now.getUTCSeconds())}Z`;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ---------- Renderers ----------
+function renderStatus(s) {
+    $('ingest-age').textContent = ageShort(s.last_ingest_at);
+    $('pill-ingest').className = 'pill ' + freshnessClass(s.last_ingest_at, 420, 900);
+    $('alloc-age').textContent = ageShort(s.last_allocation_at);
+    $('pill-alloc').className = 'pill ' + freshnessClass(s.last_allocation_at, 420, 900);
+    $('flight-count').textContent = s.active_flight_count ?? 0;
+    $('ctot-count').textContent = s.active_ctot_count ?? 0;
+    $('pill-ctots').className = (s.active_ctot_count > 0) ? 'pill warn' : 'pill';
+    $('restriction-count').textContent = s.active_restrictions ?? 0;
+    $('pill-restrictions').className = (s.active_restrictions > 0) ? 'pill alert' : 'pill';
+    $('version').textContent = 'v' + (s.version || '0.3');
+}
+
+function renderAirports(airports) {
+    const grid = $('airports-grid');
+    grid.innerHTML = '';
+    $('airports-count').textContent = airports.length;
+    const select = $('restriction-icao-select');
+    select.innerHTML = '';
+    for (const a of airports) {
+        const activeRestrictions = (a.restrictions || []).filter(r => !r.deleted_at);
+        const hasRestriction = activeRestrictions.length > 0;
+        const card = el('div', { class: 'airport-card' + (hasRestriction ? ' active-restriction' : '') },
+            el('div', { class: 'icao' }, a.icao),
+            el('div', { class: 'name' }, a.name),
+            el('div', { class: 'metrics' },
+                el('div', { class: 'metric' },
+                    el('div', { class: 'lbl' }, 'rate'),
+                    el('div', { class: 'val mono' }, String(a.observed_arrival_rate || a.base_arrival_rate))
+                ),
+                el('div', { class: 'metric' },
+                    el('div', { class: 'lbl' }, 'in'),
+                    el('div', { class: 'val mono' }, String(a.inbound_count ?? 0))
+                ),
+                el('div', { class: 'metric' },
+                    el('div', { class: 'lbl' }, 'out'),
+                    el('div', { class: 'val mono' }, String(a.outbound_count ?? 0))
+                ),
+            ),
+            hasRestriction ? el('div', { class: 'restriction-badge' },
+                `${activeRestrictions.length} active · cap ${activeRestrictions[0].capacity}`) : null
+        );
+        grid.appendChild(card);
+        select.appendChild(el('option', { value: a.icao }, a.icao));
+    }
+}
+
+function renderCtots(flights) {
+    const tbody = $('ctots-tbody');
+    tbody.innerHTML = '';
+    $('ctots-count').textContent = flights.length;
+    if (flights.length === 0) {
+        tbody.appendChild(el('tr', {}, el('td', { colspan: '9', class: 'empty-row' }, 'No active CTOTs.')));
+        return;
+    }
+    flights.sort((a, b) => (a.ctot || '').localeCompare(b.ctot || ''));
+    for (const f of flights) {
+        const delay = f.delay_minutes ?? 0;
+        const delayClass = delay <= 0 ? 'on' : (delay <= 10 ? 'small' : 'big');
+        const delayStr = delay === 0 ? '—' : '+' + delay;
+        tbody.appendChild(el('tr', {},
+            el('td', { class: 'mono' }, f.callsign),
+            el('td', { class: 'mono muted' }, f.aircraft_type || '—'),
+            el('td', { class: 'mono' }, `${f.adep || '????'}→${f.ades || '????'}`),
+            el('td', {}, el('span', { class: 'phase ' + f.phase }, f.phase || '—')),
+            el('td', { class: 'mono muted' }, hhmmz(f.eobt)),
+            el('td', { class: 'mono muted' }, hhmmz(f.ttot)),
+            el('td', { class: 'mono' }, hhmmz(f.ctot)),
+            el('td', { class: 'delay ' + delayClass }, delayStr),
+            el('td', {}, el('span', { class: 'badge-delay-reason' }, f.ctl_element ? f.ctl_element + '-ARR' : '—'))
+        ));
+    }
+}
+
+function renderRestrictions(rows) {
+    const tbody = $('restrictions-tbody');
+    tbody.innerHTML = '';
+    $('restrictions-inline-count').textContent = rows.length;
+    if (rows.length === 0) {
+        tbody.appendChild(el('tr', {}, el('td', { colspan: '9', class: 'empty-row' }, 'None active.')));
+        return;
+    }
+    for (const r of rows) {
+        tbody.appendChild(el('tr', {},
+            el('td', { class: 'mono' }, r.restriction_id),
+            el('td', { class: 'mono' }, r.airport_icao),
+            el('td', { class: 'mono' }, `${r.capacity}/hr`),
+            el('td', {}, r.reason),
+            el('td', {}, r.type),
+            el('td', { class: 'mono' }, `${r.start_utc}–${r.end_utc}`),
+            el('td', { class: 'mono' }, r.tier_minutes + 'm'),
+            el('td', { class: 'mono muted' }, `±${r.compliance_window_early_min}/${r.compliance_window_late_min}`),
+            el('td', {}, el('button', {
+                class: 'small',
+                onclick: async () => {
+                    if (!confirm(`Delete restriction ${r.restriction_id}?`)) return;
+                    await fetchJson(`/api/v1/airport-restrictions/${r.restriction_id}`, { method: 'DELETE' });
+                    refresh();
+                }
+            }, 'delete'))
+        ));
+    }
+}
+
+function renderEvents(rows) {
+    const tbody = $('events-tbody');
+    tbody.innerHTML = '';
+    $('events-count').textContent = rows.length;
+    if (rows.length === 0) {
+        tbody.appendChild(el('tr', {}, el('td', { colspan: '6', class: 'empty-row' }, 'None configured.')));
+        return;
+    }
+    for (const e of rows) {
+        tbody.appendChild(el('tr', {},
+            el('td', { class: 'mono' }, e.event_code),
+            el('td', {}, e.label),
+            el('td', {}, e.active ? 'yes' : 'no'),
+            el('td', { class: 'mono muted' }, hhmmz(e.start_utc)),
+            el('td', { class: 'mono muted' }, hhmmz(e.end_utc)),
+            el('td', {}, el('button', {
+                class: 'small',
+                onclick: async () => {
+                    if (!confirm(`Delete event ${e.event_code}?`)) return;
+                    await fetchJson(`/api/v1/event-sources/${e.event_code}`, { method: 'DELETE' });
+                    refresh();
+                }
+            }, 'delete'))
+        ));
+    }
+}
+
+function renderAllocationRuns(runs) {
+    const tbody = $('allocation-tbody');
+    tbody.innerHTML = '';
+    if (runs.length === 0) {
+        tbody.appendChild(el('tr', {}, el('td', { colspan: '9', class: 'empty-row' }, 'No runs yet.')));
+        return;
+    }
+    for (const r of runs.slice(0, 10)) {
+        tbody.appendChild(el('tr', {},
+            el('td', { class: 'mono' }, hhmmz(r.started_at)),
+            el('td', { class: 'mono' }, String(r.airports_considered)),
+            el('td', { class: 'mono' }, String(r.restrictions_active)),
+            el('td', { class: 'mono' }, String(r.flights_evaluated)),
+            el('td', { class: 'mono' }, String(r.ctots_frozen_kept)),
+            el('td', { class: 'mono' }, String(r.ctots_issued)),
+            el('td', { class: 'mono' }, String(r.ctots_released)),
+            el('td', { class: 'mono' }, String(r.ctots_reissued)),
+            el('td', { class: 'mono muted' }, (r.elapsed_ms || 0) + 'ms')
+        ));
+    }
+}
+
+// ---------- Forms ----------
+$('restriction-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const icao = fd.get('icao');
+    const body = Object.fromEntries(fd.entries());
+    delete body.icao;
+    body.capacity     = Number(body.capacity);
+    body.tier_minutes = Number(body.tier_minutes);
+    try {
+        await fetchJson(`/api/v1/airports/${icao}/restrictions`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        refresh();
+    } catch (err) {
+        alert('Failed to create restriction: ' + err.message);
+    }
+});
+
+$('event-form').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.target);
+    const body = Object.fromEntries(fd.entries());
+    try {
+        await fetchJson('/api/v1/event-sources', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+        e.target.reset();
+        refresh();
+    } catch (err) {
+        alert('Failed to add event: ' + err.message);
+    }
+});
+
+// ---------- Refresh loop ----------
+async function refresh() {
+    try {
+        const [status, airports, ctots, restrictions, events, runs] = await Promise.all([
+            fetchJson('/api/v1/status'),
+            fetchJson('/api/v1/airports'),
+            fetchJson('/api/v1/debug/flights/active'),
+            fetchJson('/api/v1/restrictions'),
+            fetchJson('/api/v1/event-sources'),
+            fetchJson('/api/v1/debug/allocation'),
+        ]);
+        renderStatus(status);
+        renderAirports(airports);
+        renderCtots(ctots);
+        renderRestrictions(restrictions);
+        renderEvents(events);
+        renderAllocationRuns(runs);
+    } catch (err) {
+        console.error('refresh failed', err);
+    }
+}
+
+refresh();
+setInterval(refresh, 30000);  // 30s auto-refresh
+</script>
+
+</body>
+</html>

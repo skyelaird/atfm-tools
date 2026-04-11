@@ -219,9 +219,105 @@ final class Kernel
 
     private static function registerAdminEndpoints(App $app): void
     {
+        // Dashboard status — compact single-call rollup
+        $app->get('/api/v1/status', function ($req, $res) {
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+
+            $airportCount     = Airport::count();
+            $activeFlights    = Flight::whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])->count();
+            $activeCtots      = Flight::whereNotNull('ctot')
+                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                ->where('ctot', '>=', $now->format('Y-m-d H:i:s'))
+                ->count();
+            $lastFlightUpdate = Flight::max('last_updated_at');
+            $lastRun          = AllocationRun::orderBy('started_at', 'desc')->first();
+
+            // Active restrictions: query all not-deleted, within active_from/expires_at,
+            // then filter by HHMM window.
+            $restrictionRows = AirportRestriction::query()
+                ->whereNull('deleted_at')
+                ->where('active_from', '<=', $now->format('Y-m-d H:i:s'))
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('expires_at')
+                      ->orWhere('expires_at', '>=', $now->format('Y-m-d H:i:s'));
+                })
+                ->get()
+                ->filter(fn (AirportRestriction $r) => $r->isActiveAt($now));
+
+            return self::json($res, [
+                'time_utc'             => $now->format('c'),
+                'airport_count'        => $airportCount,
+                'active_flight_count'  => $activeFlights,
+                'active_ctot_count'    => $activeCtots,
+                'active_restrictions'  => $restrictionRows->count(),
+                'last_ingest_at'       => $lastFlightUpdate,
+                'last_allocation_at'   => $lastRun?->started_at?->format('c'),
+                'last_allocation_stats' => $lastRun ? [
+                    'airports_considered' => (int) $lastRun->airports_considered,
+                    'restrictions_active' => (int) $lastRun->restrictions_active,
+                    'flights_evaluated'   => (int) $lastRun->flights_evaluated,
+                    'ctots_frozen_kept'   => (int) $lastRun->ctots_frozen_kept,
+                    'ctots_issued'        => (int) $lastRun->ctots_issued,
+                    'ctots_released'      => (int) $lastRun->ctots_released,
+                    'ctots_reissued'      => (int) $lastRun->ctots_reissued,
+                    'elapsed_ms'          => (int) $lastRun->elapsed_ms,
+                ] : null,
+                'version'              => '0.3',
+            ]);
+        });
+
+        // All currently active restrictions across airports — for dashboard display
+        $app->get('/api/v1/restrictions', function ($req, $res) {
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            $rows = AirportRestriction::query()
+                ->whereNull('deleted_at')
+                ->where('active_from', '<=', $now->format('Y-m-d H:i:s'))
+                ->where(function ($q) use ($now) {
+                    $q->whereNull('expires_at')
+                      ->orWhere('expires_at', '>=', $now->format('Y-m-d H:i:s'));
+                })
+                ->with('airport')
+                ->get()
+                ->filter(fn (AirportRestriction $r) => $r->isActiveAt($now))
+                ->map(fn (AirportRestriction $r) => [
+                    'restriction_id'              => $r->restriction_id,
+                    'airport_icao'                => $r->airport?->icao,
+                    'airport_name'                => $r->airport?->name,
+                    'capacity'                    => (int) $r->capacity,
+                    'reason'                      => $r->reason,
+                    'type'                        => $r->type,
+                    'runway'                      => $r->runway,
+                    'tier_minutes'                => (int) $r->tier_minutes,
+                    'compliance_window_early_min' => (int) $r->compliance_window_early_min,
+                    'compliance_window_late_min'  => (int) $r->compliance_window_late_min,
+                    'start_utc'                   => $r->start_utc,
+                    'end_utc'                     => $r->end_utc,
+                    'active_from'                 => $r->active_from?->format('c'),
+                    'expires_at'                  => $r->expires_at?->format('c'),
+                ])
+                ->values()
+                ->all();
+            return self::json($res, $rows);
+        });
+
         // Airports
         $app->get('/api/v1/airports', function ($req, $res) {
-            return self::json($res, Airport::with('thresholds')->orderBy('icao')->get()->toArray());
+            $airports = Airport::with(['thresholds', 'restrictions' => function ($q) {
+                $q->whereNull('deleted_at');
+            }])->orderBy('icao')->get();
+
+            // Include per-airport live traffic counts
+            $out = $airports->map(function (Airport $a) {
+                $arr = $a->toArray();
+                $arr['inbound_count'] = Flight::where('ades', $a->icao)
+                    ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                    ->count();
+                $arr['outbound_count'] = Flight::where('adep', $a->icao)
+                    ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                    ->count();
+                return $arr;
+            });
+            return self::json($res, $out->toArray());
         });
 
         $app->get('/api/v1/airports/{icao}', function ($req, $res, array $args) {
@@ -302,6 +398,15 @@ final class Kernel
                 ],
             );
             return self::json($res, $e->toArray());
+        });
+
+        $app->delete('/api/v1/event-sources/{event_code}', function ($req, $res, array $args) {
+            $e = EventSource::where('event_code', $args['event_code'])->first();
+            if (! $e) {
+                return self::json($res->withStatus(404), ['error' => 'not found']);
+            }
+            $e->delete();
+            return self::json($res, ['ok' => true]);
         });
     }
 
