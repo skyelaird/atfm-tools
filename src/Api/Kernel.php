@@ -229,7 +229,12 @@ final class Kernel
                 ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
                 ->where('ctot', '>=', $now->format('Y-m-d H:i:s'))
                 ->count();
-            $lastFlightUpdate = Flight::max('last_updated_at');
+            // Return timestamps as proper ISO8601 with offset so browsers parse
+            // them as UTC rather than local time.
+            $lastFlightUpdateRaw = Flight::max('last_updated_at');
+            $lastFlightUpdate = $lastFlightUpdateRaw
+                ? (new DateTimeImmutable($lastFlightUpdateRaw, new DateTimeZone('UTC')))->format('c')
+                : null;
             $lastRun          = AllocationRun::orderBy('started_at', 'desc')->first();
 
             // Active restrictions: query all not-deleted, within active_from/expires_at,
