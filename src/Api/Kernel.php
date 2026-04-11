@@ -49,6 +49,7 @@ final class Kernel
         self::registerEcfmpPluginMirror($app);
         self::registerCdmPluginProtocol($app);
         self::registerAdminEndpoints($app);
+        self::registerReportsEndpoints($app);
         self::registerDebugEndpoints($app);
 
         return $app;
@@ -635,6 +636,139 @@ final class Kernel
             $e->delete();
             return self::json($res, ['ok' => true]);
         });
+    }
+
+    // ------------------------------------------------------------------
+    //  Reports endpoints
+    // ------------------------------------------------------------------
+
+    private static function registerReportsEndpoints(App $app): void
+    {
+        // Compact per-airport rollup for the reports page.
+        // Query param: ?hours=N  (default 24, max 168)
+        $app->get('/api/v1/reports/summary', function ($req, $res) {
+            $hours = max(1, min(168, (int) ($req->getQueryParams()['hours'] ?? 24)));
+            $now   = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            $since = $now->modify("-{$hours} hours");
+            $sinceStr = $since->format('Y-m-d H:i:s');
+
+            $airports = Airport::orderBy('icao')->get();
+            $rows = [];
+
+            foreach ($airports as $a) {
+                $arrivals = Flight::where('ades', $a->icao)
+                    ->where('aldt', '>=', $sinceStr)
+                    ->get(['aldt', 'aibt', 'actual_exit_min', 'fp_enroute_time_min', 'atot', 'aobt', 'eobt']);
+
+                $departures = Flight::where('adep', $a->icao)
+                    ->whereNotNull('atot')
+                    ->where('atot', '>=', $sinceStr)
+                    ->get(['eobt', 'aobt', 'asat', 'atot', 'actual_exot_min']);
+
+                $exotValues = $departures->pluck('actual_exot_min')->filter()->values()->all();
+                $exitValues = $arrivals->pluck('actual_exit_min')->filter()->values()->all();
+
+                $eobtDelays = [];
+                foreach ($departures as $f) {
+                    if ($f->eobt && $f->aobt) {
+                        $eobtDelays[] = (int) round(($f->aobt->getTimestamp() - $f->eobt->getTimestamp()) / 60);
+                    }
+                }
+
+                // ETA errors: (actual aldt) - (aobt + enroute_time)
+                $etaErrors = [];
+                foreach ($arrivals as $f) {
+                    if ($f->aldt && $f->aobt && $f->fp_enroute_time_min) {
+                        $predicted = $f->aobt->getTimestamp() + ($f->fp_enroute_time_min * 60);
+                        $etaErrors[] = (int) round(($f->aldt->getTimestamp() - $predicted) / 60);
+                    }
+                }
+
+                $rows[] = [
+                    'icao'                 => $a->icao,
+                    'name'                 => $a->name,
+                    'base_arrival_rate'    => (int) $a->base_arrival_rate,
+                    'arrivals'             => $arrivals->count(),
+                    'departures'           => $departures->count(),
+                    'avg_exot_min'         => self::avg($exotValues),
+                    'p50_exot_min'         => self::percentile($exotValues, 50),
+                    'p90_exot_min'         => self::percentile($exotValues, 90),
+                    'avg_exit_min'         => self::avg($exitValues),
+                    'p50_exit_min'         => self::percentile($exitValues, 50),
+                    'p90_exit_min'         => self::percentile($exitValues, 90),
+                    'avg_eobt_delay_min'   => self::avg($eobtDelays),
+                    'p90_eobt_delay_min'   => self::percentile($eobtDelays, 90),
+                    'avg_eta_error_min'    => self::avg($etaErrors),
+                    'p50_eta_error_min'    => self::percentile($etaErrors, 50),
+                    'p90_eta_error_min'    => self::percentile($etaErrors, 90),
+                    'eta_sample_n'         => count($etaErrors),
+                ];
+            }
+
+            // Overall totals
+            $totalFlights = Flight::where('last_updated_at', '>=', $sinceStr)->count();
+            $ctotsIssued  = Flight::whereNotNull('ctot')
+                ->where('updated_at', '>=', $sinceStr)
+                ->count();
+            $compliant    = Flight::where('delay_status', Flight::DELAY_COMPLIANT_DEPARTED)
+                ->where('updated_at', '>=', $sinceStr)
+                ->count();
+            $nonCompliant = Flight::where('delay_status', Flight::DELAY_NON_COMPLIANT)
+                ->where('updated_at', '>=', $sinceStr)
+                ->count();
+
+            // Aircraft type distribution (top 20)
+            $typeRows = Flight::selectRaw('aircraft_type, COUNT(*) as n, AVG(actual_exot_min) as avg_exot, AVG(actual_exit_min) as avg_exit')
+                ->whereNotNull('aircraft_type')
+                ->where('last_updated_at', '>=', $sinceStr)
+                ->groupBy('aircraft_type')
+                ->orderByDesc('n')
+                ->limit(20)
+                ->get()
+                ->map(fn ($r) => [
+                    'aircraft_type' => $r->aircraft_type,
+                    'count'         => (int) $r->n,
+                    'avg_exot_min'  => $r->avg_exot !== null ? round((float) $r->avg_exot, 1) : null,
+                    'avg_exit_min'  => $r->avg_exit !== null ? round((float) $r->avg_exit, 1) : null,
+                ])
+                ->all();
+
+            return self::json($res, [
+                'generated_at' => $now->format('c'),
+                'window' => [
+                    'hours' => $hours,
+                    'start' => $since->format('c'),
+                    'end'   => $now->format('c'),
+                ],
+                'totals' => [
+                    'flights_seen'        => $totalFlights,
+                    'ctots_issued'        => $ctotsIssued,
+                    'compliant_departed'  => $compliant,
+                    'non_compliant'       => $nonCompliant,
+                    'compliance_rate'     => ($compliant + $nonCompliant) > 0
+                        ? round($compliant / ($compliant + $nonCompliant), 3)
+                        : null,
+                ],
+                'airports'     => $rows,
+                'top_aircraft' => $typeRows,
+            ]);
+        });
+    }
+
+    private static function avg(array $xs): ?float
+    {
+        if (empty($xs)) return null;
+        return round(array_sum($xs) / count($xs), 1);
+    }
+
+    private static function percentile(array $xs, int $p): ?float
+    {
+        if (empty($xs)) return null;
+        sort($xs);
+        $k = ($p / 100) * (count($xs) - 1);
+        $f = floor($k); $c = ceil($k);
+        if ($f === $c) return round($xs[(int) $k], 1);
+        return round($xs[(int) $f] + ($k - $f) * ($xs[(int) $c] - $xs[(int) $f]), 1);
     }
 
     // ------------------------------------------------------------------

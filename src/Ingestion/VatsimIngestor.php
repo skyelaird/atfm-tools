@@ -161,20 +161,57 @@ final class VatsimIngestor
 
         $phase = Phase::compute($lat, $lon, $altitude, $gs, $adepAirport, $adesAirport);
 
-        // Parse EOBT (HHMM) into a datetime. VATSIM's flight_plan.deptime is
-        // HHMM with no date, so we have to guess the date. Heuristic:
-        //   - default to today at HHMM
-        //   - if that's more than 30 min in the past, roll it forward 24 h
-        //     (pilot is filing for the upcoming day, not the current one)
+        // Parse EOBT (HHMM) into a datetime.
+        //
+        // First try: extract DOF/YYMMDD from flight_plan.remarks (ICAO
+        // standard, pilots who file seriously include it). DOF gives us
+        // the authoritative date, combined with deptime HHMM it fully
+        // disambiguates "is this for today or tomorrow".
+        //
+        // Fallback: today at HHMM, rolled forward 24 h if more than 30 min
+        // in the past.
         $eobt = null;
         if (! empty($fp['deptime'])) {
             $dep = str_pad((string) $fp['deptime'], 4, '0', STR_PAD_LEFT);
             if (preg_match('/^(\d{2})(\d{2})$/', $dep, $m)) {
-                $candidate = $now->setTime((int) $m[1], (int) $m[2], 0);
-                if ($candidate->getTimestamp() < $now->getTimestamp() - 1800) {
-                    $candidate = $candidate->modify('+1 day');
+                $dof = null;
+                if (! empty($fp['remarks']) && preg_match('/\bDOF\/(\d{6})\b/', (string) $fp['remarks'], $dofMatch)) {
+                    // DOF is YYMMDD
+                    $yy = (int) substr($dofMatch[1], 0, 2);
+                    $mm = (int) substr($dofMatch[1], 2, 2);
+                    $dd = (int) substr($dofMatch[1], 4, 2);
+                    $year = ($yy >= 70) ? (1900 + $yy) : (2000 + $yy);
+                    try {
+                        $dof = new DateTimeImmutable(
+                            sprintf('%04d-%02d-%02d %s:%s:00', $year, $mm, $dd, $m[1], $m[2]),
+                            new DateTimeZone('UTC')
+                        );
+                    } catch (\Throwable) {
+                        $dof = null;
+                    }
                 }
-                $eobt = $candidate->format('Y-m-d H:i:s');
+
+                if ($dof !== null) {
+                    $eobt = $dof->format('Y-m-d H:i:s');
+                } else {
+                    $candidate = $now->setTime((int) $m[1], (int) $m[2], 0);
+                    if ($candidate->getTimestamp() < $now->getTimestamp() - 1800) {
+                        $candidate = $candidate->modify('+1 day');
+                    }
+                    $eobt = $candidate->format('Y-m-d H:i:s');
+                }
+            }
+        }
+
+        // Parse enroute_time HHMM → total minutes (for ETA quality analysis)
+        $enrouteTimeMin = null;
+        if (! empty($fp['enroute_time'])) {
+            $et = str_pad((string) $fp['enroute_time'], 4, '0', STR_PAD_LEFT);
+            if (preg_match('/^(\d{2})(\d{2})$/', $et, $m)) {
+                $enrouteTimeMin = ((int) $m[1]) * 60 + (int) $m[2];
+                if ($enrouteTimeMin <= 0 || $enrouteTimeMin > 24 * 60) {
+                    $enrouteTimeMin = null;
+                }
             }
         }
 
@@ -225,6 +262,9 @@ final class VatsimIngestor
         $flight->fp_route       = $fp['route']          ?? $flight->fp_route;
         $flight->fp_altitude_ft = $this->parseAltitude($fp['altitude'] ?? null) ?? $flight->fp_altitude_ft;
         $flight->fp_cruise_tas  = isset($fp['cruise_tas']) ? (int) $fp['cruise_tas'] : $flight->fp_cruise_tas;
+        if ($enrouteTimeMin !== null) {
+            $flight->fp_enroute_time_min = $enrouteTimeMin;
+        }
         if ($flight->airline_icao === null) {
             $flight->airline_icao = $this->airlineFromCallsign($callsign);
         }

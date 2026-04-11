@@ -311,6 +311,18 @@ if ($schema->hasTable('airport_restrictions') && ! $schema->hasColumn('airport_r
     echo "✓ added airport_restrictions.op_level\n";
 }
 
+//
+// v0.3.3: add fp_enroute_time_min to flights for ETA quality analysis.
+// Parsed from flight_plan.enroute_time (HHMM string) into total minutes.
+//
+if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'fp_enroute_time_min')) {
+    $schema->table('flights', function (Blueprint $t) {
+        $t->unsignedInteger('fp_enroute_time_min')->nullable()->after('fp_cruise_tas')
+            ->comment('Filed enroute duration in minutes (from flight_plan.enroute_time HHMM)');
+    });
+    echo "✓ added flights.fp_enroute_time_min\n";
+}
+
 if (! $schema->hasTable('aar_calculations')) {
     $schema->create('aar_calculations', function (Blueprint $t) {
         $t->id();
