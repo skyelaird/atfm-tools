@@ -255,22 +255,37 @@
         }
         footer a.badge img { vertical-align: middle; }
 
-        /* ---------- Modal (airport detail) ---------- */
-        .modal-backdrop {
-            position: fixed; inset: 0; z-index: 200;
-            background: rgba(0,0,0,0.7);
-            display: none; align-items: flex-start; justify-content: center;
-            padding: 2rem 1rem; overflow-y: auto;
-        }
-        .modal-backdrop.open { display: flex; }
-        .modal {
+        /* ---------- Airport detail drawer (right-docked) ---------- */
+        .detail-drawer {
+            position: fixed;
+            top: 0; right: 0; bottom: 0;
+            width: min(640px, 48vw);
             background: var(--bg-elev);
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            max-width: 1280px; width: 100%;
-            max-height: calc(100vh - 4rem);
+            border-left: 1px solid var(--border);
+            box-shadow: -8px 0 30px rgba(0,0,0,0.5);
+            transform: translateX(100%);
+            transition: transform 0.18s ease-out;
+            z-index: 150;
             display: flex; flex-direction: column;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+            overflow: hidden;
+        }
+        .detail-drawer.open { transform: translateX(0); }
+        .detail-drawer .modal { /* re-using .modal classname on inner for content reuse */
+            background: transparent; border: 0; border-radius: 0;
+            box-shadow: none; width: 100%; height: 100%;
+            max-height: none; max-width: none;
+            display: flex; flex-direction: column;
+        }
+        /* Shift main content left when drawer is open so nothing hides.
+           Padding approach instead of margin so layout flows naturally. */
+        body.drawer-open main {
+            padding-right: calc(min(640px, 48vw) + 1rem);
+            transition: padding-right 0.18s ease-out;
+        }
+        body main { transition: padding-right 0.18s ease-out; }
+        @media (max-width: 900px) {
+            .detail-drawer { width: 100%; }
+            body.drawer-open main { padding-right: 1rem; }
         }
         .modal-header {
             padding: 1rem 1.25rem;
@@ -303,8 +318,8 @@
             color: var(--text-dim); font-weight: 600; margin: 0 0 0.5rem 0;
         }
         .stats-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 0.75rem; margin-bottom: 1rem;
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.5rem; margin-bottom: 1rem;
         }
         .stat-card {
             background: var(--bg); border: 1px solid var(--border);
@@ -520,17 +535,17 @@
 
 </main>
 
-<!-- Airport detail modal -->
-<div class="modal-backdrop" id="modal-backdrop">
+<!-- Airport detail drawer (right-docked) -->
+<aside class="detail-drawer" id="modal-backdrop" aria-hidden="true">
     <div class="modal" id="modal">
         <div class="modal-header">
             <h2 id="modal-icao">—</h2>
             <span class="sub" id="modal-name">—</span>
-            <button class="modal-close" id="modal-close">Close ✕</button>
+            <button class="modal-close" id="modal-close" aria-label="Close airport detail">Close ✕</button>
         </div>
         <div class="modal-body" id="modal-body">Loading…</div>
     </div>
-</div>
+</aside>
 
 <footer>
     <div>
@@ -658,12 +673,21 @@ function renderAirports(airports) {
     }
 }
 
-// ---------- Airport detail modal ----------
+// ---------- Airport detail drawer ----------
+let currentDrawerIcao = null;
 async function openAirportDetail(icao) {
+    // Click same airport again → close
+    if (currentDrawerIcao === icao && $('modal-backdrop').classList.contains('open')) {
+        closeModal();
+        return;
+    }
+    currentDrawerIcao = icao;
     $('modal-icao').textContent = icao;
     $('modal-name').textContent = '';
     $('modal-body').textContent = 'Loading…';
     $('modal-backdrop').classList.add('open');
+    $('modal-backdrop').setAttribute('aria-hidden', 'false');
+    document.body.classList.add('drawer-open');
     try {
         const d = await fetchJson(`/api/v1/airports/${icao}/detail`);
         renderAirportDetail(d);
@@ -674,11 +698,11 @@ async function openAirportDetail(icao) {
 
 function closeModal() {
     $('modal-backdrop').classList.remove('open');
+    $('modal-backdrop').setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('drawer-open');
+    currentDrawerIcao = null;
 }
 $('modal-close').addEventListener('click', closeModal);
-$('modal-backdrop').addEventListener('click', (e) => {
-    if (e.target === $('modal-backdrop')) closeModal();
-});
 document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && $('modal-backdrop').classList.contains('open')) closeModal();
 });
