@@ -264,17 +264,25 @@
         }
         footer a.badge img { vertical-align: middle; }
 
-        /* ---------- Airport detail drawer (right-docked) ---------- */
+        /* ---------- Airport detail drawer (right-docked) ----------
+           Two layers of defence so the sticky banner stays visible:
+             (1) drawer top: var(--header-h) — JS keeps the var current
+                 (set on DOMContentLoaded, on resize, and on each open).
+                 Fallback 60px covers the typical wrap-1 banner height.
+             (2) drawer z-index 50 vs banner z-index 100 — even if (1)
+                 fails for any reason (cached CSS, JS not yet run, weird
+                 timing during the open transition), the banner paints
+                 over the drawer's top portion. Belt and suspenders. */
         .detail-drawer {
             position: fixed;
-            top: var(--header-h, 50px); right: 0; bottom: 0;
+            top: var(--header-h, 60px); right: 0; bottom: 0;
             width: min(640px, 48vw);
             background: var(--bg-elev);
             border-left: 1px solid var(--border);
             box-shadow: -8px 0 30px rgba(0,0,0,0.5);
             transform: translateX(100%);
             transition: transform 0.18s ease-out;
-            z-index: 150;
+            z-index: 50; /* must be < header z-index (100) */
             display: flex; flex-direction: column;
             overflow: hidden;
         }
@@ -741,6 +749,22 @@ function renderAirports(airports) {
 }
 
 // ---------- Airport detail drawer ----------
+
+// Keep --header-h in sync with the actual rendered banner height. The
+// drawer's `top` reads this var, so the drawer always docks below the
+// banner regardless of how pills wrap. Run on page load (so the var is
+// already correct before the first drawer open), on every resize (in
+// case the header reflows), and again on each drawer open as a final
+// belt-and-suspenders check.
+function syncHeaderHeight() {
+    const headerEl = document.querySelector('header');
+    if (headerEl) {
+        document.documentElement.style.setProperty('--header-h', headerEl.offsetHeight + 'px');
+    }
+}
+syncHeaderHeight();
+window.addEventListener('resize', syncHeaderHeight);
+
 let currentDrawerIcao = null;
 let currentDrawerData = null; // last fetched payload, used by sort re-render
 async function openAirportDetail(icao) {
@@ -754,12 +778,7 @@ async function openAirportDetail(icao) {
     $('modal-icao').textContent = icao;
     $('modal-name').textContent = '';
     $('modal-body').textContent = 'Loading…';
-    // Sync drawer top to current header height so the sticky banner
-    // (and its OpLevel pill) stays visible above the drawer.
-    const headerEl = document.querySelector('header');
-    if (headerEl) {
-        document.documentElement.style.setProperty('--header-h', headerEl.offsetHeight + 'px');
-    }
+    syncHeaderHeight();
     $('modal-backdrop').classList.add('open');
     $('modal-backdrop').setAttribute('aria-hidden', 'false');
     document.body.classList.add('drawer-open');
