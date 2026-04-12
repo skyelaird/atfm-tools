@@ -78,7 +78,12 @@ final class EtaEstimator
 
             // Still climbing — skip OBSERVED_POS, fall through to
             // ground tiers which use filed ETE or computed TAS.
-            if ($currentAlt < $filedAlt * 0.8) {
+            // "At cruise" = within 2000ft of filed altitude. This is
+            // physically grounded: GS stabilises once the aircraft
+            // levels off, and 2000ft captures top-of-climb without
+            // waiting for the exact filed FL (which pilots often
+            // don't reach exactly).
+            if ($currentAlt < $filedAlt - 2000) {
                 // Fall through to Tier 1 (FILED) or Tiers 3-5 below.
                 // Don't return — let the cascade continue.
             } else {
