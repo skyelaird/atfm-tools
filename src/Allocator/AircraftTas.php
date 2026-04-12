@@ -77,6 +77,46 @@ final class AircraftTas
         'F70'  => 420, 'F100' => 440,
     ];
 
+    /**
+     * Descent speed schedule: Mach / IAS_high / IAS_low (250 always).
+     *
+     * Sourced from PMDG, iniBuilds, and similar study-level sim aircraft
+     * performance data. The IAS_high is the speed from crossover altitude
+     * (~FL280-300) down to FL100; IAS_low is always 250 kt (regulatory).
+     *
+     * Format: [descent_mach_x100, ias_high_kt]
+     * IAS_low is always 250, so not stored.
+     *
+     * For types not in this table, DEFAULT_DESCENT applies.
+     */
+    public const DEFAULT_DESCENT_IAS_HIGH = 280;
+
+    /** @var array<string, array{int, int}> [mach_x100, ias_high] */
+    private const DESCENT = [
+        // Narrowbody (from PMDG/Zibo B738, default A320 profiles)
+        'A319' => [78, 300], 'A320' => [78, 300], 'A321' => [78, 300],
+        'A20N' => [78, 300], 'A21N' => [78, 300],
+        'B737' => [78, 280], 'B738' => [78, 280], 'B739' => [78, 280],
+        'B37M' => [78, 280], 'B38M' => [78, 280], 'B39M' => [78, 280], 'B3XM' => [78, 280],
+        'B752' => [80, 290], 'B753' => [80, 290],
+
+        // Widebody
+        'A332' => [82, 300], 'A333' => [82, 300], 'A338' => [82, 300], 'A339' => [82, 300],
+        'A359' => [85, 300], 'A35K' => [85, 300],
+        'A388' => [85, 310],
+        'B762' => [80, 290], 'B763' => [80, 300], 'B764' => [80, 300],
+        'B772' => [84, 310], 'B77L' => [84, 310], 'B77W' => [84, 310],
+        'B744' => [84, 310], 'B748' => [84, 310],
+        'B788' => [84, 310], 'B789' => [84, 310], 'B78X' => [84, 310],
+        'MD11' => [83, 300],
+
+        // Regional jets — lower descent speeds
+        'CRJ7' => [74, 270], 'CRJ9' => [74, 270], 'CRJX' => [74, 270],
+        'E170' => [75, 270], 'E75L' => [75, 270], 'E175' => [75, 270],
+        'E190' => [78, 280], 'E195' => [78, 280],
+        'E290' => [78, 290], 'E295' => [78, 290],
+    ];
+
     public static function typicalTas(string $icaoType): int
     {
         $key = strtoupper(trim($icaoType));
@@ -86,5 +126,16 @@ final class AircraftTas
     public static function known(string $icaoType): bool
     {
         return isset(self::TABLE[strtoupper(trim($icaoType))]);
+    }
+
+    /**
+     * Descent IAS (kt) for the segment from crossover altitude to FL100.
+     * Returns the type-specific IAS_high from the DESCENT table, or
+     * DEFAULT_DESCENT_IAS_HIGH (280 kt) for unknown types.
+     */
+    public static function descentIasHigh(string $icaoType): int
+    {
+        $key = strtoupper(trim($icaoType));
+        return (self::DESCENT[$key] ?? [0, self::DEFAULT_DESCENT_IAS_HIGH])[1];
     }
 }

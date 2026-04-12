@@ -84,18 +84,33 @@ final class Geo
      * @param int   $airportElevFt  ADES field elevation
      * @return float Time in minutes (not rounded — caller rounds as needed)
      */
+    /**
+     * @param int $descentIasHigh IAS (kt) for the descent segment between
+     *                           crossover altitude and FL100 (type-specific;
+     *                           e.g. 310 for B77W, 280 for B738). Use
+     *                           AircraftTas::descentIasHigh() to look it up.
+     */
     public static function etaMinutesWithDescent(
         float $distNm,
         int $cruiseKt,
         int $cruiseAltFt,
-        int $airportElevFt
+        int $airportElevFt,
+        int $descentIasHigh = 280
     ): float {
         // Descent distance from 3° glidepath: 318 ft per nm
         $altAboveAirport = max(0, $cruiseAltFt - $airportElevFt);
         $todDistNm = $altAboveAirport / 318.0;
 
-        // Compute time for the approach/descent segment (from airport outward)
-        $descentMin = self::descentSegmentMinutes(min($todDistNm, $distNm));
+        // FL100 distance from airport (10000 ft AGL at 318 ft/nm = ~31 nm)
+        $fl100AGL = max(0, 10000 - $airportElevFt);
+        $fl100DistNm = $fl100AGL / 318.0;
+
+        // Compute time for the approach/descent segment
+        $descentMin = self::descentSegmentMinutes(
+            min($todDistNm, $distNm),
+            $fl100DistNm,
+            $descentIasHigh
+        );
 
         // Cruise segment: whatever remains beyond the TOD point
         $cruiseNm = max(0.0, $distNm - $todDistNm);
@@ -106,17 +121,20 @@ final class Geo
 
     /**
      * Time in minutes for the approach/descent segment, working from the
-     * airport outward. Applies standard speed constraints per ICAO/FAA:
+     * airport outward. Uses the standard 3° glidepath speed schedule:
      *
-     *   0-2 nm:   Vref ~140 kt
-     *   2-5 nm:   decel segment ~180 kt avg
-     *   5-10 nm:  ~220 kt (3000ft AGL at 10nm on 3° slope)
-     *   10-20 nm: 220 kt approach speed limit
-     *   20+ nm:   250 kt (below FL100, mandatory)
+     *   0-2 nm:              Vref ~140 kt (final)
+     *   2-5 nm:              decel ~180 kt avg
+     *   5-10 nm:             ~220 kt (3000 AGL at 10nm on 3°)
+     *   10-20 nm:            220 kt approach limit
+     *   20 nm - FL100 dist:  250 KIAS (regulatory below FL100)
+     *   FL100 dist - TOD:    IAS_high (type-specific: 280-310 KIAS)
      *
-     * @param float $distNm Distance from airport for this descent segment
+     * @param float $distNm        Total descent distance (TOD to airport)
+     * @param float $fl100DistNm   Distance from airport where FL100 intersects the 3° slope
+     * @param int   $iasHighKt     Type-specific descent IAS above FL100 (e.g. 310 for B77W)
      */
-    private static function descentSegmentMinutes(float $distNm): float
+    private static function descentSegmentMinutes(float $distNm, float $fl100DistNm = 31.0, int $iasHighKt = 280): float
     {
         if ($distNm <= 0) {
             return 0.0;
@@ -148,8 +166,19 @@ final class Geo
         $remaining -= $seg;
         if ($remaining <= 0) return $time;
 
-        // 20+ nm at 250 kt (below FL100)
-        $time += ($remaining / 250.0) * 60.0;
+        // 20 nm to FL100 distance at 250 KIAS (regulatory)
+        $belowFl100Nm = max(0.0, $fl100DistNm - 20.0);
+        $seg = min($belowFl100Nm, $remaining);
+        $time += ($seg / 250.0) * 60.0;
+        $remaining -= $seg;
+        if ($remaining <= 0) return $time;
+
+        // FL100 to TOD at type-specific IAS_high (e.g. 310 for B77W)
+        // IAS_high at FL200-FL300 gives ~350-400 kt GS depending on
+        // altitude. We approximate GS as IAS * 1.2 for this range
+        // (rough TAS correction for FL200 average).
+        $gsHighKt = (int) round($iasHighKt * 1.2);
+        $time += ($remaining / $gsHighKt) * 60.0;
 
         return $time;
     }

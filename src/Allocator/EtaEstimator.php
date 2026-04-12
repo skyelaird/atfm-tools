@@ -76,8 +76,11 @@ final class EtaEstimator
                 ? $flight->last_groundspeed_kts
                 : Geo::DEFAULT_CRUISE_KT;
             $altFt = $flight->last_altitude_ft ?? ($flight->fp_altitude_ft ?? 35000);
+            $descentIas = $flight->aircraft_type
+                ? AircraftTas::descentIasHigh($flight->aircraft_type)
+                : AircraftTas::DEFAULT_DESCENT_IAS_HIGH;
             $etaMin = Geo::etaMinutesWithDescent(
-                $distNm, $gs, $altFt, (int) $destAirport->elevation_ft
+                $distNm, $gs, $altFt, (int) $destAirport->elevation_ft, $descentIas
             );
             return [
                 'epoch'      => $now->getTimestamp() + (int) round($etaMin * 60),
@@ -121,13 +124,16 @@ final class EtaEstimator
 
         // For ground tiers we assume the filed cruise altitude (or 35000
         // as a sensible default for jets) to compute TOD and the descent
-        // time penalty.
-        $cruiseAlt = $flight->fp_altitude_ft ?? 35000;
-        $aptElev   = (int) $destAirport->elevation_ft;
+        // time penalty. Descent IAS from the aircraft type table.
+        $cruiseAlt  = $flight->fp_altitude_ft ?? 35000;
+        $aptElev    = (int) $destAirport->elevation_ft;
+        $descentIas = $flight->aircraft_type
+            ? AircraftTas::descentIasHigh($flight->aircraft_type)
+            : AircraftTas::DEFAULT_DESCENT_IAS_HIGH;
 
         // -- Tier 3: filed cruise TAS
         if ($flight->fp_cruise_tas !== null && $flight->fp_cruise_tas >= 120 && $flight->fp_cruise_tas <= 650) {
-            $flightMin = Geo::etaMinutesWithDescent($distNm, $flight->fp_cruise_tas, $cruiseAlt, $aptElev);
+            $flightMin = Geo::etaMinutesWithDescent($distNm, $flight->fp_cruise_tas, $cruiseAlt, $aptElev, $descentIas);
             return [
                 'epoch'      => $eobtEpoch + ($taxiMin * 60) + (int) round($flightMin * 60),
                 'source'     => self::SOURCE_CALC_FILED_TAS,
@@ -138,7 +144,7 @@ final class EtaEstimator
         // -- Tier 4: aircraft type table
         if ($flight->aircraft_type && AircraftTas::known($flight->aircraft_type)) {
             $tas = AircraftTas::typicalTas($flight->aircraft_type);
-            $flightMin = Geo::etaMinutesWithDescent($distNm, $tas, $cruiseAlt, $aptElev);
+            $flightMin = Geo::etaMinutesWithDescent($distNm, $tas, $cruiseAlt, $aptElev, $descentIas);
             return [
                 'epoch'      => $eobtEpoch + ($taxiMin * 60) + (int) round($flightMin * 60),
                 'source'     => self::SOURCE_CALC_TYPE_TAS,
@@ -147,7 +153,7 @@ final class EtaEstimator
         }
 
         // -- Tier 5: default 430 kt
-        $flightMin = Geo::etaMinutesWithDescent($distNm, AircraftTas::DEFAULT_TAS_KT, $cruiseAlt, $aptElev);
+        $flightMin = Geo::etaMinutesWithDescent($distNm, AircraftTas::DEFAULT_TAS_KT, $cruiseAlt, $aptElev, $descentIas);
         return [
             'epoch'      => $eobtEpoch + ($taxiMin * 60) + (int) round($flightMin * 60),
             'source'     => self::SOURCE_CALC_DEFAULT,
