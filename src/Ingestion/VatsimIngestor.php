@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Atfm\Ingestion;
 
 use Atfm\Allocator\FlightKey;
+use Atfm\Allocator\Geo;
 use Atfm\Allocator\Phase;
 use Atfm\Models\Airport;
 use Atfm\Models\Flight;
