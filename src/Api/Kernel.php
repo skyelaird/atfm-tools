@@ -48,6 +48,7 @@ final class Kernel
         self::registerLegacyFirAndFlowMeasure($app);
         self::registerEcfmpPluginMirror($app);
         self::registerCdmPluginProtocol($app);
+        self::registerFlightsApi($app);
         self::registerAdminEndpoints($app);
         self::registerReportsEndpoints($app);
         self::registerDebugEndpoints($app);
@@ -219,6 +220,141 @@ final class Kernel
         $app->get('/cdm/airport/removeMaster', fn ($req, $res) => self::json($res, ['ok' => true]));
         $app->get('/cdm/airport/removeAllMasterByPosition', fn ($req, $res) => self::json($res, ['ok' => true]));
         $app->get('/cdm/airport/removeAllMasterByAirport', fn ($req, $res) => self::json($res, ['ok' => true]));
+    }
+
+    // ------------------------------------------------------------------
+    //  Flights API — /api/v1/flights
+    //  PERTI SWIM v1-compatible schema with atfm-tools A-CDM extensions.
+    //  Designed for Jeremy (vATCSCC/PERTI) to consume our flight data
+    //  natively alongside his own.
+    // ------------------------------------------------------------------
+
+    private static function registerFlightsApi(App $app): void
+    {
+        $app->get('/api/v1/flights', function ($req, $res) {
+            $params  = $req->getQueryParams();
+            $airport = isset($params['airport']) ? strtoupper(trim((string) $params['airport'])) : null;
+            $dir     = $params['direction'] ?? 'both';
+            $active  = ($params['active'] ?? '1') === '1';
+            $hours   = max(1, min(48, (int) ($params['hours'] ?? 6)));
+            $phases  = isset($params['phase'])
+                ? array_map('trim', explode(',', strtoupper((string) $params['phase'])))
+                : null;
+
+            $now     = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            $since   = $now->modify("-{$hours} hours")->format('Y-m-d H:i:s');
+
+            $query = Flight::query()->where('last_updated_at', '>=', $since);
+
+            // Airport + direction filter
+            if ($airport !== null) {
+                if ($dir === 'inbound') {
+                    $query->where('ades', $airport);
+                } elseif ($dir === 'outbound') {
+                    $query->where('adep', $airport);
+                } else {
+                    $query->where(function ($q) use ($airport) {
+                        $q->where('adep', $airport)->orWhere('ades', $airport);
+                    });
+                }
+            }
+
+            // Active filter — exclude terminal phases
+            if ($active) {
+                $query->whereNotIn('phase', [
+                    Flight::PHASE_ARRIVED,
+                    Flight::PHASE_WITHDRAWN,
+                    Flight::PHASE_DISCONNECTED,
+                ]);
+            }
+
+            // Phase filter
+            if ($phases !== null) {
+                $query->whereIn('phase', $phases);
+            }
+
+            $flights = $query->orderByRaw('COALESCE(eldt, eobt) ASC')
+                ->limit(500)
+                ->get()
+                ->map(function (Flight $f) {
+                    return [
+                        // --- PERTI SWIM v1 compatible fields ---
+                        'callsign'       => $f->callsign,
+                        'cid'            => (int) $f->cid,
+                        'departure'      => $f->adep,
+                        'arrival'        => $f->ades,
+                        'aircraft_short' => $f->aircraft_type,
+                        'deptime'        => $f->eobt?->format('Hi'),
+                        'ctd_utc'        => $f->ctot?->format('c'),
+                        'cta_utc'        => $f->tldt?->format('c'),
+                        'phase'          => $f->phase,
+                        'delay_status'   => $f->delay_status,
+
+                        // --- atfm-tools extensions ---
+                        'flight_key'     => $f->flight_key,
+                        'flight_rules'   => $f->flight_rules,
+                        'wake_category'  => $f->wake_category,
+                        'fp_route'       => $f->fp_route,
+                        'fp_altitude_ft' => $f->fp_altitude_ft,
+                        'fp_cruise_tas'  => $f->fp_cruise_tas,
+                        'fp_enroute_time_min' => $f->fp_enroute_time_min,
+
+                        // A-CDM milestones
+                        'eobt'           => $f->eobt?->format('c'),
+                        'tobt'           => $f->tobt?->format('c'),
+                        'tsat'           => $f->tsat?->format('c'),
+                        'ttot'           => $f->ttot?->format('c'),
+                        'ctot'           => $f->ctot?->format('c'),
+                        'aobt'           => $f->aobt?->format('c'),
+                        'atot'           => $f->atot?->format('c'),
+                        'eldt'           => $f->eldt?->format('c'),
+                        'eldt_locked'    => $f->eldt_locked?->format('c'),
+                        'eldt_locked_at' => $f->eldt_locked_at?->format('c'),
+                        'eldt_locked_source' => $f->eldt_locked_source,
+                        'tldt'           => $f->tldt?->format('c'),
+                        'tldt_assigned_at' => $f->tldt_assigned_at?->format('c'),
+                        'aldt'           => $f->aldt?->format('c'),
+                        'aibt'           => $f->aibt?->format('c'),
+
+                        // Taxi metrics
+                        'planned_exot_min'  => $f->planned_exot_min,
+                        'actual_exot_min'   => $f->actual_exot_min,
+                        'planned_exit_min'  => $f->planned_exit_min,
+                        'actual_exit_min'   => $f->actual_exit_min,
+
+                        // Regulation
+                        'ctl_type'           => $f->ctl_type,
+                        'ctl_element'        => $f->ctl_element,
+                        'ctl_restriction_id' => $f->ctl_restriction_id,
+                        'delay_minutes'      => $f->delay_minutes,
+
+                        // Position
+                        'position' => [
+                            'lat'            => $f->last_lat,
+                            'lon'            => $f->last_lon,
+                            'altitude_ft'    => $f->last_altitude_ft,
+                            'groundspeed_kts'=> $f->last_groundspeed_kts,
+                            'heading_deg'    => $f->last_heading_deg,
+                            'updated_at'     => $f->last_position_at?->format('c'),
+                        ],
+                    ];
+                })->values()->all();
+
+            return self::json($res, [
+                'generated_at' => $now->format('c'),
+                'version'      => \Atfm\Version::STRING,
+                'source'       => 'atfm-tools',
+                'count'        => count($flights),
+                'filters'      => [
+                    'airport'   => $airport,
+                    'direction' => $dir,
+                    'active'    => $active,
+                    'hours'     => $hours,
+                    'phase'     => $phases,
+                ],
+                'flights'      => $flights,
+            ]);
+        });
     }
 
     // ------------------------------------------------------------------
