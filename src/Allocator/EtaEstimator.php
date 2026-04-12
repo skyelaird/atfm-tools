@@ -72,10 +72,32 @@ final class EtaEstimator
                 (float) $destAirport->latitude,
                 (float) $destAirport->longitude
             );
-            $gs = ($flight->last_groundspeed_kts !== null && $flight->last_groundspeed_kts > 100)
+            // For climbing flights (current alt well below filed cruise alt),
+            // the observed GS and altitude are NOT representative of cruise.
+            // A B737 at 3,866ft climbing to FL340 at 284kt GS should not be
+            // treated as if it will cruise at 3,866ft at 284kt for 1452nm.
+            // Use filed cruise altitude for the descent model, and use the
+            // higher of observed GS and filed TAS for the cruise speed —
+            // the aircraft will accelerate to cruise speed once at altitude.
+            $currentAlt = $flight->last_altitude_ft ?? 0;
+            $filedAlt   = $flight->fp_altitude_ft ?? 35000;
+            $altFt      = max($currentAlt, $filedAlt);
+
+            $observedGs = ($flight->last_groundspeed_kts !== null && $flight->last_groundspeed_kts > 100)
                 ? $flight->last_groundspeed_kts
                 : Geo::DEFAULT_CRUISE_KT;
-            $altFt = $flight->last_altitude_ft ?? ($flight->fp_altitude_ft ?? 35000);
+
+            // If still climbing (current alt < 80% of filed alt), the
+            // observed GS is climb speed, not cruise speed. Use the higher
+            // of observed GS and filed TAS (or type-table TAS) so the
+            // cruise segment isn't computed at climb-out speed.
+            $gs = $observedGs;
+            if ($currentAlt < $filedAlt * 0.8) {
+                $filedTas = ($flight->fp_cruise_tas !== null && $flight->fp_cruise_tas >= 200)
+                    ? $flight->fp_cruise_tas
+                    : ($flight->aircraft_type ? AircraftTas::typicalTas($flight->aircraft_type) : Geo::DEFAULT_CRUISE_KT);
+                $gs = max($observedGs, $filedTas);
+            }
             $descentIas = $flight->aircraft_type
                 ? AircraftTas::descentIasHigh($flight->aircraft_type)
                 : AircraftTas::DEFAULT_DESCENT_IAS_HIGH;
