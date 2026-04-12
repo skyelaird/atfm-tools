@@ -434,9 +434,16 @@ final class Kernel
                     ];
                 })->values()->all();
 
-            // Current outbound (not yet terminal, not disconnected)
+            // Current outbound — phases where the flight still "belongs" to
+            // this airport's departure view. Once ARRIVING or later, the
+            // flight belongs to its destination's inbound view, not here.
+            $outboundPhases = [
+                Flight::PHASE_PREFILE, Flight::PHASE_FILED,
+                Flight::PHASE_TAXI_OUT, Flight::PHASE_DEPARTED,
+                Flight::PHASE_ENROUTE,
+            ];
             $outbound = Flight::where('adep', $icao)
-                ->whereNotIn('phase', $liveExclude)
+                ->whereIn('phase', $outboundPhases)
                 ->orderBy('eobt')
                 ->limit(100)
                 ->get()
