@@ -58,60 +58,59 @@ final class EtaEstimator
     public static function estimate(Flight $flight, Airport $destAirport, DateTimeImmutable $now): array
     {
         // -- Tier 2: airborne with known position → descent-aware ETA
-        // Uses the standard 3° glidepath speed schedule: 250 kt below
-        // FL100, 220 kt within 20 nm, decel to Vref for final. This
-        // corrects the 10-16 min systematic optimism from the old
-        // great-circle ÷ cruise-GS formula which assumed cruise speed
-        // all the way to the threshold.
+        //
+        // SKIP flights still climbing. During climb the GS and altitude
+        // are unrepresentative of cruise — computing ELDT from them
+        // produces garbage (e.g. 284kt at 3866ft extrapolated over
+        // 1452nm). Wait until the aircraft reaches cruise altitude
+        // before computing. The ground-flight tiers (FILED, CALC_*)
+        // still provide a usable estimate from EOBT + ETE.
+        //
+        // "Stable at cruise" = current alt >= 80% of filed cruise alt.
+        // This catches top-of-climb within ~5000ft of the filed FL,
+        // which is where GS stabilises and becomes representative.
         if ($flight->isAirborne()
             && $flight->last_lat !== null
             && $flight->last_lon !== null) {
-            $distNm = Geo::distanceNm(
-                (float) $flight->last_lat,
-                (float) $flight->last_lon,
-                (float) $destAirport->latitude,
-                (float) $destAirport->longitude
-            );
-            // For climbing flights (current alt well below filed cruise alt),
-            // the observed GS and altitude are NOT representative of cruise.
-            // A B737 at 3,866ft climbing to FL340 at 284kt GS should not be
-            // treated as if it will cruise at 3,866ft at 284kt for 1452nm.
-            // Use filed cruise altitude for the descent model, and use the
-            // higher of observed GS and filed TAS for the cruise speed —
-            // the aircraft will accelerate to cruise speed once at altitude.
+
             $currentAlt = $flight->last_altitude_ft ?? 0;
             $filedAlt   = $flight->fp_altitude_ft ?? 35000;
-            $altFt      = max($currentAlt, $filedAlt);
 
-            $observedGs = ($flight->last_groundspeed_kts !== null && $flight->last_groundspeed_kts > 100)
-                ? $flight->last_groundspeed_kts
-                : Geo::DEFAULT_CRUISE_KT;
-
-            // If still climbing (current alt < 80% of filed alt), the
-            // observed GS is climb speed, not cruise speed. Use the higher
-            // of observed GS and filed TAS (or type-table TAS) so the
-            // cruise segment isn't computed at climb-out speed.
-            $gs = $observedGs;
+            // Still climbing — skip OBSERVED_POS, fall through to
+            // ground tiers which use filed ETE or computed TAS.
             if ($currentAlt < $filedAlt * 0.8) {
-                $filedTas = ($flight->fp_cruise_tas !== null && $flight->fp_cruise_tas >= 200)
-                    ? $flight->fp_cruise_tas
-                    : ($flight->aircraft_type ? AircraftTas::typicalTas($flight->aircraft_type) : Geo::DEFAULT_CRUISE_KT);
-                $gs = max($observedGs, $filedTas);
+                // Fall through to Tier 1 (FILED) or Tiers 3-5 below.
+                // Don't return — let the cascade continue.
+            } else {
+                // At or near cruise — compute descent-aware ETA from
+                // observed position and groundspeed.
+                $distNm = Geo::distanceNm(
+                    (float) $flight->last_lat,
+                    (float) $flight->last_lon,
+                    (float) $destAirport->latitude,
+                    (float) $destAirport->longitude
+                );
+                $gs = ($flight->last_groundspeed_kts !== null && $flight->last_groundspeed_kts > 100)
+                    ? $flight->last_groundspeed_kts
+                    : Geo::DEFAULT_CRUISE_KT;
+                $altFt = $currentAlt;
+                $descentIas = $flight->aircraft_type
+                    ? AircraftTas::descentIasHigh($flight->aircraft_type)
+                    : AircraftTas::DEFAULT_DESCENT_IAS_HIGH;
+                $etaMin = Geo::etaMinutesWithDescent(
+                    $distNm, $gs, $altFt, (int) $destAirport->elevation_ft, $descentIas
+                );
+                return [
+                    'epoch'      => $now->getTimestamp() + (int) round($etaMin * 60),
+                    'source'     => self::SOURCE_OBSERVED_POS,
+                    'confidence' => 85,
+                ];
             }
-            $descentIas = $flight->aircraft_type
-                ? AircraftTas::descentIasHigh($flight->aircraft_type)
-                : AircraftTas::DEFAULT_DESCENT_IAS_HIGH;
-            $etaMin = Geo::etaMinutesWithDescent(
-                $distNm, $gs, $altFt, (int) $destAirport->elevation_ft, $descentIas
-            );
-            return [
-                'epoch'      => $now->getTimestamp() + (int) round($etaMin * 60),
-                'source'     => self::SOURCE_OBSERVED_POS,
-                'confidence' => 85,
-            ];
+            // Still climbing — fall through to ground tiers below.
         }
 
-        // Ground flight cascade — needs an EOBT to anchor.
+        // Ground flight cascade (also used for climbing airborne flights
+        // that haven't reached cruise yet) — needs an EOBT to anchor.
         if ($flight->eobt === null) {
             return ['epoch' => null, 'source' => self::SOURCE_NONE, 'confidence' => 0];
         }
