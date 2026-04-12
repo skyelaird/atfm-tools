@@ -125,10 +125,18 @@ docs/
 
 ## Deferred / known TODO
 
-- `bin/rot-tracker.php` (v0.4) — adaptive ROT state machine porting cyhz-rot-collector
-- `bin/compute-aar.php` (v0.4) — daily AAR derivation from observed data
-- CYWG runway threshold data (waiting on operator)
-- Jeremy Peterson coordination for PERTI SWIM partner key
+- ~~`bin/rot-tracker.php` (v0.4)~~ ✅ shipped v0.4.0 — `src/Allocator/RotTracker.php`
+- ~~`bin/compute-aar.php` (v0.4)~~ ✅ shipped v0.4.0 — `src/Allocator/AarComputer.php`
+- ~~CYWG runway threshold data~~ ✅ shipped v0.4.0 (operator-supplied)
+- Jeremy Peterson coordination for PERTI SWIM partner key — **strictly
+  optional**, not blocking. PERTI runs a public SWIM v1 API; we ingest
+  VATSIM directly so we don't need it. Reasons we'd want it:
+  (1) cross-validate our CTOTs against PERTI's as a QA tier-1 input,
+  (2) honor PERTI CTOTs as imported with high priority for callsigns
+      they've already regulated (avoid double-issue), or
+  (3) feed our `imported_ctots` table for vATCSCC events without an
+      ECFMP file. Without the key the system functions fully — the
+      allocator just doesn't see PERTI's existing slot allocations.
 - Persist `eta_source` on flights table (currently computed in EtaEstimator
   output but not stored)
 - Add ETA accuracy breakdown by source tier to reports page

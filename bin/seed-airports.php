@@ -105,7 +105,7 @@ $parseLine = static function (string $line) use ($dms): array {
     ];
 };
 
-// Runway data (6 airports — CYWG pending).
+// Runway data (all 7 airports).
 $runwayLines = [
     // CYHZ
     '05  23  053 233 N044.51.56.318 W063.31.38.110 N044.53.18.250 W063.30.17.200 CYHZ',
@@ -136,6 +136,10 @@ $runwayLines = [
     '13  31  125 305 N049.11.59.690 W123.12.03.229 N049.11.03.051 W123.10.55.340 CYVR',
     '08R 26L 083 263 N049.11.23.161 W123.12.17.740 N049.11.04.891 W123.09.37.530 CYVR',
     '08L 26R 083 263 N049.12.18.759 W123.12.03.959 N049.12.01.951 W123.09.36.489 CYVR',
+
+    // CYWG (operator-supplied, v0.4)
+    '18  36  185 005 N049.55.29.701 W097.14.05.899 N049.53.42.388 W097.14.30.771 CYWG',
+    '13  31  135 315 N049.54.46.900 W097.15.08.369 N049.53.42.619 W097.13.40.321 CYWG',
 ];
 
 $thresholdCount = 0;
@@ -160,6 +164,6 @@ foreach ($runwayLines as $line) {
         $thresholdCount++;
     }
 }
-echo "✓ seeded {$thresholdCount} runway thresholds (6 airports, CYWG deferred)\n";
+echo "✓ seeded {$thresholdCount} runway thresholds (all 7 airports)\n";
 
 echo "done.\n";

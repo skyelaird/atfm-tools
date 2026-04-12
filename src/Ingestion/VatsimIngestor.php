@@ -419,6 +419,22 @@ final class VatsimIngestor
         }
 
         $flight->save();
+
+        // Append a position_scratch row for this observation. This is the
+        // raw history that bin/rot-tracker.php (v0.4) consumes to refine
+        // ATOT/ALDT and compute approximate runway occupancy times.
+        // Cleanup is bin/cleanup.php's job (48 h retention).
+        if ($lat !== null && $lon !== null) {
+            PositionScratch::create([
+                'flight_id'       => $flight->id,
+                'lat'             => $lat,
+                'lon'             => $lon,
+                'altitude_ft'     => $altitude,
+                'groundspeed_kts' => $gs,
+                'heading_deg'     => $heading,
+                'observed_at'     => $now,
+            ]);
+        }
     }
 
     private function parseAltitude(?string $alt): ?int

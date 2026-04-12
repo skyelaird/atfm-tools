@@ -141,6 +141,11 @@ final class Flight extends Model
         return $this->hasMany(PositionScratch::class);
     }
 
+    public function rotObservations(): HasMany
+    {
+        return $this->hasMany(RotObservation::class);
+    }
+
     public function isTerminal(): bool
     {
         return in_array($this->phase, self::TERMINAL_PHASES, true);

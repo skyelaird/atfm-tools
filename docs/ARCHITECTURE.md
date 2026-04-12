@@ -582,28 +582,50 @@ or `POST /api/v1/admin/ctot-imports` (future endpoint).
 
 ### 6.4 ROT / position tracker — `bin/rot-tracker.php`
 
-**Source**: same VATSIM feed, but with adaptive polling cadence inspired by the
-`cyhz-rot-collector` Python reference implementation.
+**Source**: derived from `position_scratch` rows that `bin/ingest-vatsim.php`
+appends each cycle. v0.4 ships a pragmatic implementation that respects the
+fact our ingest cadence is 5 minutes — adaptive sub-minute polling
+(originally inspired by the `cyhz-rot-collector` Python reference) is not
+viable on shared hosting under cron, so we trade absolute precision for
+stable derived metrics.
 
-**Cadence decision logic** (mirrors collector):
-| Situation | Interval |
-|---|---|
-| No tracked flights | 10 min |
-| Closest flight > 100 nm from ADES | 10 min |
-| Closest 50-100 nm | 5 min |
-| Closest 30-50 nm | 2 min |
-| Closest ≤ 30 nm | 60 s |
-| Any in APPROACH / FINAL / ON_RUNWAY | 15 s |
+**Cadence**: every 5 min, immediately after `bin/ingest-vatsim.php`. Reads
+the previous 30 min of `position_scratch` history.
 
-**Actions**:
-1. Fetch VATSIM feed (reusing cached response from `ingest-vatsim.php` if fresh
-   enough, else fetching a new one).
-2. For each tracked flight, run the state machine (see §8) and write transitions
-   to `flights` and position samples to `position_scratch`.
-3. On `FINAL → ON_RUNWAY → VACATED` transitions, record threshold crossing time
-   and runway vacate time. Compute ROT delta and populate
-   `flights.actual_exit_min` (for arrivals) or `flights.actual_exot_min` (for
-   departures).
+**Algorithm** (`src/Allocator/RotTracker.php`):
+
+1. Find every flight that has just departed (`atot` set, no DEP
+   `rot_observation` row yet) and every flight that has just landed
+   (`aldt` set, no ARR row yet), looking back 30 min.
+2. For each candidate, fetch the `position_scratch` rows in a ±6 min
+   window around the milestone timestamp.
+3. **Pick the runway** by matching the flight's heading at the lowest-
+   altitude scratch sample against each `runway_thresholds.heading_deg`
+   for the airport. Smallest circular delta wins; threshold distance
+   tiebreaks. Reject if no threshold is within 4 NM of any sample.
+4. **Refine the threshold-crossing time** by linear interpolation
+   between two consecutive scratch samples that bracket the runway
+   threshold elevation + 200 ft (for departures, on-ground → airborne;
+   for arrivals, airborne → on-ground). Source = `'I'` (interpolated).
+5. If only one sample is in range, fall back to using the milestone
+   time as-is (source = `'A'` approx) or the milestone with no nearby
+   GS (source = `'F'` fallback).
+6. **For arrivals**, scan forward in the scratch trail for the first
+   sample with groundspeed < 30 kt as a proxy for "off the runway".
+   That gives `clear_at`; `rot_seconds = clear_at − threshold_at`.
+   With 5-min sampling this is necessarily approximate — `rot_seconds`
+   will overstate true ROT, often substantially. For trend tracking
+   it's still useful; for absolute KPI it isn't.
+7. Write a `rot_observations` row. Idempotent on
+   `(flight_id, event_type)`.
+
+**Why we don't refine `flights.actual_exot_min` / `actual_exit_min` from
+this pass**: those columns store AXOT/AXIT (`ATOT − AOBT` and
+`AIBT − ALDT`) — they're milestone deltas, not runway-occupancy times,
+and they're already computed by `VatsimIngestor`. The
+`rot_observations` table stores threshold-specific, runway-specific,
+GS-tagged data that the ingestor doesn't have access to and that
+`compute-aar.php` consumes downstream.
 
 ### 6.5 Future: PERTI SWIM live feed
 
@@ -810,8 +832,9 @@ For each allocator run, the effective capacity of an airport is determined by:
 
 1. If an **`airport_restrictions`** row is active AND its `capacity` field is
    set → use that.
-2. Else if **`airports.observed_arrival_rate`** is populated AND `sample_n >
-   100` → use that.
+2. Else if **`airports.observed_arrival_rate`** is populated → use that.
+   (`bin/compute-aar.php` only writes this column when its sample count
+   meets the promotion threshold, so any non-null value is trustworthy.)
 3. Else use **`airports.base_arrival_rate`** (operator-configured fallback, e.g.
    copied from vIFF's published value).
 
@@ -823,14 +846,31 @@ The ICAO 9971 Part II Appendix II-B formula:
 AAR = round_down( mean_ground_speed_at_threshold_kts / mean_spacing_between_aircraft_nm )
 ```
 
-`bin/compute-aar.php` runs daily and:
-1. Queries recent arrivals (last 7 days) at each airport with threshold crossing
-   events from `position_scratch` (or `runway_events` if we add it).
-2. Computes mean threshold groundspeed from the observations.
-3. Computes mean spacing by pairwise consecutive threshold-crossing times × GS.
-4. Derives AAR per the formula.
-5. Upserts `aar_calculations` row for the (airport, runway, window) triple.
-6. If `sample_n > 100`, updates `airports.observed_arrival_rate`.
+`bin/compute-aar.php` runs daily (`src/Allocator/AarComputer.php`) and:
+
+1. Reads the last 24 h of `rot_observations` rows where `event_type = 'ARR'`,
+   grouped by `(airport_icao, runway_ident)`.
+2. Computes inter-arrival gaps between consecutive `threshold_at` timestamps
+   on the same runway. Drops outliers — gaps > 30 min (flow lull, not
+   spacing) and gaps < 30 s (data error / duplicate).
+3. Computes `mean_threshold_gs_kts` from the observations' `threshold_gs_kts`
+   field. Falls back to 130 kt when no GS data is present.
+4. Derives `mean_spacing_nm = (mean_gs / 3600) × mean_inter_arrival_sec`.
+5. Applies the formula: `AAR = ⌊mean_gs / mean_spacing⌋`. Algebraically
+   this equals `3600 / mean_inter_arrival_sec`, but storing both forms
+   preserves traceability to the canonical ICAO formula and lets us
+   inspect spacing trends independently of arrival counts.
+6. Writes one `aar_calculations` row per (airport, runway, 24h-window).
+   `confidence_pct` ramps linearly from 0 to 100 as `sample_count` grows
+   from 0 to `MIN_SAMPLES_FOR_PROMOTION × 5` (= 100).
+7. Promotes the highest-sample-count runway's AAR into
+   `airports.observed_arrival_rate` when its sample count
+   ≥ `MIN_SAMPLES_FOR_PROMOTION` (= 20).
+
+Sample-size threshold for promotion is 20, not 100 as §9.1 once said —
+the airport-level fallback in §9.1 has been relaxed to match (any
+populated `observed_arrival_rate` is honored, since the writer guards
+the gate).
 
 ### 9.3 Runway-specific rates
 
@@ -992,7 +1032,7 @@ SSH key auth via `~/.ssh/atfm_whc` (set up in v0.2 setup). No password prompts.
 */5 * * * *   cd ~/atfm-tools && php bin/ingest-vatsim.php >> logs/ingest.log 2>&1
 */5 * * * *   cd ~/atfm-tools && php bin/ingest-events.php >> logs/events.log 2>&1
 */5 * * * *   cd ~/atfm-tools && php bin/ingest-imports.php >> logs/imports.log 2>&1
-* * * * *     cd ~/atfm-tools && php bin/rot-tracker.php >> logs/rot.log 2>&1
+*/5 * * * *   cd ~/atfm-tools && php bin/rot-tracker.php >> logs/rot.log 2>&1
 
 # Computation
 */5 * * * *   cd ~/atfm-tools && php bin/compute-ctots.php >> logs/ctots.log 2>&1
