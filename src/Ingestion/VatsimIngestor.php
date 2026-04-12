@@ -523,7 +523,17 @@ final class VatsimIngestor
             $graceMin = ($flight->planned_exot_min ?? 15) + 10;
             $deadline = $flight->eobt->getTimestamp() + ($graceMin * 60);
             if ($now->getTimestamp() > $deadline) {
-                $flight->delay_status = 'FLS_NRA';
+                // FLS-NRA for more than 60 min past the grace deadline →
+                // the pilot isn't coming. Withdraw so they don't consume
+                // a slot or clutter the inbound/outbound view.
+                if ($now->getTimestamp() > $deadline + (60 * 60)) {
+                    $flight->phase = Flight::PHASE_WITHDRAWN;
+                    $flight->delay_status = Flight::DELAY_WITHDRAWN;
+                    $flight->phase_updated_at = $now;
+                    $flight->finalized_at = $now;
+                } else {
+                    $flight->delay_status = 'FLS_NRA';
+                }
             }
         }
 
