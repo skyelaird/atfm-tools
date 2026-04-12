@@ -529,9 +529,14 @@ final class Kernel
             // ingestor's stored value is null — that way long-range
             // ENROUTE flights still get a usable arrival estimate.
             $liveExclude = [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED];
+            // Sort inbound by ELDT ascending, nulls last. Flights without
+            // an ELDT (e.g. FILED phase, no ETE filed) sink to the bottom
+            // rather than floating to the top via EOBT fallback — an
+            // ARRIVING flight 20 min out is more operationally relevant
+            // than a FILED flight that hasn't even departed.
             $inbound = Flight::where('ades', $icao)
                 ->whereNotIn('phase', $liveExclude)
-                ->orderByRaw('COALESCE(eldt, eobt) ASC')
+                ->orderByRaw('CASE WHEN eldt IS NULL THEN 1 ELSE 0 END ASC, eldt ASC')
                 ->limit(100)
                 ->get()
                 ->map(function (Flight $f) use ($airport, $now) {
