@@ -125,21 +125,37 @@ docs/
 
 ## Deferred / known TODO
 
-- ~~`bin/rot-tracker.php` (v0.4)~~ ✅ shipped v0.4.0 — `src/Allocator/RotTracker.php`
-- ~~`bin/compute-aar.php` (v0.4)~~ ✅ shipped v0.4.0 — `src/Allocator/AarComputer.php`
 - ~~CYWG runway threshold data~~ ✅ shipped v0.4.0 (operator-supplied)
+- ~~`bin/rot-tracker.php` + `bin/compute-aar.php`~~ shipped v0.4.0,
+  **retired v0.4.7** — see "Retired ideas" below
 - Jeremy Peterson coordination for PERTI SWIM partner key — **strictly
   optional**, not blocking. PERTI runs a public SWIM v1 API; we ingest
-  VATSIM directly so we don't need it. Reasons we'd want it:
-  (1) cross-validate our CTOTs against PERTI's as a QA tier-1 input,
-  (2) honor PERTI CTOTs as imported with high priority for callsigns
-      they've already regulated (avoid double-issue), or
-  (3) feed our `imported_ctots` table for vATCSCC events without an
-      ECFMP file. Without the key the system functions fully — the
-      allocator just doesn't see PERTI's existing slot allocations.
+  VATSIM directly so we don't need it.
 - Persist `eta_source` on flights table (currently computed in EtaEstimator
   output but not stored)
 - Add ETA accuracy breakdown by source tier to reports page
+
+## Retired ideas (don't re-propose without checking)
+
+- **ROT measurement / data-driven AAR**. v0.4.0 built `rot-tracker` and
+  `compute-aar` to derive ROT and AAR from `position_scratch` history.
+  Retired in v0.4.7 because (a) measuring ROT to useful precision needs
+  sub-minute ingest cadence which shared-hosting cron can't deliver
+  cleanly, and (b) **the value of this system is in slot allocation
+  against a declared rate, not in deriving the rate**. AAR comes from
+  operator knowledge (`airports.base_arrival_rate`). The cyhz-rot-collector
+  Python tool remains the right way to measure ROT precisely if that
+  need ever returns.
+- **OSM runway-exit detection** (proposed earlier this session). Same
+  ROI argument — only matters if we revive ROT measurement.
+
+## North Star
+
+The valuable thing this system does is **estimate ELDT well enough
+to allocate arrival slots**, vIFF / ECFMP-style. Every feature should
+be evaluated against that. If a feature doesn't improve slot allocation
+quality or operator situational awareness around inbound load, it
+probably shouldn't ship.
 
 ## Conventions
 

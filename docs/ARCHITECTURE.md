@@ -580,52 +580,36 @@ or `POST /api/v1/admin/ctot-imports` (future endpoint).
 **Actions**: parse, upsert to `imported_ctots`, move processed files to
 `storage/imports/ctots/processed/<date>/`.
 
-### 6.4 ROT / position tracker — `bin/rot-tracker.php`
+### 6.4 ROT tracking — *retired in v0.4.7*
 
-**Source**: derived from `position_scratch` rows that `bin/ingest-vatsim.php`
-appends each cycle. v0.4 ships a pragmatic implementation that respects the
-fact our ingest cadence is 5 minutes — adaptive sub-minute polling
-(originally inspired by the `cyhz-rot-collector` Python reference) is not
-viable on shared hosting under cron, so we trade absolute precision for
-stable derived metrics.
+v0.4.0 shipped `bin/rot-tracker.php` and `bin/compute-aar.php` to derive
+runway-occupancy times and a data-driven AAR from `position_scratch`
+history. v0.4.7 retired the whole pipeline because the project doesn't
+need that precision: AAR comes from operator knowledge
+(`airports.base_arrival_rate`), the value of the system is in **slot
+allocation against a declared rate** (CtotAllocator), not in deriving
+the rate from observations.
 
-**Cadence**: every 5 min, immediately after `bin/ingest-vatsim.php`. Reads
-the previous 30 min of `position_scratch` history.
+What's left:
+- `position_scratch` writes from `VatsimIngestor` continue (cheap,
+  useful for the dashboard map and any future debugging)
+- `bin/cleanup.php` still purges scratch after 48 h
+- `flights.actual_exit_min` and `flights.actual_exot_min` still hold
+  AXOT/AXIT measurements for the reports page
 
-**Algorithm** (`src/Allocator/RotTracker.php`):
+What's gone:
+- `bin/rot-tracker.php`, `bin/compute-aar.php`
+- `src/Allocator/RotTracker.php`, `src/Allocator/AarComputer.php`
+- `src/Models/RotObservation.php`, `src/Models/AarCalculation.php`
+- The `rot_observations` and `aar_calculations` tables stay on
+  already-deployed databases (idempotent migration left them alone),
+  but no code reads or writes them. Drop manually if you want the
+  space back.
 
-1. Find every flight that has just departed (`atot` set, no DEP
-   `rot_observation` row yet) and every flight that has just landed
-   (`aldt` set, no ARR row yet), looking back 30 min.
-2. For each candidate, fetch the `position_scratch` rows in a ±6 min
-   window around the milestone timestamp.
-3. **Pick the runway** by matching the flight's heading at the lowest-
-   altitude scratch sample against each `runway_thresholds.heading_deg`
-   for the airport. Smallest circular delta wins; threshold distance
-   tiebreaks. Reject if no threshold is within 4 NM of any sample.
-4. **Refine the threshold-crossing time** by linear interpolation
-   between two consecutive scratch samples that bracket the runway
-   threshold elevation + 200 ft (for departures, on-ground → airborne;
-   for arrivals, airborne → on-ground). Source = `'I'` (interpolated).
-5. If only one sample is in range, fall back to using the milestone
-   time as-is (source = `'A'` approx) or the milestone with no nearby
-   GS (source = `'F'` fallback).
-6. **For arrivals**, scan forward in the scratch trail for the first
-   sample with groundspeed < 30 kt as a proxy for "off the runway".
-   That gives `clear_at`; `rot_seconds = clear_at − threshold_at`.
-   With 5-min sampling this is necessarily approximate — `rot_seconds`
-   will overstate true ROT, often substantially. For trend tracking
-   it's still useful; for absolute KPI it isn't.
-7. Write a `rot_observations` row. Idempotent on
-   `(flight_id, event_type)`.
-
-**Why we don't refine `flights.actual_exot_min` / `actual_exit_min` from
-this pass**: those columns store AXOT/AXIT (`ATOT − AOBT` and
-`AIBT − ALDT`) — they're milestone deltas, not runway-occupancy times,
-and they're already computed by `VatsimIngestor`. The
-`rot_observations` table stores threshold-specific, runway-specific,
-GS-tagged data that the ingestor doesn't have access to and that
-`compute-aar.php` consumes downstream.
+The cyhz-rot-collector reference implementation (Python, daemon-style,
+adaptive sub-minute polling) remains the right way to measure ROT
+precisely, and is the recommended path if a future need for real ROT
+data emerges.
 
 ### 6.5 Future: PERTI SWIM live feed
 
@@ -1036,13 +1020,11 @@ SSH key auth via `~/.ssh/atfm_whc` (set up in v0.2 setup). No password prompts.
 */5 * * * *   cd ~/atfm-tools && php bin/ingest-vatsim.php >> logs/ingest.log 2>&1
 */5 * * * *   cd ~/atfm-tools && php bin/ingest-events.php >> logs/events.log 2>&1
 */5 * * * *   cd ~/atfm-tools && php bin/ingest-imports.php >> logs/imports.log 2>&1
-*/5 * * * *   cd ~/atfm-tools && php bin/rot-tracker.php >> logs/rot.log 2>&1
 
 # Computation
 */5 * * * *   cd ~/atfm-tools && php bin/compute-ctots.php >> logs/ctots.log 2>&1
 
 # Daily maintenance
-0 3 * * *     cd ~/atfm-tools && php bin/compute-aar.php >> logs/aar.log 2>&1
 0 4 * * *     cd ~/atfm-tools && php bin/cleanup.php >> logs/cleanup.log 2>&1
 ```
 

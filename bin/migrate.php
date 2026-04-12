@@ -323,57 +323,12 @@ if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'fp_enroute_
     echo "✓ added flights.fp_enroute_time_min\n";
 }
 
-//
-// v0.4: rot_observations — refined ATOT/ALDT and approximate runway
-// occupancy timing per flight per runway. Populated by bin/rot-tracker.php
-// from position_scratch history. Feeds bin/compute-aar.php and reports.
-//
-if (! $schema->hasTable('rot_observations')) {
-    $schema->create('rot_observations', function (Blueprint $t) {
-        $t->id();
-        $t->foreignId('flight_id')->constrained('flights')->cascadeOnDelete();
-        $t->string('airport_icao', 4);
-        $t->string('runway_ident', 4);
-        $t->char('event_type', 3)->comment('DEP|ARR');
-        $t->dateTime('threshold_at')
-            ->comment('Refined ATOT (DEP) or ALDT (ARR) — interpolated between scratch samples when possible');
-        $t->dateTime('clear_at')->nullable()
-            ->comment('Best-effort runway-vacated time. Approximate at 5-min sampling.');
-        $t->unsignedInteger('rot_seconds')->nullable()
-            ->comment('clear_at − threshold_at. NULL when sampling is too coarse to estimate.');
-        $t->unsignedInteger('threshold_gs_kts')->nullable()
-            ->comment('Groundspeed at threshold crossing — feeds AAR formula.');
-        $t->char('source', 1)->default('I')
-            ->comment('I=interpolated between scratch samples, A=approx (single sample), F=fallback (uses milestone time as-is)');
-        $t->timestamps();
-        $t->index(['airport_icao', 'event_type', 'threshold_at']);
-        $t->unique(['flight_id', 'event_type']);
-    });
-    echo "✓ created rot_observations (v0.4)\n";
-} else {
-    echo "• rot_observations already exists\n";
-}
-
-if (! $schema->hasTable('aar_calculations')) {
-    $schema->create('aar_calculations', function (Blueprint $t) {
-        $t->id();
-        $t->string('airport_icao', 4);
-        $t->string('runway_ident', 4);
-        $t->dateTime('window_start');
-        $t->dateTime('window_end');
-        $t->unsignedInteger('mean_threshold_gs_kts');
-        $t->double('mean_spacing_nm');
-        $t->unsignedInteger('computed_aar');
-        $t->unsignedInteger('sample_count');
-        $t->unsignedInteger('confidence_pct')->nullable();
-        $t->char('preceding_wake', 1)->nullable();
-        $t->char('follower_wake', 1)->nullable();
-        $t->timestamps();
-        $t->index(['airport_icao', 'window_end']);
-    });
-    echo "✓ created aar_calculations\n";
-} else {
-    echo "• aar_calculations already exists\n";
-}
+// (v0.4.0 added rot_observations + aar_calculations tables for the
+// ROT/AAR derivation pipeline; v0.4.7 retired that pipeline because
+// the ROI didn't justify the precision work — see CHANGELOG/CLAUDE.md.
+// The migrations are removed; existing tables on already-deployed DBs
+// stay in place harmlessly. Drop manually with `DROP TABLE
+// rot_observations, aar_calculations;` if you want to reclaim the
+// space.)
 
 echo "done.\n";

@@ -732,7 +732,7 @@ function renderAirports(airports) {
             el('div', { class: 'metrics' },
                 el('div', { class: 'metric' },
                     el('div', { class: 'lbl' }, 'rate'),
-                    el('div', { class: 'val mono' }, String(a.observed_arrival_rate || a.base_arrival_rate))
+                    el('div', { class: 'val mono' }, String(a.base_arrival_rate))
                 ),
                 el('div', { class: 'metric' },
                     el('div', { class: 'lbl' }, 'in'),
@@ -823,7 +823,6 @@ function renderAirportDetail(d) {
         el('h3', {}, 'Stats'),
         el('div', { class: 'stats-grid' },
             statCard('base arr rate', a.base_arrival_rate, '/hr'),
-            statCard('observed', a.observed_arrival_rate || '—', a.observed_arrival_rate ? '/hr' : null),
             statCard('arrivals last hr', d.stats.arrivals_last_hour, null),
             statCard('departures last hr', d.stats.departures_last_hour, null),
             // EUROCONTROL A-CDM: AXOT = ATOT−AOBT (observed), EXOT = planned/default

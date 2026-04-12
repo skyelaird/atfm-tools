@@ -143,10 +143,8 @@
                         <th data-sort="departures" class="num">Dep</th>
                         <th data-sort="avg_exot_min" class="num" title="Average observed AXOT (Actual Taxi-Out Time = ATOT − AOBT) in min — EUROCONTROL A-CDM">AXOT̄</th>
                         <th data-sort="p90_exot_min" class="num" title="p90 AXOT — outlier-resistant upper">AXOT₉₀</th>
-                        <th data-sort="avg_rot_arr_min" class="num" title="Mean Runway Occupancy Time (arrivals) in min — measured by rot-tracker as clear_at − threshold_at, where clear_at is the first scratch sample with GS < 30 kt after threshold crossing.">ROT̄ arr</th>
-                        <th data-sort="avg_rot_dep_min" class="num" title="Mean Runway Occupancy Time (departures) in min — APPROXIMATE. With 5-min ingest cadence we can't measure the takeoff roll directly; rot-tracker estimates ROT_dep as the gap between the last on-ground sample and the interpolated wheels-up moment, which is biased high but consistent across flights.">ROT̄ dep</th>
-                        <th data-sort="avg_post_rot_axit_min" class="num" title="Mean POST-ROT AXIT in min — actual taxi-in route time excluding runway occupancy: AIBT − rot_observations.clear_at. The strict EUROCONTROL definition AXIT = AIBT − ALDT conflates ROT and taxi; this column gives you just the taxi part.">AXIT̄ post</th>
-                        <th data-sort="p90_post_rot_axit_min" class="num" title="p90 post-ROT AXIT">AXIT₉₀ post</th>
+                        <th data-sort="avg_exit_min" class="num" title="Average AXIT (Actual Taxi-In Time = AIBT − ALDT) in min — EUROCONTROL A-CDM">AXIT̄</th>
+                        <th data-sort="p90_exit_min" class="num" title="p90 AXIT">AXIT₉₀</th>
                         <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT − EOBT) in min — how late pilots actually push back vs filed">ΔEOBT̄</th>
                         <th data-sort="avg_eta_error_min" class="num" title="Filed-ETA accuracy: ALDT − (ATOT + filed enroute_time) in min. ETE is cruise duration only, so we anchor to ATOT not AOBT.">ΔETĀ</th>
                         <th data-sort="p90_eta_error_min" class="num" title="p90 ETA error">ΔETA₉₀</th>
@@ -154,7 +152,7 @@
                     </tr>
                 </thead>
                 <tbody id="airports-tbody">
-                    <tr><td colspan="13" class="empty-row">Loading…</td></tr>
+                    <tr><td colspan="11" class="empty-row">Loading…</td></tr>
                 </tbody>
             </table>
         </div>
@@ -323,8 +321,7 @@ function rerender() {
     const aAcc = {
         icao: r => r.icao, arrivals: r => r.arrivals, departures: r => r.departures,
         avg_exot_min: r => r.avg_exot_min, p90_exot_min: r => r.p90_exot_min,
-        avg_rot_arr_min: r => r.avg_rot_arr_min, avg_rot_dep_min: r => r.avg_rot_dep_min,
-        avg_post_rot_axit_min: r => r.avg_post_rot_axit_min, p90_post_rot_axit_min: r => r.p90_post_rot_axit_min,
+        avg_exit_min: r => r.avg_exit_min, p90_exit_min: r => r.p90_exit_min,
         avg_eobt_delay_min: r => r.avg_eobt_delay_min,
         avg_eta_error_min: r => r.avg_eta_error_min, p90_eta_error_min: r => r.p90_eta_error_min,
         eta_sample_n: r => r.eta_sample_n,
@@ -338,10 +335,8 @@ function rerender() {
             el('td', { class: 'num' }, String(r.departures)),
             el('td', { class: 'num' }, fmt(r.avg_exot_min)),
             el('td', { class: 'num muted' }, fmt(r.p90_exot_min)),
-            el('td', { class: 'num' }, fmt(r.avg_rot_arr_min)),
-            el('td', { class: 'num' }, fmt(r.avg_rot_dep_min)),
-            el('td', { class: 'num' }, fmt(r.avg_post_rot_axit_min)),
-            el('td', { class: 'num muted' }, fmt(r.p90_post_rot_axit_min)),
+            el('td', { class: 'num' }, fmt(r.avg_exit_min)),
+            el('td', { class: 'num muted' }, fmt(r.p90_exit_min)),
             el('td', { class: 'num' }, fmt(r.avg_eobt_delay_min)),
             el('td', { class: 'num' }, fmt(r.avg_eta_error_min)),
             el('td', { class: 'num muted' }, fmt(r.p90_eta_error_min)),
@@ -349,7 +344,7 @@ function rerender() {
         ));
     }
     if (aRows.length === 0) {
-        aTbody.appendChild(el('tr', {}, el('td', { colspan: '13', class: 'empty-row' }, 'No data yet.')));
+        aTbody.appendChild(el('tr', {}, el('td', { colspan: '11', class: 'empty-row' }, 'No data yet.')));
     }
 
     // Top aircraft
