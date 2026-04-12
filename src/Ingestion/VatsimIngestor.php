@@ -398,24 +398,28 @@ final class VatsimIngestor
             }
         }
 
-        // AIBT ratchet: only ARRIVED implies full in-block — but to give EXIT
-        // a chance at being a non-degenerate number on a 5-min ingest cadence,
-        // we deliberately delay AIBT by one cycle. First ARRIVED observation
-        // stamps ALDT (via the block above); the next ARRIVED observation
-        // stamps AIBT, giving us a real ALDT→AIBT delta of at least one
-        // ingest period.
-        if ($phase === Flight::PHASE_ARRIVED && $previousPhase === Flight::PHASE_ARRIVED) {
-            if ($flight->aibt === null) {
-                $flight->aibt = $now;
-                // EXIT requires ALDT stamped on a *previous* cycle. Same sanity
-                // cap as EXOT — anything > 60 min is implausible taxi-in for
-                // these airports and almost certainly an artifact.
-                if ($flight->aldt !== null && $flight->aldt < $now) {
-                    $diffSeconds = $now->getTimestamp() - $flight->aldt->getTimestamp();
-                    if ($diffSeconds >= 60 && $diffSeconds <= 3600) {
-                        $flight->actual_exit_min = (int) round($diffSeconds / 60);
-                    }
-                }
+        // AIBT ratchet: stamp AIBT when phase=ARRIVED **and** ALDT was
+        // stamped on a prior ingest cycle (not the same cycle we're in
+        // right now). This is a relaxation of the "two consecutive
+        // ARRIVED cycles" rule from v0.3.5: that rule required pilots
+        // to stay connected long enough for two ARRIVED observations,
+        // which on VATSIM most don't (they disconnect within a couple
+        // of minutes of parking). The new rule still avoids the
+        // degenerate same-cycle stamp by checking `aldt < now`, but
+        // allows the previous cycle to have been any landed phase
+        // (TAXI_IN / VACATED / ON_RUNWAY / ARRIVED) — which is the
+        // common case for short final → gate transitions.
+        if ($phase === Flight::PHASE_ARRIVED
+            && $flight->aibt === null
+            && $flight->aldt !== null
+            && $flight->aldt < $now
+        ) {
+            $flight->aibt = $now;
+            // AXIT capped 1-60 min — pilots who park then idle generate
+            // outliers that would skew reports otherwise.
+            $diffSeconds = $now->getTimestamp() - $flight->aldt->getTimestamp();
+            if ($diffSeconds >= 60 && $diffSeconds <= 3600) {
+                $flight->actual_exit_min = (int) round($diffSeconds / 60);
             }
         }
 

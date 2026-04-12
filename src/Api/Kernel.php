@@ -700,7 +700,7 @@ final class Kernel
             foreach ($airports as $a) {
                 $arrivals = Flight::where('ades', $a->icao)
                     ->where('aldt', '>=', $sinceStr)
-                    ->get(['aldt', 'aibt', 'actual_exit_min', 'fp_enroute_time_min', 'atot', 'aobt', 'eobt']);
+                    ->get(['aldt', 'aibt', 'actual_exit_min', 'fp_enroute_time_min', 'atot']);
 
                 $departures = Flight::where('adep', $a->icao)
                     ->whereNotNull('atot')
@@ -717,11 +717,16 @@ final class Kernel
                     }
                 }
 
-                // ETA errors: (actual aldt) - (aobt + enroute_time)
+                // ETA error = ALDT - (ATOT + ETE), where ETE is the filed
+                // enroute_time. ETE on VATSIM is the cruise duration from
+                // wheels-up to wheels-down — it explicitly does NOT include
+                // taxi-out, so anchoring the prediction to ATOT (not AOBT)
+                // is the correct definition. Negative = arrived early,
+                // positive = arrived late.
                 $etaErrors = [];
                 foreach ($arrivals as $f) {
-                    if ($f->aldt && $f->aobt && $f->fp_enroute_time_min) {
-                        $predicted = $f->aobt->getTimestamp() + ($f->fp_enroute_time_min * 60);
+                    if ($f->aldt && $f->atot && $f->fp_enroute_time_min) {
+                        $predicted = $f->atot->getTimestamp() + ($f->fp_enroute_time_min * 60);
                         $etaErrors[] = (int) round(($f->aldt->getTimestamp() - $predicted) / 60);
                     }
                 }

@@ -142,20 +142,18 @@
                         <th data-sort="arrivals" class="num">Arr</th>
                         <th data-sort="departures" class="num">Dep</th>
                         <th data-sort="avg_exot_min" class="num" title="Average observed AXOT (Actual Taxi-Out Time = ATOT − AOBT) in min — EUROCONTROL A-CDM">AXOT̄</th>
-                        <th data-sort="p50_exot_min" class="num" title="Median AXOT">AXOT₅₀</th>
-                        <th data-sort="p90_exot_min" class="num" title="p90 AXOT">AXOT₉₀</th>
+                        <th data-sort="p90_exot_min" class="num" title="p90 AXOT — outlier-resistant upper">AXOT₉₀</th>
                         <th data-sort="avg_exit_min" class="num" title="Average observed AXIT (Actual Taxi-In Time = AIBT − ALDT) in min — EUROCONTROL A-CDM">AXIT̄</th>
-                        <th data-sort="p50_exit_min" class="num" title="Median AXIT">AXIT₅₀</th>
-                        <th data-sort="p90_exit_min" class="num" title="p90 AXIT">AXIT₉₀</th>
+                        <th data-sort="p90_exit_min" class="num" title="p90 AXIT — outlier-resistant upper">AXIT₉₀</th>
                         <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT − EOBT) in min — how late pilots actually push back vs filed">ΔEOBT̄</th>
                         <th data-sort="p90_eobt_delay_min" class="num" title="p90 EOBT delay">ΔEOBT₉₀</th>
-                        <th data-sort="avg_eta_error_min" class="num" title="Filed-ETA accuracy: ALDT − (AOBT + filed enroute_time) in min">ΔETĀ</th>
+                        <th data-sort="avg_eta_error_min" class="num" title="Filed-ETA accuracy: ALDT − (ATOT + filed enroute_time) in min. ETE is cruise duration only, so we anchor to ATOT not AOBT.">ΔETĀ</th>
                         <th data-sort="p90_eta_error_min" class="num" title="p90 ETA error">ΔETA₉₀</th>
                         <th data-sort="eta_sample_n" class="num" title="ETA sample size">n</th>
                     </tr>
                 </thead>
                 <tbody id="airports-tbody">
-                    <tr><td colspan="14" class="empty-row">Loading…</td></tr>
+                    <tr><td colspan="12" class="empty-row">Loading…</td></tr>
                 </tbody>
             </table>
         </div>
@@ -312,8 +310,8 @@ function rerender() {
     aTbody.innerHTML = '';
     const aAcc = {
         icao: r => r.icao, arrivals: r => r.arrivals, departures: r => r.departures,
-        avg_exot_min: r => r.avg_exot_min, p50_exot_min: r => r.p50_exot_min, p90_exot_min: r => r.p90_exot_min,
-        avg_exit_min: r => r.avg_exit_min, p50_exit_min: r => r.p50_exit_min, p90_exit_min: r => r.p90_exit_min,
+        avg_exot_min: r => r.avg_exot_min, p90_exot_min: r => r.p90_exot_min,
+        avg_exit_min: r => r.avg_exit_min, p90_exit_min: r => r.p90_exit_min,
         avg_eobt_delay_min: r => r.avg_eobt_delay_min, p90_eobt_delay_min: r => r.p90_eobt_delay_min,
         avg_eta_error_min: r => r.avg_eta_error_min, p90_eta_error_min: r => r.p90_eta_error_min,
         eta_sample_n: r => r.eta_sample_n,
@@ -326,10 +324,8 @@ function rerender() {
             el('td', { class: 'num' }, String(r.arrivals)),
             el('td', { class: 'num' }, String(r.departures)),
             el('td', { class: 'num' }, fmt(r.avg_exot_min)),
-            el('td', { class: 'num muted' }, fmt(r.p50_exot_min)),
             el('td', { class: 'num muted' }, fmt(r.p90_exot_min)),
             el('td', { class: 'num' }, fmt(r.avg_exit_min)),
-            el('td', { class: 'num muted' }, fmt(r.p50_exit_min)),
             el('td', { class: 'num muted' }, fmt(r.p90_exit_min)),
             el('td', { class: 'num' }, fmt(r.avg_eobt_delay_min)),
             el('td', { class: 'num muted' }, fmt(r.p90_eobt_delay_min)),
@@ -339,7 +335,7 @@ function rerender() {
         ));
     }
     if (aRows.length === 0) {
-        aTbody.appendChild(el('tr', {}, el('td', { colspan: '14', class: 'empty-row' }, 'No data yet.')));
+        aTbody.appendChild(el('tr', {}, el('td', { colspan: '12', class: 'empty-row' }, 'No data yet.')));
     }
 
     // Top aircraft
