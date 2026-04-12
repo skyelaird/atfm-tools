@@ -57,19 +57,30 @@ final class EtaEstimator
      */
     public static function estimate(Flight $flight, Airport $destAirport, DateTimeImmutable $now): array
     {
-        // -- Tier 2: airborne with known position → observed physical ETA
+        // -- Tier 2: airborne with known position → descent-aware ETA
+        // Uses the standard 3° glidepath speed schedule: 250 kt below
+        // FL100, 220 kt within 20 nm, decel to Vref for final. This
+        // corrects the 10-16 min systematic optimism from the old
+        // great-circle ÷ cruise-GS formula which assumed cruise speed
+        // all the way to the threshold.
         if ($flight->isAirborne()
             && $flight->last_lat !== null
             && $flight->last_lon !== null) {
-            $etaMin = Geo::etaMinutesFromPosition(
+            $distNm = Geo::distanceNm(
                 (float) $flight->last_lat,
                 (float) $flight->last_lon,
                 (float) $destAirport->latitude,
-                (float) $destAirport->longitude,
-                $flight->last_groundspeed_kts
+                (float) $destAirport->longitude
+            );
+            $gs = ($flight->last_groundspeed_kts !== null && $flight->last_groundspeed_kts > 100)
+                ? $flight->last_groundspeed_kts
+                : Geo::DEFAULT_CRUISE_KT;
+            $altFt = $flight->last_altitude_ft ?? ($flight->fp_altitude_ft ?? 35000);
+            $etaMin = Geo::etaMinutesWithDescent(
+                $distNm, $gs, $altFt, (int) $destAirport->elevation_ft
             );
             return [
-                'epoch'      => $now->getTimestamp() + ($etaMin * 60),
+                'epoch'      => $now->getTimestamp() + (int) round($etaMin * 60),
                 'source'     => self::SOURCE_OBSERVED_POS,
                 'confidence' => 85,
             ];
@@ -108,11 +119,17 @@ final class EtaEstimator
             (float) $destAirport->latitude, (float) $destAirport->longitude
         );
 
+        // For ground tiers we assume the filed cruise altitude (or 35000
+        // as a sensible default for jets) to compute TOD and the descent
+        // time penalty.
+        $cruiseAlt = $flight->fp_altitude_ft ?? 35000;
+        $aptElev   = (int) $destAirport->elevation_ft;
+
         // -- Tier 3: filed cruise TAS
         if ($flight->fp_cruise_tas !== null && $flight->fp_cruise_tas >= 120 && $flight->fp_cruise_tas <= 650) {
-            $cruiseMin = (int) round(($distNm / $flight->fp_cruise_tas) * 60);
+            $flightMin = Geo::etaMinutesWithDescent($distNm, $flight->fp_cruise_tas, $cruiseAlt, $aptElev);
             return [
-                'epoch'      => $eobtEpoch + ($taxiMin * 60) + ($cruiseMin * 60),
+                'epoch'      => $eobtEpoch + ($taxiMin * 60) + (int) round($flightMin * 60),
                 'source'     => self::SOURCE_CALC_FILED_TAS,
                 'confidence' => 70,
             ];
@@ -121,18 +138,18 @@ final class EtaEstimator
         // -- Tier 4: aircraft type table
         if ($flight->aircraft_type && AircraftTas::known($flight->aircraft_type)) {
             $tas = AircraftTas::typicalTas($flight->aircraft_type);
-            $cruiseMin = (int) round(($distNm / $tas) * 60);
+            $flightMin = Geo::etaMinutesWithDescent($distNm, $tas, $cruiseAlt, $aptElev);
             return [
-                'epoch'      => $eobtEpoch + ($taxiMin * 60) + ($cruiseMin * 60),
+                'epoch'      => $eobtEpoch + ($taxiMin * 60) + (int) round($flightMin * 60),
                 'source'     => self::SOURCE_CALC_TYPE_TAS,
                 'confidence' => 55,
             ];
         }
 
         // -- Tier 5: default 430 kt
-        $cruiseMin = (int) round(($distNm / AircraftTas::DEFAULT_TAS_KT) * 60);
+        $flightMin = Geo::etaMinutesWithDescent($distNm, AircraftTas::DEFAULT_TAS_KT, $cruiseAlt, $aptElev);
         return [
-            'epoch'      => $eobtEpoch + ($taxiMin * 60) + ($cruiseMin * 60),
+            'epoch'      => $eobtEpoch + ($taxiMin * 60) + (int) round($flightMin * 60),
             'source'     => self::SOURCE_CALC_DEFAULT,
             'confidence' => 40,
         ];

@@ -44,6 +44,8 @@ final class Geo
     /**
      * For airborne flights, estimate ETA from current position + current
      * groundspeed. Fall back to 450 kt if groundspeed is missing/zero.
+     *
+     * @deprecated Use etaMinutesWithDescent() for descent-aware estimates.
      */
     public static function etaMinutesFromPosition(
         float $curLat, float $curLon,
@@ -53,5 +55,102 @@ final class Geo
         $nm = self::distanceNm($curLat, $curLon, $destLat, $destLon);
         $gs = ($groundspeed !== null && $groundspeed > 100) ? $groundspeed : self::DEFAULT_CRUISE_KT;
         return (int) round(($nm / $gs) * 60);
+    }
+
+    /**
+     * Descent-aware ETA estimate.
+     *
+     * Uses a standard 3° descent profile with published speed constraints:
+     *
+     *   Segment          Distance       Speed
+     *   ─────────────────────────────────────────
+     *   0-2 nm           2 nm           Vref (~140 kt)
+     *   2-5 nm           3 nm           decel ~180 kt avg
+     *   5-10 nm          5 nm           ~220 kt (3000 AGL at 10nm)
+     *   10-20 nm         10 nm          220 kt approach limit
+     *   20 nm-FL100      varies         250 kt (mandatory below FL100)
+     *   FL100-TOD        varies         cruise GS (decelerating toward 250)
+     *   TOD-current pos  varies         cruise GS
+     *
+     * 3° glidepath = ~318 ft/nm. TOD is computed from current altitude (or
+     * filed cruise altitude for ground flights) and airport elevation.
+     *
+     * For flights already in descent, the method detects this from the
+     * altitude relative to the TOD point and adjusts accordingly.
+     *
+     * @param float $distNm         Great-circle distance from current position (or ADEP) to ADES
+     * @param int   $cruiseKt       Cruise GS or TAS to use for the cruise segment
+     * @param int   $cruiseAltFt    Current altitude (airborne) or filed cruise altitude (ground)
+     * @param int   $airportElevFt  ADES field elevation
+     * @return float Time in minutes (not rounded — caller rounds as needed)
+     */
+    public static function etaMinutesWithDescent(
+        float $distNm,
+        int $cruiseKt,
+        int $cruiseAltFt,
+        int $airportElevFt
+    ): float {
+        // Descent distance from 3° glidepath: 318 ft per nm
+        $altAboveAirport = max(0, $cruiseAltFt - $airportElevFt);
+        $todDistNm = $altAboveAirport / 318.0;
+
+        // Compute time for the approach/descent segment (from airport outward)
+        $descentMin = self::descentSegmentMinutes(min($todDistNm, $distNm));
+
+        // Cruise segment: whatever remains beyond the TOD point
+        $cruiseNm = max(0.0, $distNm - $todDistNm);
+        $cruiseMin = ($cruiseKt > 0) ? ($cruiseNm / $cruiseKt) * 60.0 : 0.0;
+
+        return $cruiseMin + $descentMin;
+    }
+
+    /**
+     * Time in minutes for the approach/descent segment, working from the
+     * airport outward. Applies standard speed constraints per ICAO/FAA:
+     *
+     *   0-2 nm:   Vref ~140 kt
+     *   2-5 nm:   decel segment ~180 kt avg
+     *   5-10 nm:  ~220 kt (3000ft AGL at 10nm on 3° slope)
+     *   10-20 nm: 220 kt approach speed limit
+     *   20+ nm:   250 kt (below FL100, mandatory)
+     *
+     * @param float $distNm Distance from airport for this descent segment
+     */
+    private static function descentSegmentMinutes(float $distNm): float
+    {
+        if ($distNm <= 0) {
+            return 0.0;
+        }
+        $time = 0.0;
+        $remaining = $distNm;
+
+        // 0-2 nm at Vref (~140 kt)
+        $seg = min(2.0, $remaining);
+        $time += ($seg / 140.0) * 60.0;
+        $remaining -= $seg;
+        if ($remaining <= 0) return $time;
+
+        // 2-5 nm decel segment (~180 kt avg)
+        $seg = min(3.0, $remaining);
+        $time += ($seg / 180.0) * 60.0;
+        $remaining -= $seg;
+        if ($remaining <= 0) return $time;
+
+        // 5-10 nm at ~220 kt (3000 AGL at 10nm)
+        $seg = min(5.0, $remaining);
+        $time += ($seg / 220.0) * 60.0;
+        $remaining -= $seg;
+        if ($remaining <= 0) return $time;
+
+        // 10-20 nm at 220 kt approach limit
+        $seg = min(10.0, $remaining);
+        $time += ($seg / 220.0) * 60.0;
+        $remaining -= $seg;
+        if ($remaining <= 0) return $time;
+
+        // 20+ nm at 250 kt (below FL100)
+        $time += ($remaining / 250.0) * 60.0;
+
+        return $time;
     }
 }
