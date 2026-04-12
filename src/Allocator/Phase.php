@@ -79,7 +79,7 @@ final class Phase
                 && ($altitudeFt - $adesAirport['elevation_ft']) < 15000) {
                 return Flight::PHASE_ARRIVING;
             }
-            // Near departure, low altitude → DEPARTED
+            // Near departure, low altitude → DEPARTED (climbout)
             if ($distToAdep !== null
                 && $distToAdep <= self::NEAR_DEP_NM
                 && $adepAirport !== null

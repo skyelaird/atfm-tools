@@ -901,7 +901,7 @@ function renderAirportDetail(d) {
             { cls: 'mono', text: f.callsign, sortKey: f.callsign },
             { cls: 'mono muted', text: f.aircraft_type || '—', sortKey: f.aircraft_type || '' },
             { cls: 'mono', text: f.adep || '—', sortKey: f.adep || '' },
-            { html: phaseChip(f.phase, f.delay_status), sortKey: f.delay_status === 'FLS_NRA' ? '!FLS' : (f.phase || '') },
+            { html: phaseChip(f.display_phase || f.phase, f.delay_status), sortKey: f.delay_status === 'FLS_NRA' ? '!FLS' : (f.display_phase || f.phase || '') },
             { cls: 'mono muted', text: hhmmz(f.eobt), sortKey: f.eobt || '' },
             { cls: 'mono muted', text: hhmmz(f.aobt), sortKey: f.aobt || '' },
             { cls: 'mono muted', text: hhmmz(f.atot), sortKey: f.atot || '' },

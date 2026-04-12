@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atfm\Api;
 
+use Atfm\Allocator\Geo;
 use Atfm\Models\Airport;
 use Atfm\Models\AirportRestriction;
 use Atfm\Models\AllocationRun;
@@ -557,6 +558,7 @@ final class Kernel
                         'aircraft_type'   => $f->aircraft_type,
                         'adep'            => $f->adep,
                         'phase'           => $f->phase,
+                        'display_phase'   => self::displayPhase($f),
                         'eobt'            => $f->eobt?->format('c'),
                         'aobt'            => $f->aobt?->format('c'),
                         'atot'            => $f->atot?->format('c'),
@@ -564,8 +566,6 @@ final class Kernel
                         'eldt'            => $eldtIso,
                         'eldt_source'     => $eldtSource,
                         'eldt_locked'     => $f->eldt_locked?->format('c'),
-                        // tldt is the FMP control decision (allocator output);
-                        // ctot is its enforcement for ground-bound flights.
                         'tldt'            => $f->tldt?->format('c'),
                         'ctot'            => $f->ctot?->format('c'),
                         'delay_minutes'   => $f->delay_minutes,
@@ -1113,6 +1113,73 @@ final class Kernel
             'notified_flight_information_regions' => $fm->fir_id !== null ? [(int) $fm->fir_id] : [],
             'withdrawn_at' => $fm->deleted_at ? self::formatIsoUtc($fm->deleted_at) : null,
         ];
+    }
+
+    /**
+     * Translate internal phase to operationally meaningful display label.
+     *
+     * Internal phases are stable identifiers used in queries/logic. Display
+     * phases are what the controller sees — they account for altitude vs
+     * filed altitude to distinguish CLIMBOUT/CRUISE/DESCENT, and rename
+     * ARRIVED to IN_BLOCKS.
+     */
+    private static function displayPhase(Flight $f): string
+    {
+        $alt = (int) ($f->last_altitude_ft ?? 0);
+        $fp  = (int) ($f->fp_altitude_ft ?? 35000);
+
+        return match ($f->phase) {
+            Flight::PHASE_PREFILE,
+            Flight::PHASE_FILED      => 'FILED',
+            Flight::PHASE_TAXI_OUT   => 'TAXI_OUT',
+            Flight::PHASE_DEPARTED   => 'CLIMBOUT',
+            Flight::PHASE_ENROUTE    => ($alt < $fp - 2000) ? 'CLIMBOUT'
+                                      : (($alt > $fp - 2000 && $f->last_groundspeed_kts !== null
+                                          && $f->ades !== null
+                                          && $f->last_lat !== null && $f->last_lon !== null
+                                          && self::isDescending($f)) ? 'DESCENT' : 'CRUISE'),
+            Flight::PHASE_ARRIVING   => 'ARRIVING',
+            Flight::PHASE_FINAL      => 'ARRIVING',
+            Flight::PHASE_ON_RUNWAY,
+            Flight::PHASE_VACATED    => 'LANDED',
+            Flight::PHASE_TAXI_IN    => 'TAXI_IN',
+            Flight::PHASE_ARRIVED    => 'IN_BLOCKS',
+            Flight::PHASE_DISCONNECTED => 'DISCONNECTED',
+            Flight::PHASE_WITHDRAWN  => 'WITHDRAWN',
+            default                  => $f->phase ?? 'UNKNOWN',
+        };
+    }
+
+    /**
+     * Heuristic: is this ENROUTE flight descending toward its destination?
+     * True when altitude is below filed cruise AND within the 3° TOD
+     * distance of the destination airport.
+     */
+    private static function isDescending(Flight $f): bool
+    {
+        $alt = (int) ($f->last_altitude_ft ?? 0);
+        $fp  = (int) ($f->fp_altitude_ft ?? 35000);
+
+        // Must be below filed cruise altitude
+        if ($alt >= $fp - 2000) {
+            return false;
+        }
+
+        // Must be within TOD distance of destination
+        if ($f->ades === null || $f->last_lat === null || $f->last_lon === null) {
+            return false;
+        }
+        $destAirport = Airport::where('icao', $f->ades)->first();
+        if ($destAirport === null) {
+            return false;
+        }
+        $distNm = Geo::distanceNm(
+            (float) $f->last_lat, (float) $f->last_lon,
+            (float) $destAirport->latitude, (float) $destAirport->longitude
+        );
+        $todNm = ($alt - (int) $destAirport->elevation_ft) / 318.0;
+
+        return $distNm <= $todNm * 1.3; // 30% margin for STAR routing
     }
 
     private static function json(ResponseInterface $res, mixed $payload): ResponseInterface
