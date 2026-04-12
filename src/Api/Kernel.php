@@ -819,7 +819,11 @@ final class Kernel
             // Two queries: one for the global top-20 ranking, then a second
             // for the per-airport counts of those types. Keeps the SQL simple
             // and avoids a 7-way CASE pivot.
-            $allAirportIcaos = $airports->pluck('icao')->all();
+            // West-to-east ordering for the per-airport columns in the
+            // aircraft types table. Sorting by longitude ascending puts
+            // CYVR on the left and CYHZ on the right — the natural
+            // geographic reading order for Canadian airports.
+            $allAirportIcaos = $airports->sortBy('longitude')->pluck('icao')->all();
             $topTypes = Flight::selectRaw('aircraft_type, COUNT(*) as n, AVG(actual_exot_min) as avg_exot, AVG(actual_exit_min) as avg_exit')
                 ->whereNotNull('aircraft_type')
                 ->where('last_updated_at', '>=', $sinceStr)
