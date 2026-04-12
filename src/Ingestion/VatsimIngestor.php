@@ -125,20 +125,27 @@ final class VatsimIngestor
             $kept++;
         }
 
-        // 4. Mark flights as DISCONNECTED if they weren't in the snapshot.
-        // Only consider non-terminal, non-already-disconnected flights that
-        // are in our active scope to avoid hammering a huge UPDATE.
+        // 4. Mark flights as DISCONNECTED if they weren't in the snapshot
+        // OR if they haven't been updated in 15 minutes (belt-and-suspenders
+        // for flights that fell through the flight_key matching due to
+        // re-filings, CID changes, or feed quirks). The 15-min threshold
+        // is 7x the 2-min ingest cadence — generous enough to survive a
+        // few missed cycles, tight enough to clear stale flights promptly.
         $disconnected = 0;
+        $staleCutoff = $now->modify('-15 minutes')->format('Y-m-d H:i:s');
         $candidates = Flight::whereNotIn('phase', [
                 Flight::PHASE_ARRIVED,
                 Flight::PHASE_WITHDRAWN,
                 Flight::PHASE_DISCONNECTED,
             ])
             ->where('last_updated_at', '>=', $now->modify('-7 days')->format('Y-m-d H:i:s'))
-            ->get(['id', 'flight_key', 'phase']);
+            ->get(['id', 'flight_key', 'phase', 'last_updated_at']);
 
         foreach ($candidates as $flight) {
-            if (! isset($seenFlightKeys[$flight->flight_key])) {
+            $notInFeed = ! isset($seenFlightKeys[$flight->flight_key]);
+            $stale = $flight->last_updated_at < $staleCutoff;
+
+            if ($notInFeed || $stale) {
                 $flight->phase = Flight::PHASE_DISCONNECTED;
                 $flight->phase_updated_at = $now;
                 if ($flight->first_disconnect_at === null) {
@@ -519,13 +526,13 @@ final class VatsimIngestor
             }
         }
 
-        // Stale ARRIVING cleanup: if a flight is in ARRIVING phase and
-        // more than 30 min past its ELDT, it either landed (and we missed
-        // the phase transition because it disconnected during rollout/taxi)
-        // or the pilot went around and we lost track. Either way it's not
-        // real inbound traffic anymore. Mark as ARRIVED so it drops from
-        // the inbound list and appears in recent arrivals with ALDT = now.
-        if (in_array($phase, [Flight::PHASE_ARRIVING, Flight::PHASE_FINAL], true)
+        // Stale inbound cleanup: if a flight has an ELDT that's 30+ min in
+        // the past and it's still showing as inbound (ARRIVING/FINAL/ENROUTE),
+        // it either landed or disappeared. For ARRIVING/FINAL: likely landed
+        // and we missed the transition. For ENROUTE: likely disconnected
+        // during cruise and the feed-based disconnect didn't catch it.
+        // Either way, remove from the inbound list.
+        if (in_array($phase, [Flight::PHASE_ARRIVING, Flight::PHASE_FINAL, Flight::PHASE_ENROUTE], true)
             && $flight->eldt !== null
             && $now->getTimestamp() > $flight->eldt->getTimestamp() + (30 * 60)
         ) {
