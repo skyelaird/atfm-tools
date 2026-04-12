@@ -169,6 +169,10 @@
             padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--border);
         }
         tbody tr:hover { background: var(--bg-elev); }
+        /* Frozen ELDT: cyan text signals "this estimate is locked for
+           slot allocation — not just a live prediction anymore." Matches
+           MAESTRO's frozen-flight colour convention. */
+        .frozen-eldt { color: var(--accent); }
         .table-wrap {
             background: var(--bg-elev);
             border: 1px solid var(--border);
@@ -901,7 +905,7 @@ function renderAirportDetail(d) {
             { cls: 'mono muted', text: hhmmz(f.eobt), sortKey: f.eobt || '' },
             { cls: 'mono muted', text: hhmmz(f.aobt), sortKey: f.aobt || '' },
             { cls: 'mono muted', text: hhmmz(f.atot), sortKey: f.atot || '' },
-            { cls: 'mono', text: hhmmz(f.eldt), sortKey: f.eldt || '' },
+            { cls: f.eldt_locked ? 'mono frozen-eldt' : 'mono', text: hhmmz(f.eldt), sortKey: f.eldt || '', title: f.eldt_locked ? 'Frozen at ' + hhmmz(f.eldt_locked) : null },
             { cls: 'muted', text: f.eldt_source ? eldtSrcShort(f.eldt_source) : '—', sortKey: f.eldt_source || '' },
             { cls: 'mono', text: hhmmz(f.tldt), sortKey: f.tldt || '' },
             { cls: 'mono', text: hhmmz(f.ctot), sortKey: f.ctot || '' },
@@ -1045,6 +1049,7 @@ function flightTable(title, headers, rows, stateKey) {
             const td = el('td', cell.cls ? { class: cell.cls } : {});
             if (cell.html) td.appendChild(cell.html);
             else td.textContent = cell.text ?? '';
+            if (cell.title) td.title = cell.title;
             tr.appendChild(td);
         }
         tbody.appendChild(tr);
