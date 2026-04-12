@@ -84,7 +84,7 @@
         thead th.sortable::after { content: '\2195'; opacity: 0.25; margin-left: 0.3rem; font-size: 0.75rem; }
         thead th.sortable.sort-asc::after  { content: '\2191'; opacity: 1; color: var(--accent); }
         thead th.sortable.sort-desc::after { content: '\2193'; opacity: 1; color: var(--accent); }
-        tbody td { padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--border); }
+        tbody td { padding: 0.3rem 0.35rem; border-bottom: 1px solid var(--border); }
         tbody tr:hover { background: var(--bg-elev); }
         .table-wrap {
             background: var(--bg-elev);
@@ -94,20 +94,22 @@
         }
         .empty-row { text-align: center; color: var(--text-dim); padding: 1rem; }
         .muted { color: var(--text-dim); }
-        .num { text-align: right; font-family: Consolas, monospace; }
+        .num { text-align: center; font-family: Consolas, monospace; }
+        thead th.num { text-align: center; }
         .warn-val { color: var(--warn); }
         .alert-val { color: var(--alert); }
         .ok-val { color: var(--ok); }
 
-        /* Column-group separators: a subtle left border marks the start
-           of each logical block (taxi, ELDT quality, TLDT quality). */
+        /* Column-group separators: left border + alternating tint */
         .grp-start { border-left: 2px solid var(--border); }
+        .grp-tint { background: rgba(94,234,212,0.03); }  /* subtle teal wash on alternate groups */
         /* Group header row above the column headers */
         thead tr.group-row th {
             text-align: center; font-size: 0.6rem; color: var(--accent);
             letter-spacing: 0.12em; padding: 0.25rem 0.3rem;
             border-bottom: none; text-transform: uppercase;
         }
+        thead tr.group-row th.grp-tint { background: rgba(94,234,212,0.06); }
 
         footer {
             margin-top: 2rem; padding: 1rem; text-align: center;
@@ -149,23 +151,23 @@
                 <thead>
                     <tr class="group-row">
                         <th colspan="3">Movements</th>
-                        <th colspan="3" class="grp-start">Taxi &amp; OBT</th>
+                        <th colspan="3" class="grp-start grp-tint">Taxi &amp; OBT</th>
                         <th colspan="3" class="grp-start">ELDT prediction</th>
-                        <th colspan="3" class="grp-start">TLDT slot fidelity</th>
+                        <th colspan="3" class="grp-start grp-tint">TLDT slot fidelity</th>
                     </tr>
                     <tr>
                         <th data-sort="icao">ICAO</th>
                         <th data-sort="arrivals" class="num">Arr</th>
                         <th data-sort="departures" class="num">Dep</th>
-                        <th data-sort="avg_exot_min" class="num grp-start" title="Average AXOT (ATOT minus AOBT) in min">AXOT</th>
-                        <th data-sort="avg_exit_min" class="num" title="Average AXIT (AIBT minus ALDT) in min">AXIT</th>
-                        <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT minus EOBT) in min">&Delta;OBT</th>
+                        <th data-sort="avg_exot_min" class="num grp-start grp-tint" title="Average AXOT (ATOT minus AOBT) in min">AXOT</th>
+                        <th data-sort="avg_exit_min" class="num grp-tint" title="Average AXIT (AIBT minus ALDT) in min">AXIT</th>
+                        <th data-sort="avg_eobt_delay_min" class="num grp-tint" title="Average (AOBT minus EOBT) in min">&Delta;OBT</th>
                         <th data-sort="eldt_sample_n" class="num grp-start" title="ELDT sample size">n</th>
                         <th data-sort="eldt_bias_min" class="num" title="Mean (ALDT minus ELDT_locked) in min. Snapshot at T-60min.">bias</th>
                         <th data-sort="eldt_within_tolerance_pct" class="num" title="% within plus/minus 3 min">&plusmn;3</th>
-                        <th data-sort="tldt_sample_n" class="num grp-start" title="TLDT sample size">n</th>
-                        <th data-sort="tldt_bias_min" class="num" title="Mean (ALDT minus TLDT) in min">bias</th>
-                        <th data-sort="tldt_within_tolerance_pct" class="num" title="% within plus/minus 3 min">&plusmn;3</th>
+                        <th data-sort="tldt_sample_n" class="num grp-start grp-tint" title="TLDT sample size">n</th>
+                        <th data-sort="tldt_bias_min" class="num grp-tint" title="Mean (ALDT minus TLDT) in min">bias</th>
+                        <th data-sort="tldt_within_tolerance_pct" class="num grp-tint" title="% within plus/minus 3 min">&plusmn;3</th>
                     </tr>
                 </thead>
                 <tbody id="airports-tbody">
@@ -176,15 +178,16 @@
     </section>
 
     <section>
-        <h2>Top aircraft types</h2>
+        <h2>Top aircraft types &mdash; inbound count by airport</h2>
         <div class="table-wrap">
             <table id="types-table">
-                <thead>
+                <thead id="types-thead">
                     <tr>
                         <th data-sort="aircraft_type">Type</th>
-                        <th data-sort="count" class="num">Count</th>
-                        <th data-sort="avg_exot_min" class="num" title="Average AXOT (ATOT minus AOBT)">Avg AXOT</th>
-                        <th data-sort="avg_exit_min" class="num" title="Average AXIT (AIBT minus ALDT)">Avg AXIT</th>
+                        <th data-sort="count" class="num">Total</th>
+                        <th data-sort="avg_exot_min" class="num" title="Average AXOT">AXOT</th>
+                        <th data-sort="avg_exit_min" class="num" title="Average AXIT">AXIT</th>
+                        <!-- per-airport columns built dynamically in JS -->
                     </tr>
                 </thead>
                 <tbody id="types-tbody">
@@ -355,23 +358,41 @@ function rerender() {
             el('td', { class: 'mono' }, r.icao),
             el('td', { class: 'num' }, String(r.arrivals)),
             el('td', { class: 'num' }, String(r.departures)),
-            el('td', { class: 'num grp-start' }, fmt(r.avg_exot_min)),
-            el('td', { class: 'num' }, fmt(r.avg_exit_min)),
-            el('td', { class: 'num' }, fmt(r.avg_eobt_delay_min)),
+            el('td', { class: 'num grp-start grp-tint' }, fmt(r.avg_exot_min)),
+            el('td', { class: 'num grp-tint' }, fmt(r.avg_exit_min)),
+            el('td', { class: 'num grp-tint' }, fmt(r.avg_eobt_delay_min)),
             el('td', { class: 'num muted grp-start' }, String(r.eldt_sample_n || 0)),
             el('td', { class: 'num' }, fmt(r.eldt_bias_min)),
             el('td', { class: 'num ' + eldtPctCls }, fmtPct(r.eldt_within_tolerance_pct)),
-            el('td', { class: 'num muted grp-start' }, String(r.tldt_sample_n || 0)),
-            el('td', { class: 'num' }, fmt(r.tldt_bias_min)),
-            el('td', { class: 'num ' + tldtPctCls }, fmtPct(r.tldt_within_tolerance_pct))
+            el('td', { class: 'num muted grp-start grp-tint' }, String(r.tldt_sample_n || 0)),
+            el('td', { class: 'num grp-tint' }, fmt(r.tldt_bias_min)),
+            el('td', { class: 'num grp-tint ' + tldtPctCls }, fmtPct(r.tldt_within_tolerance_pct))
         ));
     }
     if (aRows.length === 0) {
         aTbody.appendChild(el('tr', {}, el('td', { colspan: '12', class: 'empty-row' }, 'No data yet.')));
     }
 
-    // Top aircraft
+    // Top aircraft — rebuild the header row to include per-airport columns
+    const airportIcaos = d.airport_icaos || [];
+    const typesThead = $('types-thead');
+    typesThead.innerHTML = '';
+    const typesHeaderRow = el('tr', {},
+        el('th', { 'data-sort': 'aircraft_type' }, 'Type'),
+        el('th', { 'data-sort': 'count', class: 'num' }, 'Total'),
+        el('th', { 'data-sort': 'avg_exot_min', class: 'num' }, 'AXOT'),
+        el('th', { 'data-sort': 'avg_exit_min', class: 'num' }, 'AXIT'),
+        ...airportIcaos.map(icao =>
+            el('th', { 'data-sort': 'apt_' + icao, class: 'num muted' }, icao.substring(1))
+        )
+    );
+    typesThead.appendChild(typesHeaderRow);
+
+    // Re-wire sortable after rebuilding the header
+    const typesTable = $('types-table');
+    if (typesTable) typesTable.dataset.sortableWired = '';
     wireSortableTable('types-table');
+
     const typesTbody = $('types-tbody');
     typesTbody.innerHTML = '';
     const tAcc = {
@@ -380,18 +401,29 @@ function rerender() {
         avg_exot_min:  r => r.avg_exot_min,
         avg_exit_min:  r => r.avg_exit_min,
     };
+    // Add dynamic per-airport accessors
+    for (const icao of airportIcaos) {
+        tAcc['apt_' + icao] = r => (r.by_airport && r.by_airport[icao]) || 0;
+    }
+
     const tRows = sortRowsFor('types-table', d.top_aircraft, tAcc);
     updateSortIndicators('types-table');
+    const totalCols = 4 + airportIcaos.length;
     for (const r of tRows) {
+        const airportCells = airportIcaos.map(icao => {
+            const n = (r.by_airport && r.by_airport[icao]) || 0;
+            return el('td', { class: 'num muted' }, n > 0 ? String(n) : '\u2014');
+        });
         typesTbody.appendChild(el('tr', {},
             el('td', { class: 'mono' }, r.aircraft_type),
             el('td', { class: 'num' }, String(r.count)),
             el('td', { class: 'num muted' }, fmt(r.avg_exot_min)),
-            el('td', { class: 'num muted' }, fmt(r.avg_exit_min))
+            el('td', { class: 'num muted' }, fmt(r.avg_exit_min)),
+            ...airportCells
         ));
     }
     if (tRows.length === 0) {
-        typesTbody.appendChild(el('tr', {}, el('td', { colspan: '4', class: 'empty-row' }, 'No data yet.')));
+        typesTbody.appendChild(el('tr', {}, el('td', { colspan: String(totalCols), class: 'empty-row' }, 'No data yet.')));
     }
 }
 

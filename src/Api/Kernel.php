@@ -815,26 +815,53 @@ final class Kernel
                 ->where('updated_at', '>=', $sinceStr)
                 ->count();
 
-            // Aircraft type distribution (top 20)
-            $typeRows = Flight::selectRaw('aircraft_type, COUNT(*) as n, AVG(actual_exot_min) as avg_exot, AVG(actual_exit_min) as avg_exit')
+            // Aircraft type distribution (top 20) with per-airport breakdown.
+            // Two queries: one for the global top-20 ranking, then a second
+            // for the per-airport counts of those types. Keeps the SQL simple
+            // and avoids a 7-way CASE pivot.
+            $allAirportIcaos = $airports->pluck('icao')->all();
+            $topTypes = Flight::selectRaw('aircraft_type, COUNT(*) as n, AVG(actual_exot_min) as avg_exot, AVG(actual_exit_min) as avg_exit')
                 ->whereNotNull('aircraft_type')
                 ->where('last_updated_at', '>=', $sinceStr)
                 ->groupBy('aircraft_type')
                 ->orderByDesc('n')
                 ->limit(20)
-                ->get()
-                ->map(fn ($r) => [
+                ->get();
+            $topTypeNames = $topTypes->pluck('aircraft_type')->all();
+
+            // Per-airport counts for those types
+            $perAirportCounts = [];
+            if (! empty($topTypeNames)) {
+                $rawCounts = Flight::selectRaw('aircraft_type, ades, COUNT(*) as cnt')
+                    ->whereIn('aircraft_type', $topTypeNames)
+                    ->where('last_updated_at', '>=', $sinceStr)
+                    ->whereIn('ades', $allAirportIcaos)
+                    ->groupBy('aircraft_type', 'ades')
+                    ->get();
+                foreach ($rawCounts as $rc) {
+                    $perAirportCounts[$rc->aircraft_type][$rc->ades] = (int) $rc->cnt;
+                }
+            }
+
+            $typeRows = $topTypes->map(function ($r) use ($allAirportIcaos, $perAirportCounts) {
+                $byAirport = [];
+                foreach ($allAirportIcaos as $icaoCode) {
+                    $byAirport[$icaoCode] = $perAirportCounts[$r->aircraft_type][$icaoCode] ?? 0;
+                }
+                return [
                     'aircraft_type' => $r->aircraft_type,
                     'count'         => (int) $r->n,
                     'avg_exot_min'  => $r->avg_exot !== null ? round((float) $r->avg_exot, 1) : null,
                     'avg_exit_min'  => $r->avg_exit !== null ? round((float) $r->avg_exit, 1) : null,
-                ])
-                ->all();
+                    'by_airport'    => $byAirport,
+                ];
+            })->all();
 
             return self::json($res, [
                 'generated_at' => $now->format('c'),
                 'tolerance_min' => $toleranceForResponse,
                 'eldt_lock_horizon_min' => \Atfm\Ingestion\VatsimIngestor::ELDT_LOCK_HORIZON_MIN,
+                'airport_icaos' => $allAirportIcaos,
                 'window' => [
                     'hours' => $hours,
                     'start' => $since->format('c'),
