@@ -386,29 +386,50 @@ final class Kernel
 
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
-            // Current inbound (not yet terminal, not disconnected)
+            // Current inbound (not yet terminal, not disconnected). Note we
+            // expose AOBT and ATOT in the payload so the drawer can show
+            // the full timeline (filed → pushed back → wheels up → landing
+            // estimate). ELDT is computed live via EtaEstimator if the
+            // ingestor's stored value is null — that way long-range
+            // ENROUTE flights still get a usable arrival estimate.
             $liveExclude = [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED];
             $inbound = Flight::where('ades', $icao)
                 ->whereNotIn('phase', $liveExclude)
                 ->orderByRaw('COALESCE(ctot, eldt, eobt) ASC')
                 ->limit(100)
                 ->get()
-                ->map(fn (Flight $f) => [
-                    'callsign'        => $f->callsign,
-                    'cid'             => (int) $f->cid,
-                    'aircraft_type'   => $f->aircraft_type,
-                    'adep'            => $f->adep,
-                    'phase'           => $f->phase,
-                    'eobt'            => $f->eobt?->format('c'),
-                    'ttot'            => $f->ttot?->format('c'),
-                    'eldt'            => $f->eldt?->format('c'),
-                    'ctot'            => $f->ctot?->format('c'),
-                    'cta'             => $f->cta?->format('c'),
-                    'delay_minutes'   => $f->delay_minutes,
-                    'delay_status'    => $f->delay_status,
-                    'last_gs'         => $f->last_groundspeed_kts,
-                    'last_alt'        => $f->last_altitude_ft,
-                ])->values()->all();
+                ->map(function (Flight $f) use ($airport, $now) {
+                    $eldtIso = $f->eldt?->format('c');
+                    $eldtSource = $f->eldt !== null ? 'STORED' : null;
+                    if ($eldtIso === null) {
+                        $est = \Atfm\Allocator\EtaEstimator::estimate($f, $airport, $now);
+                        if ($est['epoch'] !== null) {
+                            $eldtIso = (new DateTimeImmutable('@' . $est['epoch']))
+                                ->setTimezone(new DateTimeZone('UTC'))
+                                ->format('c');
+                            $eldtSource = $est['source'];
+                        }
+                    }
+                    return [
+                        'callsign'        => $f->callsign,
+                        'cid'             => (int) $f->cid,
+                        'aircraft_type'   => $f->aircraft_type,
+                        'adep'            => $f->adep,
+                        'phase'           => $f->phase,
+                        'eobt'            => $f->eobt?->format('c'),
+                        'aobt'            => $f->aobt?->format('c'),
+                        'atot'            => $f->atot?->format('c'),
+                        'ttot'            => $f->ttot?->format('c'),
+                        'eldt'            => $eldtIso,
+                        'eldt_source'     => $eldtSource,
+                        'ctot'            => $f->ctot?->format('c'),
+                        'cta'             => $f->cta?->format('c'),
+                        'delay_minutes'   => $f->delay_minutes,
+                        'delay_status'    => $f->delay_status,
+                        'last_gs'         => $f->last_groundspeed_kts,
+                        'last_alt'        => $f->last_altitude_ft,
+                    ];
+                })->values()->all();
 
             // Current outbound (not yet terminal, not disconnected)
             $outbound = Flight::where('adep', $icao)

@@ -35,6 +35,9 @@ final class VatsimIngestor
     /** @var array<string, array> map icao → airport row (flat array) */
     private array $airportsByIcao = [];
 
+    /** @var array<string, Airport> map icao → Airport model (for EtaEstimator) */
+    private array $airportModelsByIcao = [];
+
     public function __construct(?Client $http = null)
     {
         $this->http = $http ?? new Client([
@@ -52,8 +55,12 @@ final class VatsimIngestor
         $start = microtime(true);
         $now   = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
-        // 1. Load airport set into memory (small — 7 rows).
+        // 1. Load airport set into memory (small — 7 rows). We keep both
+        // a flat array (cheap to pass around for phase classification)
+        // and the full Eloquent model (for EtaEstimator which expects an
+        // Airport instance) keyed by ICAO.
         $this->airportsByIcao = [];
+        $this->airportModelsByIcao = [];
         foreach (Airport::all() as $airport) {
             $this->airportsByIcao[$airport->icao] = [
                 'icao'                => $airport->icao,
@@ -64,6 +71,7 @@ final class VatsimIngestor
                 'default_exit_min'    => (int) $airport->default_exit_min,
                 'arrived_geofence_nm' => (int) $airport->arrived_geofence_nm,
             ];
+            $this->airportModelsByIcao[$airport->icao] = $airport;
         }
 
         if (empty($this->airportsByIcao)) {
@@ -344,14 +352,35 @@ final class VatsimIngestor
                 }
             }
         }
-        if ($phase === Flight::PHASE_ARRIVING && $flight->eldt === null) {
-            // First time we're arriving — compute a rough ELDT from ETA
-            // (the ROT tracker refines this as the flight descends)
-            if ($lat !== null && $lon !== null && $adesAirport !== null) {
-                $etaMin = \Atfm\Allocator\Geo::etaMinutesFromPosition(
-                    $lat, $lon, $adesAirport['latitude'], $adesAirport['longitude'], $gs
-                );
-                $flight->eldt = $now->modify("+{$etaMin} minutes");
+        // ELDT refresh — every cycle, for any non-terminal flight inbound
+        // to one of our airports. Previously we only stamped ELDT once
+        // when phase entered ARRIVING (~50 NM out), which meant the
+        // dashboard showed "—" for every long-range inbound. The user
+        // wants to see ELDT all the way out, since inbound load planning
+        // depends on it.
+        //
+        // Delegates to EtaEstimator's 5-tier cascade so we get the best
+        // available estimate (OBSERVED_POS for airborne; FILED for ground;
+        // CALC_FILED_TAS / CALC_TYPE_TAS / CALC_DEFAULT for fallback).
+        //
+        // Once the flight reaches FINAL/ON_RUNWAY/VACATED/etc the ALDT
+        // ratchet below takes over and ELDT becomes irrelevant (real
+        // landing is observed), so we skip the refresh in those phases.
+        if ($adesAirport !== null
+            && in_array($phase, [
+                Flight::PHASE_TAXI_OUT,
+                Flight::PHASE_DEPARTED,
+                Flight::PHASE_ENROUTE,
+                Flight::PHASE_ARRIVING,
+            ], true)
+        ) {
+            $airportRow = $this->airportModelsByIcao[$adesAirport['icao']] ?? null;
+            if ($airportRow !== null) {
+                $est = \Atfm\Allocator\EtaEstimator::estimate($flight, $airportRow, $now);
+                if ($est['epoch'] !== null) {
+                    $flight->eldt = (new DateTimeImmutable('@' . $est['epoch']))
+                        ->setTimezone(new DateTimeZone('UTC'));
+                }
             }
         }
 

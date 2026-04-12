@@ -742,6 +742,7 @@ function renderAirports(airports) {
 
 // ---------- Airport detail drawer ----------
 let currentDrawerIcao = null;
+let currentDrawerData = null; // last fetched payload, used by sort re-render
 async function openAirportDetail(icao) {
     // Click same airport again → close
     if (currentDrawerIcao === icao && $('modal-backdrop').classList.contains('open')) {
@@ -749,6 +750,7 @@ async function openAirportDetail(icao) {
         return;
     }
     currentDrawerIcao = icao;
+    currentDrawerData = null;
     $('modal-icao').textContent = icao;
     $('modal-name').textContent = '';
     $('modal-body').textContent = 'Loading…';
@@ -763,10 +765,18 @@ async function openAirportDetail(icao) {
     document.body.classList.add('drawer-open');
     try {
         const d = await fetchJson(`/api/v1/airports/${icao}/detail`);
+        currentDrawerData = d;
         renderAirportDetail(d);
     } catch (err) {
         $('modal-body').textContent = 'Failed to load: ' + err.message;
     }
+}
+
+// Re-render the drawer body from cached data without hitting the API.
+// Used by the sortable column-header click handler so sorting feels
+// instant and doesn't burn a server round-trip.
+function refreshDrawerInPlace() {
+    if (currentDrawerData) renderAirportDetail(currentDrawerData);
 }
 
 function closeModal() {
@@ -849,37 +859,44 @@ function renderAirportDetail(d) {
         body.appendChild(resSection);
     }
 
-    // Inbound flights
+    // Inbound flights — full A-CDM timeline:
+    //   EOBT (filed off-block) → AOBT (actually pushed) → ATOT (actually
+    //   airborne) → ELDT (computed live by EtaEstimator if not stored).
+    // CTOT is shown only if the allocator regulated this flight.
+    // ELDT source chip indicates which tier of the cascade produced it
+    // (OBSERVED_POS / FILED / CALC_*).
     body.appendChild(flightTable(
         `Inbound (${d.inbound.length})`,
-        ['Callsign', 'Type', 'From', 'Phase', 'EOBT', 'ELDT', 'CTOT', 'Δ'],
+        ['Callsign', 'Type', 'From', 'Phase', 'EOBT', 'AOBT', 'ATOT', 'ELDT', 'src', 'CTOT'],
         d.inbound.map(f => [
-            { cls: 'mono', text: f.callsign },
-            { cls: 'mono muted', text: f.aircraft_type || '—' },
-            { cls: 'mono', text: f.adep || '—' },
-            { html: phaseChip(f.phase) },
-            { cls: 'mono muted', text: hhmmz(f.eobt) },
-            { cls: 'mono muted', text: hhmmz(f.eldt) },
-            { cls: 'mono', text: hhmmz(f.ctot) },
-            { cls: 'mono', text: f.delay_minutes ? '+' + f.delay_minutes : '—' },
+            { cls: 'mono', text: f.callsign, sortKey: f.callsign },
+            { cls: 'mono muted', text: f.aircraft_type || '—', sortKey: f.aircraft_type || '' },
+            { cls: 'mono', text: f.adep || '—', sortKey: f.adep || '' },
+            { html: phaseChip(f.phase), sortKey: f.phase || '' },
+            { cls: 'mono muted', text: hhmmz(f.eobt), sortKey: f.eobt || '' },
+            { cls: 'mono muted', text: hhmmz(f.aobt), sortKey: f.aobt || '' },
+            { cls: 'mono muted', text: hhmmz(f.atot), sortKey: f.atot || '' },
+            { cls: 'mono', text: hhmmz(f.eldt), sortKey: f.eldt || '' },
+            { cls: 'muted', text: f.eldt_source ? eldtSrcShort(f.eldt_source) : '—', sortKey: f.eldt_source || '' },
+            { cls: 'mono', text: hhmmz(f.ctot), sortKey: f.ctot || '' },
         ])
-    ));
+    ), 'inbound');
 
     // Outbound flights
     body.appendChild(flightTable(
         `Outbound (${d.outbound.length})`,
         ['Callsign', 'Type', 'To', 'Phase', 'EOBT', 'TTOT', 'CTOT', 'ATOT'],
         d.outbound.map(f => [
-            { cls: 'mono', text: f.callsign },
-            { cls: 'mono muted', text: f.aircraft_type || '—' },
-            { cls: 'mono', text: f.ades || '—' },
-            { html: phaseChip(f.phase) },
-            { cls: 'mono muted', text: hhmmz(f.eobt) },
-            { cls: 'mono muted', text: hhmmz(f.ttot) },
-            { cls: 'mono', text: hhmmz(f.ctot) },
-            { cls: 'mono muted', text: hhmmz(f.atot) },
+            { cls: 'mono', text: f.callsign, sortKey: f.callsign },
+            { cls: 'mono muted', text: f.aircraft_type || '—', sortKey: f.aircraft_type || '' },
+            { cls: 'mono', text: f.ades || '—', sortKey: f.ades || '' },
+            { html: phaseChip(f.phase), sortKey: f.phase || '' },
+            { cls: 'mono muted', text: hhmmz(f.eobt), sortKey: f.eobt || '' },
+            { cls: 'mono muted', text: hhmmz(f.ttot), sortKey: f.ttot || '' },
+            { cls: 'mono', text: hhmmz(f.ctot), sortKey: f.ctot || '' },
+            { cls: 'mono muted', text: hhmmz(f.atot), sortKey: f.atot || '' },
         ])
-    ));
+    ), 'outbound');
 
     // Recent arrivals (last 6h). AXIT = AIBT − ALDT per the EUROCONTROL
     // Airport CDM Manual; what users colloquially call "actual taxi-in".
@@ -887,14 +904,14 @@ function renderAirportDetail(d) {
         `Recent arrivals (${d.recent_arrivals.length})`,
         ['Callsign', 'Type', 'From', 'ALDT', 'AIBT', 'AXIT'],
         d.recent_arrivals.map(f => [
-            { cls: 'mono', text: f.callsign },
-            { cls: 'mono muted', text: f.aircraft_type || '—' },
-            { cls: 'mono', text: f.adep || '—' },
-            { cls: 'mono', text: hhmmz(f.aldt) },
-            { cls: 'mono muted', text: hhmmz(f.aibt) },
-            { cls: 'mono', text: f.actual_exit_min ? f.actual_exit_min + 'm' : '—' },
+            { cls: 'mono', text: f.callsign, sortKey: f.callsign },
+            { cls: 'mono muted', text: f.aircraft_type || '—', sortKey: f.aircraft_type || '' },
+            { cls: 'mono', text: f.adep || '—', sortKey: f.adep || '' },
+            { cls: 'mono', text: hhmmz(f.aldt), sortKey: f.aldt || '' },
+            { cls: 'mono muted', text: hhmmz(f.aibt), sortKey: f.aibt || '' },
+            { cls: 'mono', text: f.actual_exit_min ? f.actual_exit_min + 'm' : '—', sortKey: f.actual_exit_min ?? -1 },
         ])
-    ));
+    ), 'recent_arrivals');
 
     // Recent departures (last 6h). EOBT shown so the EOBT-vs-AOBT delta is
     // legible at a glance — usually it'll show that filed EOBT is, ahem,
@@ -904,16 +921,16 @@ function renderAirportDetail(d) {
         `Recent departures (${d.recent_departures.length})`,
         ['Callsign', 'Type', 'To', 'EOBT', 'AOBT', 'ATOT', 'AXOT', 'EOBT Δ'],
         d.recent_departures.map(f => [
-            { cls: 'mono', text: f.callsign },
-            { cls: 'mono muted', text: f.aircraft_type || '—' },
-            { cls: 'mono', text: f.ades || '—' },
-            { cls: 'mono muted', text: hhmmz(f.eobt) },
-            { cls: 'mono', text: hhmmz(f.aobt) },
-            { cls: 'mono', text: hhmmz(f.atot) },
-            { cls: 'mono', text: f.actual_exot_min ? f.actual_exot_min + 'm' : '—' },
-            { cls: 'mono muted', text: f.eobt_delay_min == null ? '—' : (f.eobt_delay_min >= 0 ? '+' : '') + f.eobt_delay_min + 'm' },
+            { cls: 'mono', text: f.callsign, sortKey: f.callsign },
+            { cls: 'mono muted', text: f.aircraft_type || '—', sortKey: f.aircraft_type || '' },
+            { cls: 'mono', text: f.ades || '—', sortKey: f.ades || '' },
+            { cls: 'mono muted', text: hhmmz(f.eobt), sortKey: f.eobt || '' },
+            { cls: 'mono', text: hhmmz(f.aobt), sortKey: f.aobt || '' },
+            { cls: 'mono', text: hhmmz(f.atot), sortKey: f.atot || '' },
+            { cls: 'mono', text: f.actual_exot_min ? f.actual_exot_min + 'm' : '—', sortKey: f.actual_exot_min ?? -1 },
+            { cls: 'mono muted', text: f.eobt_delay_min == null ? '—' : (f.eobt_delay_min >= 0 ? '+' : '') + f.eobt_delay_min + 'm', sortKey: f.eobt_delay_min ?? -9999 },
         ])
-    ));
+    ), 'recent_departures');
 }
 
 function statCard(label, value, unit) {
@@ -931,7 +948,11 @@ function phaseChip(phase) {
     span.textContent = phase || '—';
     return span;
 }
-function flightTable(title, headers, rows) {
+// Per-table sort state for the drawer flight tables.
+// Key = state key passed by caller; value = { col: index, dir: 'asc'|'desc' }.
+const drawerSortStates = {};
+
+function flightTable(title, headers, rows, stateKey) {
     const section = el('section', {}, el('h3', {}, title));
     if (rows.length === 0) {
         section.appendChild(el('div', { class: 'muted', style: 'padding: 0.5rem 0;' }, 'None.'));
@@ -939,10 +960,47 @@ function flightTable(title, headers, rows) {
     }
     const wrap = el('div', { class: 'table-wrap' });
     const table = el('table');
-    const thead = el('thead', {}, el('tr', {}, ...headers.map(h => el('th', {}, h))));
+
+    // Apply sort if any
+    let sortedRows = rows;
+    if (stateKey && drawerSortStates[stateKey]) {
+        const { col, dir } = drawerSortStates[stateKey];
+        sortedRows = rows.slice().sort((a, b) => {
+            const av = a[col]?.sortKey;
+            const bv = b[col]?.sortKey;
+            if (av == null && bv == null) return 0;
+            if (av == null) return 1;
+            if (bv == null) return -1;
+            if (typeof av === 'number' && typeof bv === 'number') return av - bv;
+            return String(av).localeCompare(String(bv));
+        });
+        if (dir === 'desc') sortedRows.reverse();
+    }
+
+    const thead = el('thead', {}, el('tr', {}, ...headers.map((h, idx) => {
+        const th = el('th', {}, h);
+        if (stateKey) {
+            th.classList.add('sortable');
+            const cur = drawerSortStates[stateKey];
+            if (cur && cur.col === idx) {
+                th.classList.add(cur.dir === 'asc' ? 'sort-asc' : 'sort-desc');
+            }
+            th.addEventListener('click', () => {
+                const c = drawerSortStates[stateKey];
+                if (c && c.col === idx) {
+                    drawerSortStates[stateKey] = { col: idx, dir: c.dir === 'asc' ? 'desc' : 'asc' };
+                } else {
+                    drawerSortStates[stateKey] = { col: idx, dir: 'asc' };
+                }
+                // Re-render the whole drawer (cheap; data is already in memory).
+                if (currentDrawerIcao) refreshDrawerInPlace();
+            });
+        }
+        return th;
+    })));
     table.appendChild(thead);
     const tbody = el('tbody');
-    for (const row of rows) {
+    for (const row of sortedRows) {
         const tr = el('tr');
         for (const cell of row) {
             const td = el('td', cell.cls ? { class: cell.cls } : {});
@@ -956,6 +1014,20 @@ function flightTable(title, headers, rows) {
     wrap.appendChild(table);
     section.appendChild(wrap);
     return section;
+}
+
+// Short label for ELDT source codes from EtaEstimator. Matches the
+// constants in src/Allocator/EtaEstimator.php.
+function eldtSrcShort(src) {
+    switch (src) {
+        case 'STORED':            return 'live';
+        case 'OBSERVED_POS':      return 'pos';
+        case 'FILED':             return 'filed';
+        case 'CALC_FILED_TAS':    return 'tas';
+        case 'CALC_TYPE_TAS':     return 'type';
+        case 'CALC_DEFAULT':      return 'def';
+        default:                  return src.toLowerCase();
+    }
 }
 
 function renderCtots(flights) {
