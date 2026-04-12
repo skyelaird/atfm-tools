@@ -908,10 +908,11 @@ function renderAirportDetail(d) {
         ])
     ), 'inbound');
 
-    // Outbound flights
+    // Outbound flights — drops once ATOT is set (airborne = no longer
+    // actionable from this airport). Only shows pre-departure + taxi.
     body.appendChild(flightTable(
         `Outbound (${d.outbound.length})`,
-        ['Callsign', 'Type', 'To', 'Phase', 'EOBT', 'TTOT', 'CTOT', 'ATOT'],
+        ['Callsign', 'Type', 'To', 'Phase', 'EOBT', 'TTOT', 'CTOT'],
         d.outbound.map(f => [
             { cls: 'mono', text: f.callsign, sortKey: f.callsign },
             { cls: 'mono muted', text: f.aircraft_type || '—', sortKey: f.aircraft_type || '' },
@@ -920,19 +921,23 @@ function renderAirportDetail(d) {
             { cls: 'mono muted', text: hhmmz(f.eobt), sortKey: f.eobt || '' },
             { cls: 'mono muted', text: hhmmz(f.ttot), sortKey: f.ttot || '' },
             { cls: 'mono', text: hhmmz(f.ctot), sortKey: f.ctot || '' },
-            { cls: 'mono muted', text: hhmmz(f.atot), sortKey: f.atot || '' },
         ])
     ), 'outbound');
 
     // Recent arrivals (last 6h). AXIT = AIBT − ALDT per the EUROCONTROL
     // Airport CDM Manual; what users colloquially call "actual taxi-in".
+    // Recent arrivals — last 60 min. Shows ELDT_locked (the prediction
+    // we froze at T-60min) and TLDT (the slot we assigned) alongside
+    // the actual ALDT, so the FMP can eyeball prediction quality.
     body.appendChild(flightTable(
-        `Recent arrivals (${d.recent_arrivals.length})`,
-        ['Callsign', 'Type', 'From', 'ALDT', 'AIBT', 'AXIT'],
+        `Recent arrivals (${d.recent_arrivals.length}) \u2014 last 60 min`,
+        ['Callsign', 'Type', 'From', 'ELDT\u2080', 'TLDT', 'ALDT', 'AIBT', 'AXIT'],
         d.recent_arrivals.map(f => [
             { cls: 'mono', text: f.callsign, sortKey: f.callsign },
             { cls: 'mono muted', text: f.aircraft_type || '—', sortKey: f.aircraft_type || '' },
             { cls: 'mono', text: f.adep || '—', sortKey: f.adep || '' },
+            { cls: 'mono muted', text: hhmmz(f.eldt_locked), sortKey: f.eldt_locked || '' },
+            { cls: 'mono muted', text: hhmmz(f.tldt), sortKey: f.tldt || '' },
             { cls: 'mono', text: hhmmz(f.aldt), sortKey: f.aldt || '' },
             { cls: 'mono muted', text: hhmmz(f.aibt), sortKey: f.aibt || '' },
             { cls: 'mono', text: f.actual_exit_min ? f.actual_exit_min + 'm' : '—', sortKey: f.actual_exit_min ?? -1 },
@@ -944,7 +949,7 @@ function renderAirportDetail(d) {
     // optimistic. AOBT is what we actually observe; ASAT (start-up approval)
     // we don't have a signal for. AXOT = ATOT − AOBT per EUROCONTROL.
     body.appendChild(flightTable(
-        `Recent departures (${d.recent_departures.length})`,
+        `Recent departures (${d.recent_departures.length}) \u2014 last 60 min`,
         ['Callsign', 'Type', 'To', 'EOBT', 'AOBT', 'ATOT', 'AXOT', 'EOBT Δ'],
         d.recent_departures.map(f => [
             { cls: 'mono', text: f.callsign, sortKey: f.callsign },

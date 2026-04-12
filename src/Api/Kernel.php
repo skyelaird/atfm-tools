@@ -395,7 +395,7 @@ final class Kernel
             $liveExclude = [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED];
             $inbound = Flight::where('ades', $icao)
                 ->whereNotIn('phase', $liveExclude)
-                ->orderByRaw('COALESCE(ctot, eldt, eobt) ASC')
+                ->orderByRaw('COALESCE(eldt, eobt) ASC')
                 ->limit(100)
                 ->get()
                 ->map(function (Flight $f) use ($airport, $now) {
@@ -434,16 +434,13 @@ final class Kernel
                     ];
                 })->values()->all();
 
-            // Current outbound — phases where the flight still "belongs" to
-            // this airport's departure view. Once ARRIVING or later, the
-            // flight belongs to its destination's inbound view, not here.
-            $outboundPhases = [
-                Flight::PHASE_PREFILE, Flight::PHASE_FILED,
-                Flight::PHASE_TAXI_OUT, Flight::PHASE_DEPARTED,
-                Flight::PHASE_ENROUTE,
-            ];
+            // Current outbound — flights still at or departing this airport.
+            // Once ATOT is set (wheels up), the flight is no longer
+            // actionable from this airport's perspective — it belongs to
+            // the inbound view of whatever ADES it's heading to. Drop it.
             $outbound = Flight::where('adep', $icao)
-                ->whereIn('phase', $outboundPhases)
+                ->whereNull('atot')
+                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED])
                 ->orderBy('eobt')
                 ->limit(100)
                 ->get()
@@ -462,13 +459,15 @@ final class Kernel
                     'delay_minutes' => $f->delay_minutes,
                 ])->values()->all();
 
-            // Recent arrivals (last 6h, terminal)
-            $since = $now->modify('-6 hours');
+            // Recent arrivals — last 60 min, sorted newest first.
+            // 60 min gives enough context for rate observation without
+            // cluttering the view with stale data.
+            $recentSince = $now->modify('-60 minutes');
             $recentArrivals = Flight::where('ades', $icao)
                 ->where('phase', Flight::PHASE_ARRIVED)
-                ->where('aldt', '>=', $since->format('Y-m-d H:i:s'))
+                ->where('aldt', '>=', $recentSince->format('Y-m-d H:i:s'))
                 ->orderBy('aldt', 'desc')
-                ->limit(50)
+                ->limit(30)
                 ->get()
                 ->map(fn (Flight $f) => [
                     'callsign'        => $f->callsign,
@@ -477,14 +476,16 @@ final class Kernel
                     'aldt'            => $f->aldt?->format('c'),
                     'aibt'            => $f->aibt?->format('c'),
                     'actual_exit_min' => $f->actual_exit_min,
+                    'eldt_locked'     => $f->eldt_locked?->format('c'),
+                    'tldt'            => $f->tldt?->format('c'),
                 ])->values()->all();
 
-            // Recent departures (last 6h)
+            // Recent departures — last 60 min, sorted newest first.
             $recentDepartures = Flight::where('adep', $icao)
                 ->whereNotNull('atot')
-                ->where('atot', '>=', $since->format('Y-m-d H:i:s'))
+                ->where('atot', '>=', $recentSince->format('Y-m-d H:i:s'))
                 ->orderBy('atot', 'desc')
-                ->limit(50)
+                ->limit(30)
                 ->get()
                 ->map(function (Flight $f) {
                     $eobtDelayMin = null;
