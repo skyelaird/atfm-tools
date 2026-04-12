@@ -283,8 +283,8 @@ flights
 ├── tsat                       datetime null     -- target start-up approval (computed)
 ├── ttot                       datetime null     -- target take-off (tsat + exot)
 ├── ctot                       datetime null     -- calculated take-off (allocator output)
-├── asat                       datetime null     -- actual start-up approval (observed)
-├── aobt                       datetime null     -- actual off-block (observed)
+├── asat                       datetime null     -- actual start-up approval (CDM/PERTI feed only — NEVER stamped from VATSIM ingest, no signal for it)
+├── aobt                       datetime null     -- actual off-block (observed: first ingest cycle in TAXI_OUT, only if previous phase was pre-departure)
 ├── atot                       datetime null     -- actual take-off (threshold crossing)
 ├── eldt                       datetime null     -- estimated landing (computed)
 ├── cta                        datetime null     -- calculated arrival (allocator output)
@@ -293,7 +293,7 @@ flights
 │
 ├── -- Planned vs actual (derived, populated on state transitions)
 ├── planned_exot_min           int null          -- copied from airport.default_exot_min
-├── actual_exot_min            int null          -- atot - asat, post-departure
+├── actual_exot_min            int null          -- atot - aobt, post-departure (capped 1-60 min)
 ├── planned_exit_min           int null
 ├── actual_exit_min            int null          -- aibt - aldt, post-arrival
 │
@@ -534,7 +534,7 @@ our 7 configured airports.
 2. UPSERT into `flights` table keyed by `flight_key`.
 3. Update A-CDM milestone fields as they become observable:
    - `eobt`: from `flight_plan.deptime` (once on first FILED observation)
-   - `asat` / `aobt`: first time groundspeed > 0 near ADEP
+   - `aobt`: first ingest cycle classified as TAXI_OUT, **only if** previous phase was PREFILE/FILED/TAXI_OUT (never backfilled from mid-cruise sightings, which would produce garbage EXOT). `asat` is never stamped from VATSIM ingest — no signal for it.
    - `atot`: first time altitude > 200ft AGL near ADEP
    - `aldt`: first time altitude descends through 200ft AGL near ADES
    - `aibt`: first stationary observation near ADES

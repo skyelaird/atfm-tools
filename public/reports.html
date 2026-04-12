@@ -48,6 +48,7 @@
         a.pill { text-decoration: none; }
 
         main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
+        .table-wrap { overflow-x: auto; }  /* let wide tables scroll horizontally rather than overflow the viewport */
         section { margin-bottom: 1.5rem; }
         section h2 {
             font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
@@ -70,9 +71,9 @@
         }
         .stat-card .val .unit { font-size: 0.8rem; color: var(--text-dim); font-weight: 400; margin-left: 0.3rem; }
 
-        table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
         thead th {
-            text-align: left; padding: 0.45rem 0.5rem;
+            text-align: left; padding: 0.35rem 0.45rem;
             background: var(--bg-elev); color: var(--text-dim);
             font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
             border-bottom: 1px solid var(--border);
@@ -140,17 +141,17 @@
                         <th data-sort="icao">ICAO</th>
                         <th data-sort="arrivals" class="num">Arr</th>
                         <th data-sort="departures" class="num">Dep</th>
-                        <th data-sort="avg_exot_min" class="num" title="Average observed taxi-out time (TSAT→takeoff) in min">Avg EXOT</th>
-                        <th data-sort="p50_exot_min" class="num">p50 EXOT</th>
-                        <th data-sort="p90_exot_min" class="num">p90 EXOT</th>
-                        <th data-sort="avg_exit_min" class="num" title="Average observed taxi-in time (landing→in-block) in min">Avg EXIT</th>
-                        <th data-sort="p50_exit_min" class="num">p50 EXIT</th>
-                        <th data-sort="p90_exit_min" class="num">p90 EXIT</th>
-                        <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT − EOBT) in min — how late pilots actually push back vs filed">Avg EOBT Δ</th>
-                        <th data-sort="p90_eobt_delay_min" class="num">p90 EOBT Δ</th>
-                        <th data-sort="avg_eta_error_min" class="num" title="Filed-ETA accuracy: observed ALDT − (AOBT + filed enroute_time) in min">Avg ETA err</th>
-                        <th data-sort="p90_eta_error_min" class="num">p90 ETA err</th>
-                        <th data-sort="eta_sample_n" class="num">ETA n</th>
+                        <th data-sort="avg_exot_min" class="num" title="Average observed taxi-out time (AOBT→ATOT) in min">EXOT̄</th>
+                        <th data-sort="p50_exot_min" class="num" title="Median EXOT">EXOT₅₀</th>
+                        <th data-sort="p90_exot_min" class="num" title="p90 EXOT">EXOT₉₀</th>
+                        <th data-sort="avg_exit_min" class="num" title="Average observed taxi-in time (ALDT→AIBT) in min">EXIT̄</th>
+                        <th data-sort="p50_exit_min" class="num" title="Median EXIT">EXIT₅₀</th>
+                        <th data-sort="p90_exit_min" class="num" title="p90 EXIT">EXIT₉₀</th>
+                        <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT − EOBT) in min — how late pilots actually push back vs filed">ΔEOBT̄</th>
+                        <th data-sort="p90_eobt_delay_min" class="num" title="p90 EOBT delay">ΔEOBT₉₀</th>
+                        <th data-sort="avg_eta_error_min" class="num" title="Filed-ETA accuracy: ALDT − (AOBT + filed enroute_time) in min">ΔETĀ</th>
+                        <th data-sort="p90_eta_error_min" class="num" title="p90 ETA error">ΔETA₉₀</th>
+                        <th data-sort="eta_sample_n" class="num" title="ETA sample size">n</th>
                     </tr>
                 </thead>
                 <tbody id="airports-tbody">

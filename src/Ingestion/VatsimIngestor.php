@@ -284,27 +284,37 @@ final class VatsimIngestor
             $flight->phase_updated_at = $now;
         }
 
-        // Observed A-CDM times — ratchet-style: once we see a downstream
-        // state, any upstream milestone that's still null gets backfilled
-        // with "now" as a conservative estimate. A flight we first notice
-        // mid-cruise won't have accurate ASAT/ATOT timestamps, but at
-        // least every airborne flight shows an ATOT value as the user expects.
+        // Observed A-CDM times — ratchet semantics.
+        //
+        // ASAT (Actual Start-Up Approval Time) is a controller event we cannot
+        // observe from VATSIM data, so we never stamp it from the ingestor.
+        // It will only ever be populated by an upstream CDM/PERTI feed.
+        //
+        // AOBT (Actual Off-Block Time) is what we *can* observe: the moment
+        // the aircraft is no longer at parking. We approximate it as the first
+        // ingest cycle in which the phase is TAXI_OUT or later. Same for ATOT
+        // when phase is DEPARTED or later.
+        //
+        // CRITICAL: only ratchet AOBT if the flight is genuinely transitioning
+        // from a pre-departure state (PREFILE/FILED/TAXI_OUT). If we first see
+        // a flight mid-cruise (ENROUTE/ARRIVING/etc), stamping AOBT to "now"
+        // would be a lie — the flight pushed back hours ago — and would later
+        // produce a garbage EXOT once ATOT is observed. Better to leave it null.
+        $sawAobtThisCycle = false;
         if (in_array($phase, [
             Flight::PHASE_TAXI_OUT,
             Flight::PHASE_DEPARTED,
-            Flight::PHASE_ENROUTE,
-            Flight::PHASE_ARRIVING,
-            Flight::PHASE_FINAL,
-            Flight::PHASE_ON_RUNWAY,
-            Flight::PHASE_VACATED,
-            Flight::PHASE_TAXI_IN,
-            Flight::PHASE_ARRIVED,
-        ], true)) {
-            if ($flight->asat === null) {
-                $flight->asat = $now;
-            }
+        ], true)
+            && in_array($previousPhase, [
+                null,
+                Flight::PHASE_PREFILE,
+                Flight::PHASE_FILED,
+                Flight::PHASE_TAXI_OUT,
+            ], true)
+        ) {
             if ($flight->aobt === null) {
                 $flight->aobt = $now;
+                $sawAobtThisCycle = true;
             }
         }
         if (in_array($phase, [
@@ -319,12 +329,16 @@ final class VatsimIngestor
         ], true)) {
             if ($flight->atot === null) {
                 $flight->atot = $now;
-                // Only compute EXOT if we observed BOTH transitions (not backfilled
-                // on the same cycle — check phase_updated_at). Otherwise the delta
-                // is meaningless and we'd pollute the reports with 0-min EXOTs.
-                if ($flight->asat !== null && $flight->asat < $now) {
-                    $diffSeconds = $now->getTimestamp() - $flight->asat->getTimestamp();
-                    if ($diffSeconds >= 60) {  // at least 1 min apart → plausible
+                // Compute EXOT only when we have a meaningful AOBT — i.e. it
+                // was stamped on a *previous* ingest cycle (not this one),
+                // and the gap is in a sane 1-60 min range. WJA1034 taught us
+                // 123-min EXOTs come from pilots who spawn-then-idle.
+                if ($flight->aobt !== null
+                    && $flight->aobt < $now
+                    && ! $sawAobtThisCycle
+                ) {
+                    $diffSeconds = $now->getTimestamp() - $flight->aobt->getTimestamp();
+                    if ($diffSeconds >= 60 && $diffSeconds <= 3600) {
                         $flight->actual_exot_min = (int) round($diffSeconds / 60);
                     }
                 }
@@ -355,13 +369,21 @@ final class VatsimIngestor
             }
         }
 
-        // AIBT ratchet: only ARRIVED implies full in-block.
-        if ($phase === Flight::PHASE_ARRIVED) {
+        // AIBT ratchet: only ARRIVED implies full in-block — but to give EXIT
+        // a chance at being a non-degenerate number on a 5-min ingest cadence,
+        // we deliberately delay AIBT by one cycle. First ARRIVED observation
+        // stamps ALDT (via the block above); the next ARRIVED observation
+        // stamps AIBT, giving us a real ALDT→AIBT delta of at least one
+        // ingest period.
+        if ($phase === Flight::PHASE_ARRIVED && $previousPhase === Flight::PHASE_ARRIVED) {
             if ($flight->aibt === null) {
                 $flight->aibt = $now;
+                // EXIT requires ALDT stamped on a *previous* cycle. Same sanity
+                // cap as EXOT — anything > 60 min is implausible taxi-in for
+                // these airports and almost certainly an artifact.
                 if ($flight->aldt !== null && $flight->aldt < $now) {
                     $diffSeconds = $now->getTimestamp() - $flight->aldt->getTimestamp();
-                    if ($diffSeconds >= 60) {
+                    if ($diffSeconds >= 60 && $diffSeconds <= 3600) {
                         $flight->actual_exit_min = (int) round($diffSeconds / 60);
                     }
                 }

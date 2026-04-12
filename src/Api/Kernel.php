@@ -455,16 +455,25 @@ final class Kernel
                 ->orderBy('atot', 'desc')
                 ->limit(50)
                 ->get()
-                ->map(fn (Flight $f) => [
-                    'callsign'        => $f->callsign,
-                    'aircraft_type'   => $f->aircraft_type,
-                    'ades'            => $f->ades,
-                    'eobt'            => $f->eobt?->format('c'),
-                    'asat'            => $f->asat?->format('c'),
-                    'atot'            => $f->atot?->format('c'),
-                    'actual_exot_min' => $f->actual_exot_min,
-                    'delay_minutes'   => $f->delay_minutes,
-                ])->values()->all();
+                ->map(function (Flight $f) {
+                    $eobtDelayMin = null;
+                    if ($f->eobt && $f->aobt) {
+                        $eobtDelayMin = (int) round(
+                            ($f->aobt->getTimestamp() - $f->eobt->getTimestamp()) / 60
+                        );
+                    }
+                    return [
+                        'callsign'        => $f->callsign,
+                        'aircraft_type'   => $f->aircraft_type,
+                        'ades'            => $f->ades,
+                        'eobt'            => $f->eobt?->format('c'),
+                        'aobt'            => $f->aobt?->format('c'),
+                        'atot'            => $f->atot?->format('c'),
+                        'actual_exot_min' => $f->actual_exot_min,
+                        'eobt_delay_min'  => $eobtDelayMin,
+                        'delay_minutes'   => $f->delay_minutes,
+                    ];
+                })->values()->all();
 
             // Hourly-bucketed movement counts for the last 24 hours
             $hourly = [];
@@ -667,7 +676,7 @@ final class Kernel
                 $departures = Flight::where('adep', $a->icao)
                     ->whereNotNull('atot')
                     ->where('atot', '>=', $sinceStr)
-                    ->get(['eobt', 'aobt', 'asat', 'atot', 'actual_exot_min']);
+                    ->get(['eobt', 'aobt', 'atot', 'actual_exot_min']);
 
                 $exotValues = $departures->pluck('actual_exot_min')->filter()->values()->all();
                 $exitValues = $arrivals->pluck('actual_exit_min')->filter()->values()->all();

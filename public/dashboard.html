@@ -888,18 +888,22 @@ function renderAirportDetail(d) {
         ])
     ));
 
-    // Recent departures (last 6h)
+    // Recent departures (last 6h). EOBT shown so the EOBT-vs-AOBT delta is
+    // legible at a glance — usually it'll show that filed EOBT is, ahem,
+    // optimistic. AOBT is what we actually observe; ASAT (start-up approval)
+    // we don't have a signal for.
     body.appendChild(flightTable(
         `Recent departures (${d.recent_departures.length})`,
-        ['Callsign', 'Type', 'To', 'ASAT', 'ATOT', 'Actual EXOT', 'Delay'],
+        ['Callsign', 'Type', 'To', 'EOBT', 'AOBT', 'ATOT', 'EXOT', 'EOBT Δ'],
         d.recent_departures.map(f => [
             { cls: 'mono', text: f.callsign },
             { cls: 'mono muted', text: f.aircraft_type || '—' },
             { cls: 'mono', text: f.ades || '—' },
-            { cls: 'mono muted', text: hhmmz(f.asat) },
+            { cls: 'mono muted', text: hhmmz(f.eobt) },
+            { cls: 'mono', text: hhmmz(f.aobt) },
             { cls: 'mono', text: hhmmz(f.atot) },
             { cls: 'mono', text: f.actual_exot_min ? f.actual_exot_min + 'm' : '—' },
-            { cls: 'mono muted', text: f.delay_minutes ? '+' + f.delay_minutes : '—' },
+            { cls: 'mono muted', text: f.eobt_delay_min == null ? '—' : (f.eobt_delay_min >= 0 ? '+' : '') + f.eobt_delay_min + 'm' },
         ])
     ));
 }
