@@ -717,73 +717,131 @@ returns the highest-tier estimate it can compute:
 | Tier | Source | Applies when | Formula | Confidence |
 |---|---|---|---|---|
 | **1** | **FILED** | Pilot filed `enroute_time` (HHMM) in the flight plan, flight is on ground | `EOBT + taxi + enroute_time` | 90 |
-| **2** | **OBSERVED_POS** | Flight is airborne with known lat/lon | `now + great_circle(pos, dest) / observed_gs` | 85 |
-| **3** | **CALC_FILED_TAS** | On ground, filed `cruise_tas` is present and plausible (120-650 kt) | `EOBT + taxi + great_circle(adep, ades) / filed_tas` | 70 |
-| **4** | **CALC_TYPE_TAS** | On ground, aircraft_type is in `AircraftTas::TABLE` | `EOBT + taxi + great_circle / type_table_tas` | 55 |
-| **5** | **CALC_DEFAULT** | On ground, unknown type | `EOBT + taxi + great_circle / 430 kt` | 40 |
+| **2** | **OBSERVED_POS** | Flight is airborne with known lat/lon | `now + descent_aware_eta(pos, dest, GS, alt, type)` | 85 |
+| **3** | **CALC_FILED_TAS** | On ground, filed `cruise_tas` is present and plausible (120-650 kt) | `EOBT + taxi + descent_aware_eta(adep, dest, TAS, FL, type)` | 70 |
+| **4** | **CALC_TYPE_TAS** | On ground, aircraft_type is in `AircraftTas::TABLE` | `EOBT + taxi + descent_aware_eta(adep, dest, type_TAS, FL, type)` | 55 |
+| **5** | **CALC_DEFAULT** | On ground, unknown type | `EOBT + taxi + descent_aware_eta(adep, dest, 430, FL350, default)` | 40 |
 | —  | **NONE** | No EOBT, no position, or unknown ADEP coords | (skip flight this cycle) | 0 |
 
-**Why OBSERVED_POS beats FILED for airborne flights**: physical reality is
-always better than pre-flight planning once the flight exists. Filed
-enroute_time is typically SimBrief-quality — it includes winds at filing
-time — but doesn't account for mid-flight ATC routing changes, speed
-choices, or wind shifts. Observed groundspeed + current position captures
-all of those implicitly.
+### 7.1.1 Descent-aware ETA (v0.5.6+)
 
-**Why FILED beats TAS-based calculation for ground flights**: pilots who
-file `enroute_time` typically got it from SimBrief, which includes wind
-compensation for the forecast period. Our geometric recomputation has no
-wind model at all. So a filed value from a serious filer is better than
-our computation.
+All tiers use `Geo::etaMinutesWithDescent()` which models a standard
+3-degree descent profile with published speed constraints:
 
-The allocator does not need to know which tier produced an ETA for its
-slot-assignment decision — it just uses the epoch. Future ROT analysis
-can stratify ETA accuracy by source to measure how each tier performs
-in practice.
+```
+Segment              Distance       Speed                Source
+─────────────────────────────────────────────────────────────────
+0-2 nm               2 nm           ~140 kt (Vref)       Final approach
+2-5 nm               3 nm           ~180 kt avg          Deceleration segment
+5-10 nm              5 nm           ~220 kt              3000 AGL at 10nm (3°)
+10-20 nm             10 nm          220 kt               Approach speed limit
+20 nm - FL100 dist   varies         250 KIAS             Regulatory (mandatory)
+FL100 - TOD          varies         IAS_high (type)      Type-specific descent
+TOD - position       varies         cruise GS            Observed or filed
+```
+
+**TOD calculation**: `altitude_above_airport / 318` nm (3° glidepath =
+318 ft per nm).
+
+**Type-specific descent IAS** (`AircraftTas::descentIasHigh()`):
+
+| Type family | Descent profile | IAS above FL100 |
+|---|---|---|
+| B77W, B789, B744, B748 | M0.84/310/250 | 310 KIAS |
+| A359, A35K, A388 | M0.85/300-310/250 | 300-310 KIAS |
+| A320, A321, A20N, A21N | M0.78/300/250 | 300 KIAS |
+| B738, B38M, B737 | M0.78/280/250 | 280 KIAS |
+| CRJ, E-Jets | M0.74-78/270-290/250 | 270-290 KIAS |
+| Default | —/280/250 | 280 KIAS |
+
+Data sourced from PMDG, iniBuilds, and similar study-level sim aircraft
+performance profiles. IAS is converted to approximate GS using a 1.2x
+TAS correction factor for the FL200 average altitude.
+
+**Validation**: TSC756 (LPPR→CYYZ, A332) at 125nm/FL384 — old model
+predicted 19.7 min (great-circle/GS), new model predicted 30.6 min,
+actual was 36 min. Improvement from 16 min error to 5 min error.
+
+### 7.1.2 Taxi time estimation
+
+Taxi time comes from zone-based lookup (`src/Allocator/TaxiZones.php`)
+using apron polygons from the vIFF CDM configuration
+(`data/taxizones.txt`). Each zone defines a bounding box for an apron
+area at an airport, with taxi time in minutes per apron × runway
+combination. Falls back to `airports.default_exot_min` when no zone
+matches the aircraft position.
+
+### 7.1.3 ELDT freeze for validation
+
+The ingestor snapshots the current ELDT once per flight when it first
+enters the validation horizon (default: T-2h before predicted landing
+AND at least 5 min in ENROUTE phase for GS stabilisation). Stored as
+`eldt_locked` + `eldt_locked_at` + `eldt_locked_source`. After ALDT
+is observed, `ALDT - eldt_locked` is the prediction-quality KPI
+surfaced in the reports page as ELDT bias / ELDT ±3%.
+
+TLDT (the allocator's slot decision) is frozen at assignment and never
+revised. `ALDT - TLDT` measures slot fidelity.
+
+### 7.1.4 FLS-NRA detection
+
+"Filed, Not Reported Airborne." When a flight has EOBT in the past,
+no ATOT, no CTOT, and phase is still PREFILE/FILED, and now exceeds
+EOBT + planned_exot + 10 min grace, the ingestor flags
+`delay_status = FLS_NRA`. Mirrors vIFF's status logic. Rendered as a
+yellow warning badge in the dashboard.
 
 See §2 for why we deliberately don't integrate wind/GRIB data.
 
-## 8. Allocation algorithm (CASA-light priority ladder)
+## 8. Allocation algorithm — TLDT-primary (v0.5.0+)
 
-Runs every 5 minutes via `bin/compute-ctots.php`. Stateless across runs except
-for the set of frozen CTOTs carried over from prior cycles.
+Runs every 2 minutes via `bin/compute-ctots.php`. The conceptual model:
+
+```
+ELDT  → prediction       (EtaEstimator, refreshed every ingest cycle)
+TLDT  → control decision  (allocator assigns a landing slot)
+CTOT  → enforcement       (derived from TLDT for ground-bound flights)
+ALDT  → truth             (observed)
+```
+
+TLDT is the primary allocation primitive. Every inbound within the
+restriction's tier window gets a TLDT. CTOT is derived for ground
+flights as the back-calculated departure time that achieves the
+assigned TLDT. Airborne flights receive a TLDT but no CTOT.
 
 ### 8.1 Top-level flow
 
 ```
 for each airport with an active restriction:
     determine effective capacity (§9)
-    determine slot duration = 3600 / capacity_per_hour (seconds)
-    determine regulation window (start_utc, end_utc → now-relative datetimes)
+    slot_sec = 3600 / capacity (seconds per slot)
     tier_cutoff = now + restriction.tier_minutes
 
-    1. Load frozen CTOTs for this airport:
-         - from flights.ctot where ctl_element = airport AND phase != TERMINAL
-         - validate: pilot still in feed, not departed, compliance window hasn't passed
-         - those that pass: immovable this cycle
-         - those that fail: released (slot available for reuse) or reissued
+    1. Validate existing TLDTs (frozen-slot carryover):
+         - flights with TLDT set from prior runs
+         - DISCONNECTED: release slot (clear TLDT + CTOT)
+         - DEPARTED with CTOT: compute compliance (COMPLIANT/NON_COMPLIANT)
+         - Ground, CTOT expired: release for re-allocation
+         - Valid: keep the slot reserved
 
-    2. Airborne inbound pre-consume:
-         - flights with phase ∈ {ENROUTE, ARRIVING, FINAL} AND ades = airport
-         - compute unconstrained ETA from current position + filed TAS
-         - occupy slot at that time (no CTOT issued)
+    2. Imported CTOTs (event/file sources):
+         - honour as fixed reservations
+         - derive TLDT from CTOT_imp + ETE + EXOT
+         - reserve the slot
 
-    3. Event bookings / imports (both are "pre-booked" sources):
-         - load imported_ctots rows where callsign or cid matches an inbound flight
-         - order by priority (lower wins)
-         - for each: reserve the slot at the specified ctot
-           (displaces whatever was there if priority is higher)
+    3. Pack remaining inbounds into the rate ladder:
+         - all flights (airborne + ground) without TLDT
+         - within tier_cutoff
+         - sorted by ELDT ascending (closest landing first)
+         - for each: find next free slot from ELDT forward
+         - write TLDT + tldt_assigned_at
 
-    4. Ground CASA — sort ground flights by EOBT, allocate:
-         - candidates = flights inbound to airport, on ground, within tier
-         - also: any flights released from step 1 (previously frozen but non-compliant)
-         - for each (in EOBT order):
-             - compute unconstrained ETA
-             - walk the slot schedule from that time forward until a free slot
-             - if delay >= 5 min: issue CTOT, mark frozen, write to flights.ctot
-             - if delay < 5 min: no CTOT (flight is on-time)
+    4. Derive CTOT for ground flights:
+         - only when TLDT delay >= 5 min
+         - CTOT = TTOT + delay_seconds
+         - airborne flights: TLDT only, no CTOT (controller handles)
 
-    5. Beyond tier: skipped entirely. Re-evaluated when they cross the tier.
+    5. Beyond tier: skipped. Re-evaluated next cycle when they enter tier.
 ```
 
 ### 8.2 Compliance and freezing

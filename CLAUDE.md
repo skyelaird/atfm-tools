@@ -82,17 +82,26 @@ calculated (regulation), `A*` actual.
 The 60-min cap exists because pilots who spawn-then-idle (or controllers
 who reposition aircraft) produce 100+ min outliers that skew reports.
 
-## Tiered ETA cascade (`src/Allocator/EtaEstimator.php`)
+## ETA estimation (`src/Allocator/EtaEstimator.php`)
 
-The answer to "how do you ETA when the pilot didn't file an enroute_time?"
+5-tier cascade, all using **descent-aware** computation (v0.5.6+):
 
-1. **OBSERVED_POS** (airborne) — great-circle from current position ÷ observed GS, conf 85
-2. **FILED** (ground) — filed enroute_time HHMM, conf 90 (SimBrief-quality)
-3. **CALC_FILED_TAS** — great-circle ÷ filed cruise_tas, conf 70
-4. **CALC_TYPE_TAS** — great-circle ÷ `AircraftTas::typicalTas()` (~60 ICAO types), conf 55
-5. **CALC_DEFAULT** — great-circle ÷ 430 kt, conf 40
+1. **FILED** (ground) — filed enroute_time + taxi, conf 90
+2. **OBSERVED_POS** (airborne) — descent-aware ETA from current position, conf 85
+3. **CALC_FILED_TAS** — descent-aware from filed cruise_tas, conf 70
+4. **CALC_TYPE_TAS** — descent-aware from `AircraftTas::typicalTas()`, conf 55
+5. **CALC_DEFAULT** — descent-aware from 430 kt, conf 40
 
-Airborne always wins via OBSERVED_POS. Ground follows the cascade.
+**Descent model** (`Geo::etaMinutesWithDescent()`): standard 3° glidepath
+with published speed constraints — 250 kt below FL100, 220 kt within
+20nm, type-specific IAS above FL100 (310 kt for B77W, 280 for B738,
+etc. from PMDG/iniBuilds profiles). TOD at altitude/318 nm.
+
+**Taxi time**: zone-based from `data/taxizones.txt` (apron polygon ×
+runway → minutes). Falls back to airport default.
+
+**ELDT freeze**: snapshots at T-2h (or ENROUTE+5min, whichever is later)
+for validation against eventual ALDT. Target: ±3 min.
 
 ## OpLevel taxonomy (PERTI-compatible)
 
@@ -103,24 +112,36 @@ Derived from FIR adjacency in `src/Allocator/FirMap.php`.
 
 ```
 src/
-  Allocator/      CtotAllocator, EtaEstimator, AircraftTas, FirMap, Geo, Phase, FlightKey
-  Api/            Kernel.php (Slim routes — single file)
-  Ingestion/      VatsimIngestor.php (5-min cron)
+  Allocator/      CtotAllocator, EtaEstimator, AircraftTas, TaxiZones,
+                  FirMap, Geo, Phase, FlightKey
+  Api/            Kernel.php (Slim routes — single file, all endpoints)
+  Ingestion/      VatsimIngestor.php (2-min cron)
   Imports/        EventBookings, ImportedCtots
-  Models/         Flight, Airport, AirportRestriction, ImportedCtot, EventSource, AllocationRun, RunwayThreshold, PositionScratch, AarCalculation
+  Models/         Flight, Airport, AirportRestriction, ImportedCtot,
+                  EventSource, AllocationRun, RunwayThreshold, PositionScratch
+  Version.php     Single source of truth for running version
 public/
-  dashboard.html  main FMP view + airport detail right-docked drawer
-  reports.html    XOT/EXIT/EOBT delay/ETA error per airport, sortable
+  dashboard.html  FMP view + airport detail right-docked drawer
+  reports.html    per-airport KPIs + ELDT/TLDT accuracy + aircraft mix
   map.html        live map
+data/
+  taxizones.txt   apron polygons x runway -> taxi time (from vIFF CDM config)
+  rates.txt       runway-config arrival/departure rates
 bin/
-  ingest.php      cron entry: VatsimIngestor
-  allocate.php    cron entry: CtotAllocator
-  events.php      cron entry: VATCAN event bookings
-  imports.php     cron entry: imported CTOTs
-  migrate.php     schema migrations
+  ingest-vatsim.php   cron: VatsimIngestor (every 2 min)
+  compute-ctots.php   cron: CtotAllocator (every 2 min)
+  ingest-events.php   cron: VATCAN event bookings (every 2 min)
+  ingest-imports.php  cron: imported CTOTs (every 2 min)
+  cleanup.php         cron: daily position_scratch purge + WITHDRAWN timeout
+  deploy.sh           cron: auto-deploy (every 1 min)
+  migrate.php         schema migrations (idempotent)
+  seed-airports.php   airport + runway threshold seeding
+  scrub-hallucinations.php  data cleanup (one-shot, idempotent)
+  audit-data.php      data quality report (read-only)
 docs/
-  ARCHITECTURE.md
-  GLOSSARY.md
+  ARCHITECTURE.md     full design document
+  GLOSSARY.md         cross-system term reference
+  API.md              endpoint reference + integration guide
 ```
 
 ## Deferred / known TODO
