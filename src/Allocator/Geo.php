@@ -97,23 +97,35 @@ final class Geo
         int $airportElevFt,
         int $descentIasHigh = 280
     ): float {
-        // Descent distance from 3° glidepath: 318 ft per nm
+        // Distance from airport where the aircraft is on a 3° slope
+        // at its current altitude. This tells us how much of the
+        // remaining distance is "descent segment" vs "cruise segment".
         $altAboveAirport = max(0, $cruiseAltFt - $airportElevFt);
         $todDistNm = $altAboveAirport / 318.0;
 
-        // FL100 distance from airport (10000 ft AGL at 318 ft/nm = ~31 nm)
+        // If the aircraft is closer than its TOD distance, it's already
+        // in descent (or on approach). The entire remaining distance is
+        // descent. If it's farther, the difference is cruise.
+        if ($distNm <= $todDistNm) {
+            // Already in descent — the observed GS is the current
+            // descent/approach speed. Simple distance/GS is the most
+            // honest estimate, because the speed schedule segments
+            // ahead are at speeds similar to or slower than current GS.
+            // Adding the schedule on top would double-count the slowdown.
+            return ($cruiseKt > 0) ? ($distNm / $cruiseKt) * 60.0 : 0.0;
+        }
+
+        // Still in cruise — split into cruise + descent.
         $fl100AGL = max(0, 10000 - $airportElevFt);
         $fl100DistNm = $fl100AGL / 318.0;
 
-        // Compute time for the approach/descent segment
         $descentMin = self::descentSegmentMinutes(
-            min($todDistNm, $distNm),
+            $todDistNm,
             $fl100DistNm,
             $descentIasHigh
         );
 
-        // Cruise segment: whatever remains beyond the TOD point
-        $cruiseNm = max(0.0, $distNm - $todDistNm);
+        $cruiseNm = $distNm - $todDistNm;
         $cruiseMin = ($cruiseKt > 0) ? ($cruiseNm / $cruiseKt) * 60.0 : 0.0;
 
         return $cruiseMin + $descentMin;
@@ -173,11 +185,12 @@ final class Geo
         $remaining -= $seg;
         if ($remaining <= 0) return $time;
 
-        // FL100 to TOD at type-specific IAS_high (e.g. 310 for B77W)
-        // IAS_high at FL200-FL300 gives ~350-400 kt GS depending on
-        // altitude. We approximate GS as IAS * 1.2 for this range
-        // (rough TAS correction for FL200 average).
-        $gsHighKt = (int) round($iasHighKt * 1.2);
+        // FL100 to TOD at type-specific IAS_high (e.g. 310 for B77W).
+        // IAS-to-TAS correction at the average altitude of this segment
+        // (~FL200): at FL200 the density ratio gives TAS/IAS ~ 1.3.
+        // This is conservative (at FL300 it's ~1.45) but avoids being
+        // too optimistic for the lower portion of the segment.
+        $gsHighKt = (int) round($iasHighKt * 1.3);
         $time += ($remaining / $gsHighKt) * 60.0;
 
         return $time;
