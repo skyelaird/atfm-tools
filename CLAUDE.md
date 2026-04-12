@@ -148,7 +148,12 @@ docs/
 - Never use `WidthType.PERCENTAGE` — breaks Google Docs (legacy from a
   separate skill, kept here as a general "stick to literal units" rule)
 - Cron picks minutes off `:00`/`:30` to avoid fleet-wide load spikes
-- WHC deploy: `git pull` on the server is enough; no build, no asset pipeline
+- **WHC deploy is automatic** via the `bin/deploy.sh` cron entry
+  (every minute, fast-forward only, runs `bin/migrate.php` after a real
+  pull, silent on no-op). Pushing to `origin/main` reaches prod within
+  ~60 s; no manual `git pull` required. If a deploy fails, cron mail
+  surfaces it because `deploy.sh` exits non-zero on dirty tree, divergent
+  history, or migration failure.
 
 ## When in doubt
 

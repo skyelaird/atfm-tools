@@ -1028,6 +1028,10 @@ SSH key auth via `~/.ssh/atfm_whc` (set up in v0.2 setup). No password prompts.
 ### 12.2 Cron schedule
 
 ```cron
+# Auto-deploy: pull origin/main every minute and run pending migrations.
+# Silent on no-op; non-zero exit (and cron mail) on any failure.
+* * * * *     cd ~/atfm-tools && bash bin/deploy.sh >> logs/deploy.log 2>&1
+
 # Data collection
 */5 * * * *   cd ~/atfm-tools && php bin/ingest-vatsim.php >> logs/ingest.log 2>&1
 */5 * * * *   cd ~/atfm-tools && php bin/ingest-events.php >> logs/events.log 2>&1
