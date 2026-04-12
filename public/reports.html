@@ -142,21 +142,18 @@
                         <th data-sort="arrivals" class="num">Arr</th>
                         <th data-sort="departures" class="num">Dep</th>
                         <th data-sort="avg_exot_min" class="num" title="Average AXOT (ATOT minus AOBT) in min">AXOT</th>
-                        <th data-sort="p90_exot_min" class="num" title="p90 AXOT">AXOT90</th>
                         <th data-sort="avg_exit_min" class="num" title="Average AXIT (AIBT minus ALDT) in min">AXIT</th>
-                        <th data-sort="p90_exit_min" class="num" title="p90 AXIT">AXIT90</th>
-                        <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT minus EOBT) in min">dEOBT</th>
-                        <th data-sort="eldt_bias_min" class="num" title="ELDT prediction bias: mean (ALDT minus ELDT_locked) in min. Negative = we predicted late. Snapshot taken at T-60min.">ELDT bias</th>
-                        <th data-sort="eldt_p90_abs_min" class="num" title="ELDT p90 absolute error in min">|ELDT|90</th>
-                        <th data-sort="eldt_within_tolerance_pct" class="num" title="% of ELDT predictions within plus/minus 3 min of ALDT">ELDT +/-3%</th>
-                        <th data-sort="eldt_sample_n" class="num" title="ELDT sample size">ne</th>
-                        <th data-sort="tldt_bias_min" class="num" title="TLDT slot fidelity bias: mean (ALDT minus TLDT) in min. Negative = arrived before slot.">TLDT bias</th>
-                        <th data-sort="tldt_within_tolerance_pct" class="num" title="% of TLDTs where |ALDT minus TLDT| within plus/minus 3 min">TLDT +/-3%</th>
-                        <th data-sort="tldt_sample_n" class="num" title="TLDT sample size">nt</th>
+                        <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT minus EOBT) in min. How late pilots actually push vs filed.">&Delta;OBT</th>
+                        <th data-sort="eldt_sample_n" class="num" title="ELDT sample size (flights with both ELDT_locked and ALDT)">n</th>
+                        <th data-sort="eldt_bias_min" class="num" title="ELDT prediction bias: mean (ALDT minus ELDT_locked) in min. Negative = predicted late. Snapshot at T-60min.">ELDT bias</th>
+                        <th data-sort="eldt_within_tolerance_pct" class="num" title="% of ELDT predictions within plus/minus 3 min of ALDT">ELDT &plusmn;3</th>
+                        <th data-sort="tldt_sample_n" class="num" title="TLDT sample size (flights with both TLDT and ALDT)">n</th>
+                        <th data-sort="tldt_bias_min" class="num" title="TLDT slot fidelity: mean (ALDT minus TLDT) in min. Negative = arrived before slot.">TLDT bias</th>
+                        <th data-sort="tldt_within_tolerance_pct" class="num" title="% of TLDTs where |ALDT minus TLDT| within plus/minus 3 min">TLDT &plusmn;3</th>
                     </tr>
                 </thead>
                 <tbody id="airports-tbody">
-                    <tr><td colspan="15" class="empty-row">Loading...</td></tr>
+                    <tr><td colspan="12" class="empty-row">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -318,18 +315,19 @@ function rerender() {
     aTbody.innerHTML = '';
     const aAcc = {
         icao: r => r.icao, arrivals: r => r.arrivals, departures: r => r.departures,
-        avg_exot_min: r => r.avg_exot_min, p90_exot_min: r => r.p90_exot_min,
-        avg_exit_min: r => r.avg_exit_min, p90_exit_min: r => r.p90_exit_min,
+        avg_exot_min: r => r.avg_exot_min,
+        avg_exit_min: r => r.avg_exit_min,
         avg_eobt_delay_min: r => r.avg_eobt_delay_min,
-        eldt_bias_min: r => r.eldt_bias_min, eldt_p90_abs_min: r => r.eldt_p90_abs_min,
-        eldt_within_tolerance_pct: r => r.eldt_within_tolerance_pct, eldt_sample_n: r => r.eldt_sample_n,
+        eldt_sample_n: r => r.eldt_sample_n,
+        eldt_bias_min: r => r.eldt_bias_min,
+        eldt_within_tolerance_pct: r => r.eldt_within_tolerance_pct,
+        tldt_sample_n: r => r.tldt_sample_n,
         tldt_bias_min: r => r.tldt_bias_min,
-        tldt_within_tolerance_pct: r => r.tldt_within_tolerance_pct, tldt_sample_n: r => r.tldt_sample_n,
+        tldt_within_tolerance_pct: r => r.tldt_within_tolerance_pct,
     };
     const aRows = sortRowsFor('airports-table', d.airports, aAcc);
     updateSortIndicators('airports-table');
     for (const r of aRows) {
-        // Colour the percentage cells: green if >= 80%, yellow 50-80%, red < 50%
         const eldtPctCls = r.eldt_within_tolerance_pct == null ? 'muted'
             : r.eldt_within_tolerance_pct >= 80 ? 'ok-val'
             : r.eldt_within_tolerance_pct >= 50 ? 'warn-val' : 'alert-val';
@@ -342,21 +340,18 @@ function rerender() {
             el('td', { class: 'num' }, String(r.arrivals)),
             el('td', { class: 'num' }, String(r.departures)),
             el('td', { class: 'num' }, fmt(r.avg_exot_min)),
-            el('td', { class: 'num muted' }, fmt(r.p90_exot_min)),
             el('td', { class: 'num' }, fmt(r.avg_exit_min)),
-            el('td', { class: 'num muted' }, fmt(r.p90_exit_min)),
             el('td', { class: 'num' }, fmt(r.avg_eobt_delay_min)),
-            el('td', { class: 'num' }, fmt(r.eldt_bias_min)),
-            el('td', { class: 'num muted' }, fmt(r.eldt_p90_abs_min)),
-            el('td', { class: 'num ' + eldtPctCls }, fmtPct(r.eldt_within_tolerance_pct)),
             el('td', { class: 'num muted' }, String(r.eldt_sample_n || 0)),
+            el('td', { class: 'num' }, fmt(r.eldt_bias_min)),
+            el('td', { class: 'num ' + eldtPctCls }, fmtPct(r.eldt_within_tolerance_pct)),
+            el('td', { class: 'num muted' }, String(r.tldt_sample_n || 0)),
             el('td', { class: 'num' }, fmt(r.tldt_bias_min)),
-            el('td', { class: 'num ' + tldtPctCls }, fmtPct(r.tldt_within_tolerance_pct)),
-            el('td', { class: 'num muted' }, String(r.tldt_sample_n || 0))
+            el('td', { class: 'num ' + tldtPctCls }, fmtPct(r.tldt_within_tolerance_pct))
         ));
     }
     if (aRows.length === 0) {
-        aTbody.appendChild(el('tr', {}, el('td', { colspan: '15', class: 'empty-row' }, 'No data yet.')));
+        aTbody.appendChild(el('tr', {}, el('td', { colspan: '12', class: 'empty-row' }, 'No data yet.')));
     }
 
     // Top aircraft
