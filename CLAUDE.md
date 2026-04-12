@@ -45,19 +45,39 @@ Not multi-region. Not a generalised flow management platform.
 
 ## A-CDM milestone semantics (this trips people up)
 
+Authoritative reference: **EUROCONTROL *Airport CDM Implementation Manual*,
+v5.0, 31 March 2017**. The complete table with quoted definitions lives in
+`docs/GLOSSARY.md §1`. Short version below.
+
+Naming convention: `S*` scheduled, `E*` estimated, `T*` target, `C*`
+calculated (regulation), `A*` actual.
+
 | Milestone | What it means | How we observe |
 |-----------|---------------|----------------|
-| EOBT | filed off-block | from `flight_plan.deptime` + DOF (ICAO remarks) |
-| TOBT/TSAT | target push/start-up | non-CDM fallback: TOBT=EOBT, TSAT=TOBT |
-| TTOT | target take-off | TSAT + planned EXOT |
-| **ASAT** | actual start-up approval | **never observed** — controller event only |
-| **AOBT** | actual off-block | first ingest cycle in TAXI_OUT or later, only if previousPhase ∈ {null, PREFILE, FILED, TAXI_OUT} |
-| ATOT | actual take-off | first ingest cycle in DEPARTED or later |
-| ALDT | actual landing | first ingest cycle in ON_RUNWAY/VACATED/TAXI_IN/ARRIVED |
-| AIBT | actual in-block | second consecutive ARRIVED cycle (delayed by one cycle so EXIT has a chance to be non-zero on a 5-min cadence) |
+| EOBT | Estimated Off-Block — filed time | from `flight_plan.deptime` + DOF (ICAO remarks) |
+| SOBT | Scheduled Off-Block — published timetable | not consumed (no schedule feed) |
+| TOBT | Target Off-Block — AO/GH ready time | non-CDM fallback: TOBT = EOBT |
+| TSAT | Target Start-Up Approval — DMAN output | non-CDM fallback: TSAT = TOBT |
+| ETOT | Estimated Take-Off = **EOBT + EXOT** | not stored separately; ≡ TTOT for non-CDM |
+| TTOT | Target Take-Off = **TOBT + EXOT** | computed in ingestor |
+| CTOT | Calculated Take-Off — slot allocation | what our allocator emits |
+| **ASAT** | Actual Start-Up Approval | **never stamped** by ingest — controller event, no VATSIM signal. *"Can be in advance of TSAT"* per the manual. |
+| **AOBT** | Actual Off-Block — *"pushes back / vacates parking position"* | first ingest cycle in TAXI_OUT, only if previousPhase ∈ {null, PREFILE, FILED, TAXI_OUT} |
+| ATOT | Actual Take-Off | first ingest cycle in DEPARTED or later |
+| ELDT | Estimated Landing | from EtaEstimator (5-tier cascade) |
+| ALDT | Actual Landing | first ingest cycle in ON_RUNWAY/VACATED/TAXI_IN/ARRIVED |
+| AIBT | Actual In-Block | second consecutive ARRIVED cycle (delayed one cycle so AXIT can be non-zero on a 5-min cadence) |
 
-EXOT = ATOT − AOBT (computed only when AOBT was stamped on a *prior* cycle, capped 1–60 min)
-EXIT = AIBT − ALDT (same rules, capped 1–60 min)
+**EXOT vs AXOT (don't conflate)** — the manual is explicit:
+
+- **EXOT** = *Estimated* Taxi-Out Time. A **planning value**, the input to
+  `TTOT = TOBT + EXOT`. Stored in `airports.default_exot_min` and
+  `flights.planned_exot_min`.
+- **AXOT** = *Actual* Taxi-Out Time. The **measurement**: `ATOT − AOBT`.
+  Stored (legacy column name) in `flights.actual_exot_min` — UI labels
+  it as AXOT. Computed only when AOBT was stamped on a *prior* cycle,
+  capped 1–60 min.
+- Same E/A split for **EXIT** (planned) vs **AXIT** (= `AIBT − ALDT`).
 
 The 60-min cap exists because pilots who spawn-then-idle (or controllers
 who reposition aircraft) produce 100+ min outliers that skew reports.

@@ -16,9 +16,23 @@ For the overall system design, see [ARCHITECTURE.md](ARCHITECTURE.md).
 
 ## 1. A-CDM time milestones
 
-These are the canonical ICAO 9971 Part III A-CDM milestones. atfm-tools uses
-these as **internal vocabulary** — the `flights` table has columns named after
-them. External adapters translate at the HTTP edge.
+These are the canonical A-CDM milestones as defined in the **EUROCONTROL
+*Airport CDM Implementation Manual*, version 5.0, 31 March 2017** (the
+ICAO Doc 9971 reference text in everyday use). Definitions and explanations
+quoted below are from that document's Abbreviations & Acronyms section
+(pp. XI–XVIII). atfm-tools uses these as **internal vocabulary** — the
+`flights` table has columns named after them. External adapters translate
+at the HTTP edge.
+
+The naming convention is consistent across the manual:
+
+| Prefix | Meaning | Examples |
+|---|---|---|
+| `S*` | **Scheduled** — published timetable, the planning baseline | SOBT, SIBT |
+| `E*` | **Estimated** — expected at filing time, refined as data improves | EOBT, ELDT, EIBT, ETOT, EXOT, EXIT |
+| `T*` | **Target** — what the system intends, after coordination with constraints | TOBT, TSAT, TTOT, TLDT |
+| `C*` | **Calculated** — issued by central flow management as a regulation | CTOT, CTA |
+| `A*` | **Actual** — observed/measured | AOBT, ASAT, ATOT, ALDT, AIBT, AXOT, AXIT |
 
 ### EOBT — Estimated Off-Block Time
 Earliest filed estimate of when an aircraft will push back from its stand.
@@ -46,22 +60,46 @@ notes) to equal EOBT.
   start-up approval and push-back/taxi clearance"
 
 ### TSAT — Target Start-Up Approval Time
-When ATC will approve engine start-up. Derived by the predeparture sequencer
-from TOBT plus any necessary queue delay to fit the aircraft into a departure
-slot. For non-CDM airports we default `tsat = tobt`.
+EUROCONTROL: *"The time provided by ATC taking into account TOBT, CTOT and/or
+the traffic situation that an aircraft can expect start up / push back
+approval. Note: The actual start up approval (ASAT) can be given in advance
+of TSAT."* DMAN output for CDM airports. For non-CDM airports we default
+`tsat = tobt`.
 
-- **Computed by**: predeparture sequencer (real A-CDM) or = TOBT (us)
+- **Computed by**: predeparture sequencer / DMAN (real A-CDM) or = TOBT (us)
 - **In atfm-tools**: `flights.tsat`
-- **Feeds**: TTOT calculation (`ttot = tsat + exot`)
+- **Feeds**: TTOT calculation
+
+### ETOT — Estimated Take-Off Time
+EUROCONTROL: *"The estimated take off time taking into account the
+EOBT plus EXOT."* I.e. **`ETOT = EOBT + EXOT`**.
+
+The "estimated" version of the take-off time, anchored to the *filed*
+off-block (EOBT), used by the Network Manager / ETFMS for slot planning
+before any TOBT/TSAT refinement happens.
+
+- **Computed by**: ETFMS / Network Manager
+- **In atfm-tools**: not stored as a separate column — for our non-CDM
+  airports where `tobt = eobt`, ETOT and TTOT are mathematically identical
+  and we expose the result as `flights.ttot`.
 
 ### TTOT — Target Take-Off Time
-The planned, unregulated wheels-up time. Computed as `TSAT + EXOT`.
+EUROCONTROL: *"The Target Take Off Time taking into account the TOBT/TSAT
+plus the EXOT."* I.e. **`TTOT = TOBT + EXOT`** (≡ `TSAT + EXOT` once DMAN
+has set TSAT).
 
-- **Computed by**: `tsat + airport.default_exot_min` (or per-flight EXOT if
-  known)
+The "target" version of the take-off time, anchored to the *target*
+off-block. TTOT is what DMAN refines as TOBT/TSAT updates flow in.
+**TTOT is not a regulation** — it's the airport's local plan. The
+regulated equivalent is CTOT.
+
+Each TTOT on a runway is separated from other TTOT/TLDT events to
+represent vortex / SID separation between aircraft.
+
+- **Computed by**: `tobt + planned_exot_min` (per-flight) — see
+  `src/Ingestion/VatsimIngestor.php`
 - **In atfm-tools**: `flights.ttot`
-- **See also**: CTOT (the regulated version, only set when a flow restriction
-  binds)
+- **See also**: CTOT (the regulated, central-flow-management version)
 
 ### CTOT — Calculated Take-Off Time
 The **regulated** take-off time, issued by a flow management system when
@@ -77,27 +115,48 @@ the compliance window (see below) around this time.
 - **Compliance window**: typically ±5 min symmetric in our config
 - **See also**: EDCT (same thing, FAA terminology)
 
-### ASAT — Actual Start-Up Approval Time
-Observed: the real time ATC actually approved start-up. On VATSIM, we infer
-this from the first transponder/groundspeed change.
+### ASRT — Actual Start-Up Request Time
+EUROCONTROL: *"Time the pilot requests start up clearance."* Out-of-scope
+for atfm-tools — VATSIM has no signal for this and our non-CDM airports
+don't carry the field.
 
-- **Observed from**: VATSIM data feed, first time `groundspeed > 0` on ground
-- **In atfm-tools**: `flights.asat`
+### ASAT — Actual Start-Up Approval Time
+EUROCONTROL: *"Time that an aircraft receives its start up approval. Note:
+the moment the start up approval is given can be in advance of the TSAT."*
+
+**This is a controller event, NOT a position event.** ASAT is the moment
+ATC said "cleared for start-up", which happens before the aircraft moves.
+We have **no signal for ASAT from the VATSIM data feed** — pilots rarely
+voice it; controllers don't broadcast it. The column exists only for
+future CDM/PERTI feeds; the ingestor never stamps it.
+
+- **Set by**: TWR controller (real A-CDM) — never stamped by atfm-tools ingest
+- **In atfm-tools**: `flights.asat` (always null unless populated by an
+  upstream CDM/PERTI feed)
+- **NOT** equal to AOBT — see entry below
 
 ### AOBT — Actual Off-Block Time
-Observed: when the aircraft actually pushed back / started moving. In our
-non-CDM-airport context AOBT ≈ ASAT; we populate both from the same signal.
+EUROCONTROL: *"Time the aircraft pushes back / vacates the parking position.
+(Equivalent to Airline / Handlers ATD – Actual Time of Departure & ACARS=OUT)"*
 
-- **Observed from**: VATSIM data feed, first meaningful ground movement
+This **is** observable from position data: it's the first cycle in which
+the aircraft is no longer at its parking position. We approximate this
+as the first ingest cycle in which `phase = TAXI_OUT` *and* the previous
+phase was pre-departure (PREFILE/FILED/TAXI_OUT). The previous-phase
+guard is critical — without it, a flight first sighted mid-cruise would
+get AOBT stamped to "now", producing garbage AXOT downstream.
+
+- **Observed from**: phase transition into TAXI_OUT
 - **In atfm-tools**: `flights.aobt`
+- **Feeds**: AXOT (= ATOT − AOBT)
 
 ### ATOT — Actual Take-Off Time
-Observed wheels-up time. Detected as the moment the aircraft crosses the
-runway threshold polygon while accelerating.
+EUROCONTROL: *"The time that an aircraft takes off from the runway.
+(Equivalent to ATC ATD – Actual Time of Departure, ACARS = OFF)"*
 
-- **Observed from**: `position_scratch` transitions via ROT state machine
+- **Observed from**: phase transition into DEPARTED
 - **In atfm-tools**: `flights.atot`
-- **Used for**: computing `actual_exot_min = atot - asat` post-departure
+- **Used for**: computing AXOT (`actual_exot_min = atot - aobt`)
 
 ### ELDT — Estimated Landing Time
 The planned landing time for an arriving flight. Computed by us from current
@@ -134,13 +193,17 @@ When the aircraft is expected to reach its parking position. Computed as
 - **In atfm-tools**: `flights.eibt` (may or may not be stored — derivable)
 
 ### AIBT — Actual In-Block Time
-Observed: when the aircraft reached its parking position and stopped. Triggered
-by the ARRIVED state machine transition (groundspeed 0, within airport
-geofence, stable for 10 min).
+EUROCONTROL: *"The time that an aircraft arrives in-blocks. (Equivalent to
+Airline/Handler ATA – Actual Time of Arrival, ACARS = IN)"*
 
-- **Observed from**: ROT state machine
+Observed: when the aircraft reached its parking position and stopped.
+Triggered by the second consecutive ARRIVED phase observation (the
+one-cycle delay is deliberate so AIBT − ALDT can yield a non-zero AXIT
+on a 5-min ingest cadence).
+
+- **Observed from**: phase transitions
 - **In atfm-tools**: `flights.aibt`
-- **Used for**: computing `actual_exit_min = aibt - aldt` post-arrival
+- **Used for**: computing AXIT (`actual_exit_min = aibt - aldt`)
 
 ### ERZT — Estimated Ready Zero-fuel Time
 De-icing coordination milestone. Out of scope for atfm-tools v1; flagged here
@@ -155,32 +218,65 @@ point. Not used by atfm-tools.
 
 ## 2. Taxi times
 
-### EXOT — Estimated Taxi-Out Time
-**ICAO 9971 Part III definition**: the time from TSAT (start-up approval
-granted) to TTOT (wheels up). **This INCLUDES**:
-1. Start-up / engine start
-2. Push-back
-3. Taxi from stand to runway hold point
-4. Queue at the hold short line
-5. Line-up and takeoff roll
+The EUROCONTROL manual is **explicit** about the E*/A* split: there is one
+acronym for the *estimate* and a separate acronym for the *measured actual*.
+Get this wrong and you'll mislabel reports.
 
-It does **NOT** include ground handling time (EOBT → TOBT) or the TOBT → TSAT
-wait for start-up approval.
+| Acronym | Meaning | Formula |
+|---|---|---|
+| **EXOT** | **Estimated** Taxi-Out Time | planned/default; an input |
+| **AXOT** | **Actual** Taxi-Out Time | metric: `ATOT − AOBT` |
+| **EXIT** | **Estimated** Taxi-In Time | planned/default; an input |
+| **AXIT** | **Actual** Taxi-In Time | metric: `AIBT − ALDT` |
+
+### EXOT — Estimated Taxi-Out Time
+EUROCONTROL: *"The estimated taxi time between off-block and take off. This
+estimate includes any delay buffer time at the holding point or remote
+de-icing prior to take off."*
+
+I.e. the input to TTOT calculation: `TTOT = TOBT + EXOT`. EXOT is a
+**planning value**, not a measurement. Source can be a fixed airport-wide
+default, an aircraft-type-specific table, a stand-specific value, or a
+contextual model.
 
 - **Synonyms**: XOT
 - **In atfm-tools**: `airports.default_exot_min` (airport-wide fallback),
-  `flights.planned_exot_min` (per-flight, copied at flight creation),
-  `flights.actual_exot_min` (observed = `atot - asat`)
+  `flights.planned_exot_min` (per-flight, copied at flight creation)
 - **In CDM plugin**: `/CDM/DefaultTaxiTime/@minutes` XML config key, plus
   per-position `taxiTimesList` overrides
 
+### AXOT — Actual Taxi-Out Time
+EUROCONTROL: *"Metric ATOT − AOBT."*
+
+The observed/measured taxi-out time. Used post-departure for KPI reporting
+and to refine future EXOT defaults.
+
+- **Computed by**: `src/Ingestion/VatsimIngestor.php` once both AOBT and
+  ATOT are stamped on different ingest cycles, capped at 1–60 min
+- **In atfm-tools**: stored in the legacy column `flights.actual_exot_min`
+  (the column name predates the convention rationalisation; the value
+  *is* AXOT). API field: `actual_exot_min`. UI label: **AXOT**.
+
 ### EXIT — Estimated Taxi-In Time
-Time from threshold crossing (ALDT) to parking position (AIBT). Includes
-runway exit, taxi-in, and any queuing for the stand.
+EUROCONTROL: *"The estimated taxi time between landing and in-block."*
+
+A planning value used to predict EIBT from ELDT. Input to arrival
+sequencing.
 
 - **Synonyms**: XIT
-- **In atfm-tools**: `airports.default_exit_min`, `flights.planned_exit_min`,
-  `flights.actual_exit_min`
+- **In atfm-tools**: `airports.default_exit_min`, `flights.planned_exit_min`
+
+### AXIT — Actual Taxi-In Time
+EUROCONTROL: *"Metric AIBT − ALDT."*
+
+The observed/measured taxi-in time.
+
+- **Computed by**: `src/Ingestion/VatsimIngestor.php` once both ALDT and
+  AIBT are stamped on different ingest cycles, capped at 1–60 min. AIBT
+  is deliberately delayed by one cycle vs ALDT so the delta is meaningful
+  on our 5-minute ingest cadence.
+- **In atfm-tools**: stored in the legacy column `flights.actual_exit_min`
+  (synonymous with AXIT). API field: `actual_exit_min`. UI label: **AXIT**.
 
 ### MTTT — Minimum Turnaround Time
 Shortest plausible time between AIBT (arrival) and the next EOBT (departure)

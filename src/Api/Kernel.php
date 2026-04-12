@@ -658,6 +658,14 @@ final class Kernel
     private static function registerReportsEndpoints(App $app): void
     {
         // Compact per-airport rollup for the reports page.
+        //
+        // Note on terminology — per EUROCONTROL Airport CDM Implementation
+        // Manual (Mar 2017): the metrics labelled "exot/exit" in this
+        // payload are actually AXOT (ATOT − AOBT) and AXIT (AIBT − ALDT),
+        // i.e. the *actual* taxi times. Schema column names are kept for
+        // backwards compat (`actual_exot_min`, `actual_exit_min`) but the
+        // displayed labels in reports.html use the canonical AXOT/AXIT.
+        //
         // Query param: ?hours=N  (default 24, max 168)
         $app->get('/api/v1/reports/summary', function ($req, $res) {
             $hours = max(1, min(168, (int) ($req->getQueryParams()['hours'] ?? 24)));

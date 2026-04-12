@@ -794,10 +794,11 @@ function renderAirportDetail(d) {
             statCard('observed', a.observed_arrival_rate || '—', a.observed_arrival_rate ? '/hr' : null),
             statCard('arrivals last hr', d.stats.arrivals_last_hour, null),
             statCard('departures last hr', d.stats.departures_last_hour, null),
-            statCard('avg actual exot', d.stats.avg_actual_exot_min ?? '—', d.stats.avg_actual_exot_min != null ? 'min' : null),
-            statCard('avg actual exit', d.stats.avg_actual_exit_min ?? '—', d.stats.avg_actual_exit_min != null ? 'min' : null),
-            statCard('default exot', a.default_exot_min, 'min'),
-            statCard('default exit', a.default_exit_min, 'min'),
+            // EUROCONTROL A-CDM: AXOT = ATOT−AOBT (observed), EXOT = planned/default
+            statCard('avg AXOT (24h)', d.stats.avg_actual_exot_min ?? '—', d.stats.avg_actual_exot_min != null ? 'min' : null),
+            statCard('avg AXIT (24h)', d.stats.avg_actual_exit_min ?? '—', d.stats.avg_actual_exit_min != null ? 'min' : null),
+            statCard('default EXOT', a.default_exot_min, 'min'),
+            statCard('default EXIT', a.default_exit_min, 'min'),
         )
     );
     body.appendChild(statsSection);
@@ -880,10 +881,11 @@ function renderAirportDetail(d) {
         ])
     ));
 
-    // Recent arrivals (last 6h)
+    // Recent arrivals (last 6h). AXIT = AIBT − ALDT per the EUROCONTROL
+    // Airport CDM Manual; what users colloquially call "actual taxi-in".
     body.appendChild(flightTable(
         `Recent arrivals (${d.recent_arrivals.length})`,
-        ['Callsign', 'Type', 'From', 'ALDT', 'AIBT', 'Actual EXIT'],
+        ['Callsign', 'Type', 'From', 'ALDT', 'AIBT', 'AXIT'],
         d.recent_arrivals.map(f => [
             { cls: 'mono', text: f.callsign },
             { cls: 'mono muted', text: f.aircraft_type || '—' },
@@ -897,10 +899,10 @@ function renderAirportDetail(d) {
     // Recent departures (last 6h). EOBT shown so the EOBT-vs-AOBT delta is
     // legible at a glance — usually it'll show that filed EOBT is, ahem,
     // optimistic. AOBT is what we actually observe; ASAT (start-up approval)
-    // we don't have a signal for.
+    // we don't have a signal for. AXOT = ATOT − AOBT per EUROCONTROL.
     body.appendChild(flightTable(
         `Recent departures (${d.recent_departures.length})`,
-        ['Callsign', 'Type', 'To', 'EOBT', 'AOBT', 'ATOT', 'EXOT', 'EOBT Δ'],
+        ['Callsign', 'Type', 'To', 'EOBT', 'AOBT', 'ATOT', 'AXOT', 'EOBT Δ'],
         d.recent_departures.map(f => [
             { cls: 'mono', text: f.callsign },
             { cls: 'mono muted', text: f.aircraft_type || '—' },

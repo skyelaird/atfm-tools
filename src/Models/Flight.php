@@ -75,11 +75,23 @@ final class Flight extends Model
         'arrival_runway',
         'departure_gate',
         'arrival_gate',
+        // A-CDM milestones (EUROCONTROL Airport CDM Implementation Manual,
+        // 5.0, 31 March 2017 — see docs/GLOSSARY.md for canonical defs).
+        // E* = estimated, T* = target, A* = actual, C* = calculated.
         'eobt', 'tobt', 'tsat', 'ttot', 'ctot',
         'asat', 'aobt', 'atot',
         'eldt', 'cta', 'aldt', 'aibt',
-        'planned_exot_min', 'actual_exot_min',
-        'planned_exit_min', 'actual_exit_min',
+        // *_exot_min: Estimated Taxi-Out Time (EXOT). Per the manual:
+        // "the estimated taxi time between off-block and take off."
+        // *_exit_min: Estimated Taxi-In Time (EXIT). Per the manual:
+        // "the estimated taxi time between landing and in-block."
+        // The columns named "actual_*" actually store AXOT/AXIT
+        // (Actual Taxi-Out / Actual Taxi-In), the canonical metrics
+        // ATOT − AOBT and AIBT − ALDT respectively. Schema column names
+        // are kept for backwards compat; new code should treat them as
+        // synonyms for AXOT/AXIT.
+        'planned_exot_min', 'actual_exot_min', // ≡ EXOT (planned) / AXOT (observed)
+        'planned_exit_min', 'actual_exit_min', // ≡ EXIT (planned) / AXIT (observed)
         'ctl_type', 'ctl_element', 'ctl_restriction_id',
         'delay_minutes', 'delay_status',
         'phase', 'phase_updated_at',

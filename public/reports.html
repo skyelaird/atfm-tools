@@ -141,12 +141,12 @@
                         <th data-sort="icao">ICAO</th>
                         <th data-sort="arrivals" class="num">Arr</th>
                         <th data-sort="departures" class="num">Dep</th>
-                        <th data-sort="avg_exot_min" class="num" title="Average observed taxi-out time (AOBT→ATOT) in min">EXOT̄</th>
-                        <th data-sort="p50_exot_min" class="num" title="Median EXOT">EXOT₅₀</th>
-                        <th data-sort="p90_exot_min" class="num" title="p90 EXOT">EXOT₉₀</th>
-                        <th data-sort="avg_exit_min" class="num" title="Average observed taxi-in time (ALDT→AIBT) in min">EXIT̄</th>
-                        <th data-sort="p50_exit_min" class="num" title="Median EXIT">EXIT₅₀</th>
-                        <th data-sort="p90_exit_min" class="num" title="p90 EXIT">EXIT₉₀</th>
+                        <th data-sort="avg_exot_min" class="num" title="Average observed AXOT (Actual Taxi-Out Time = ATOT − AOBT) in min — EUROCONTROL A-CDM">AXOT̄</th>
+                        <th data-sort="p50_exot_min" class="num" title="Median AXOT">AXOT₅₀</th>
+                        <th data-sort="p90_exot_min" class="num" title="p90 AXOT">AXOT₉₀</th>
+                        <th data-sort="avg_exit_min" class="num" title="Average observed AXIT (Actual Taxi-In Time = AIBT − ALDT) in min — EUROCONTROL A-CDM">AXIT̄</th>
+                        <th data-sort="p50_exit_min" class="num" title="Median AXIT">AXIT₅₀</th>
+                        <th data-sort="p90_exit_min" class="num" title="p90 AXIT">AXIT₉₀</th>
                         <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT − EOBT) in min — how late pilots actually push back vs filed">ΔEOBT̄</th>
                         <th data-sort="p90_eobt_delay_min" class="num" title="p90 EOBT delay">ΔEOBT₉₀</th>
                         <th data-sort="avg_eta_error_min" class="num" title="Filed-ETA accuracy: ALDT − (AOBT + filed enroute_time) in min">ΔETĀ</th>
@@ -169,8 +169,8 @@
                     <tr>
                         <th data-sort="aircraft_type">Type</th>
                         <th data-sort="count" class="num">Count</th>
-                        <th data-sort="avg_exot_min" class="num">Avg EXOT</th>
-                        <th data-sort="avg_exit_min" class="num">Avg EXIT</th>
+                        <th data-sort="avg_exot_min" class="num" title="Average AXOT (ATOT − AOBT)">Avg AXOT</th>
+                        <th data-sort="avg_exit_min" class="num" title="Average AXIT (AIBT − ALDT)">Avg AXIT</th>
                     </tr>
                 </thead>
                 <tbody id="types-tbody">
@@ -182,9 +182,10 @@
 
     <footer>
         Data window auto-refreshes every 60 s. Metrics are computed from the
-        <span class="mono">flights</span> table. EXOT/EXIT come from observed
-        ASAT→ATOT and ALDT→AIBT deltas as pilots progress through the state
-        machine. ETA error requires the pilot to have filed an
+        <span class="mono">flights</span> table. AXOT (Actual Taxi-Out Time)
+        is observed AOBT→ATOT; AXIT (Actual Taxi-In Time) is observed
+        ALDT→AIBT — both per the EUROCONTROL Airport CDM Implementation
+        Manual (Mar 2017). ETA error requires the pilot to have filed an
         <span class="mono">enroute_time</span> — sample size will grow as
         more flights complete.
         <div style="margin-top: 0.5rem;">

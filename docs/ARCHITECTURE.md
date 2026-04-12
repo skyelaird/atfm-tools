@@ -293,9 +293,9 @@ flights
 │
 ├── -- Planned vs actual (derived, populated on state transitions)
 ├── planned_exot_min           int null          -- copied from airport.default_exot_min
-├── actual_exot_min            int null          -- atot - aobt, post-departure (capped 1-60 min)
+├── actual_exot_min            int null          -- AXOT (Actual Taxi-Out Time per EUROCONTROL A-CDM Manual): atot - aobt, capped 1-60 min. Column name is legacy; canonical name is AXOT.
 ├── planned_exit_min           int null
-├── actual_exit_min            int null          -- aibt - aldt, post-arrival
+├── actual_exit_min            int null          -- AXIT (Actual Taxi-In Time per EUROCONTROL A-CDM Manual): aibt - aldt, capped 1-60 min. Column name is legacy; canonical name is AXIT.
 │
 ├── -- Regulation state
 ├── ctl_type                   varchar(32) null  -- AIRPORT_ARR_RATE | AIRPORT_DEP_RATE | EVENT_BOOKED | IMPORTED_CTOT | NONE
