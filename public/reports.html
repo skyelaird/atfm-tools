@@ -109,7 +109,7 @@
 <body>
 
 <header>
-    <h1>atfm-tools <span class="version">reports</span></h1>
+    <h1>atfm-tools <span class="version" id="version">v…</span> <span class="version">reports</span></h1>
     <div class="nav-pills" id="window-pills">
         <span class="pill" data-hours="6">6h</span>
         <span class="pill" data-hours="12">12h</span>
@@ -279,6 +279,13 @@ async function refresh() {
         console.error('reports refresh failed', err);
     }
 }
+
+// Pull the running version once on load so the banner reflects what's
+// actually deployed (and visibly mismatches if the server is stale).
+fetch('/api/health')
+    .then(r => r.json())
+    .then(d => { document.getElementById('version').textContent = 'v' + (d.version || '?'); })
+    .catch(() => { document.getElementById('version').textContent = 'v?'; });
 
 function rerender() {
     if (!lastData) return;

@@ -366,7 +366,7 @@
 <body>
 
 <header>
-    <h1>atfm-tools <span class="version" id="version">v0.3</span></h1>
+    <h1>atfm-tools <span class="version" id="version">v…</span></h1>
     <div class="clock" id="clock">––:––:––Z</div>
     <div class="status-pills">
         <span class="oplevel-pill level-1" id="pill-oplevel" title="PERTI TMU Operations Level — system-wide flow management intensity">
@@ -708,7 +708,10 @@ function renderStatus(s) {
     $('oplevel-num').textContent = lvl;
     $('oplevel-label').textContent = s.op_level_label || 'Steady State';
     $('pill-oplevel').className = 'oplevel-pill level-' + lvl;
-    $('version').textContent = 'v' + (s.version || '0.3');
+    // Always render whatever the API reports as the running version, so
+    // the banner is the source of truth for "what's actually deployed"
+    // (and visibly stale if the server hasn't pulled).
+    $('version').textContent = 'v' + (s.version || '?');
 }
 
 function renderAirports(airports) {

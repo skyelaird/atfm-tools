@@ -72,7 +72,7 @@ final class Kernel
             return self::json($res, [
                 'status'  => 'ok',
                 'time'    => gmdate('c'),
-                'version' => '0.3',
+                'version' => \Atfm\Version::STRING,
             ]);
         });
     }
@@ -300,7 +300,7 @@ final class Kernel
                     'ctots_reissued'      => (int) $lastRun->ctots_reissued,
                     'elapsed_ms'          => (int) $lastRun->elapsed_ms,
                 ] : null,
-                'version'              => '0.3',
+                'version'              => \Atfm\Version::STRING,
             ]);
         });
 

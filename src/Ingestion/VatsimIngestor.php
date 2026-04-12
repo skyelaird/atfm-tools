@@ -44,7 +44,7 @@ final class VatsimIngestor
             'timeout'         => 15.0,
             'connect_timeout' => 5.0,
             'headers'         => [
-                'User-Agent' => 'atfm-tools/0.3 (+https://github.com/skyelaird/atfm-tools)',
+                'User-Agent' => 'atfm-tools/' . \Atfm\Version::STRING . ' (+https://github.com/skyelaird/atfm-tools)',
             ],
         ]);
     }
