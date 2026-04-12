@@ -397,28 +397,33 @@ final class VatsimIngestor
                 }
             }
         }
-        // ELDT refresh — every cycle, for any non-terminal flight inbound
-        // to one of our airports. Previously we only stamped ELDT once
-        // when phase entered ARRIVING (~50 NM out), which meant the
-        // dashboard showed "—" for every long-range inbound. The user
-        // wants to see ELDT all the way out, since inbound load planning
-        // depends on it.
+        // ELDT refresh — only for flights that are airborne and at cruise.
         //
-        // Delegates to EtaEstimator's 5-tier cascade so we get the best
-        // available estimate (OBSERVED_POS for airborne; FILED for ground;
-        // CALC_FILED_TAS / CALC_TYPE_TAS / CALC_DEFAULT for fallback).
+        // No ELDT for:
+        //   - PREFILE/FILED: flight hasn't departed, ELDT is noise
+        //   - TAXI_OUT: on the ground, not airborne yet
+        //   - DEPARTED/climbing: GS and altitude aren't representative
+        //   - FINAL/ON_RUNWAY/etc: ALDT ratchet takes over
         //
-        // Once the flight reaches FINAL/ON_RUNWAY/VACATED/etc the ALDT
-        // ratchet below takes over and ELDT becomes irrelevant (real
-        // landing is observed), so we skip the refresh in those phases.
-        if ($adesAirport !== null
-            && in_array($phase, [
-                Flight::PHASE_TAXI_OUT,
-                Flight::PHASE_DEPARTED,
-                Flight::PHASE_ENROUTE,
-                Flight::PHASE_ARRIVING,
-            ], true)
-        ) {
+        // ELDT only when:
+        //   - ENROUTE at cruise (alt >= filedAlt - 2000ft)
+        //   - ARRIVING (already in descent, simple GS-based estimate)
+        //
+        // This means the ELDT column shows "—" until the flight reaches
+        // cruise, then shows a meaningful physics-based estimate. Clean.
+        $atCruise = in_array($phase, [Flight::PHASE_ENROUTE], true)
+            && ($flight->last_altitude_ft ?? 0) >= (($flight->fp_altitude_ft ?? 35000) - 2000);
+        $inApproach = $phase === Flight::PHASE_ARRIVING;
+
+        if ($adesAirport !== null && !$atCruise && !$inApproach) {
+            // Not eligible for ELDT — clear any stale value from prior code
+            // or a previous phase. The dashboard shows "—" which is honest.
+            if ($flight->eldt !== null && $flight->eldt_locked === null) {
+                $flight->eldt = null;
+            }
+        }
+
+        if ($adesAirport !== null && ($atCruise || $inApproach)) {
             $airportRow = $this->airportModelsByIcao[$adesAirport['icao']] ?? null;
             if ($airportRow !== null) {
                 $est = \Atfm\Allocator\EtaEstimator::estimate($flight, $airportRow, $now);
