@@ -251,7 +251,14 @@ final class VatsimIngestor
                 $flight->planned_exit_min = $adesAirport['default_exit_min'];
             }
             if ($adepAirport !== null) {
-                $flight->planned_exot_min = $adepAirport['default_exot_min'];
+                // Try zone-based taxi time first (apron polygon × runway).
+                // Falls back to the airport's flat default if position is
+                // unknown or not inside any defined apron zone.
+                $zoneTaxi = null;
+                if ($lat !== null && $lon !== null) {
+                    $zoneTaxi = \Atfm\Allocator\TaxiZones::lookup($adep, $lat, $lon);
+                }
+                $flight->planned_exot_min = $zoneTaxi ?? $adepAirport['default_exot_min'];
             }
         } else {
             // Reanimation from DISCONNECTED
@@ -295,6 +302,21 @@ final class VatsimIngestor
         $flight->last_groundspeed_kts = $gs;
         $flight->last_heading_deg     = $heading;
         $flight->last_position_at     = $now;
+
+        // Refresh taxi time from zone lookup whenever the aircraft is on the
+        // ground at its departure airport. The first-insert above uses the
+        // initial spawn position; this handles repositioning (pilot tows to a
+        // different gate) and gives us a zone-specific value even for flights
+        // we first saw mid-taxi.
+        if ($gs <= Phase::AIRBORNE_GS_THRESHOLD && $adepAirport !== null && $lat !== null && $lon !== null) {
+            $distToAdep = Geo::distanceNm($lat, $lon, $adepAirport['latitude'], $adepAirport['longitude']);
+            if ($distToAdep <= ($adepAirport['arrived_geofence_nm'] ?? 5)) {
+                $zoneTaxi = \Atfm\Allocator\TaxiZones::lookup($adep, $lat, $lon);
+                if ($zoneTaxi !== null) {
+                    $flight->planned_exot_min = $zoneTaxi;
+                }
+            }
+        }
 
         // Milestones: observe transitions and stamp times
         $previousPhase = $flight->phase;
@@ -478,6 +500,24 @@ final class VatsimIngestor
         }
 
         $flight->last_updated_at = $now;
+
+        // FLS-NRA detection: "Filed, Not Reported Airborne." If the flight
+        // has an EOBT in the past, is still on the ground (no ATOT), and
+        // hasn't been assigned a CTOT, flag it. This tells the FMP "this
+        // slot might open up — the pilot may be a no-show." The threshold
+        // is EOBT + planned_exot + 10 min grace. Mirrors vIFF's FLS-NRA
+        // status logic.
+        if ($flight->eobt !== null
+            && $flight->atot === null
+            && $flight->ctot === null
+            && in_array($phase, [Flight::PHASE_PREFILE, Flight::PHASE_FILED], true)
+        ) {
+            $graceMin = ($flight->planned_exot_min ?? 15) + 10;
+            $deadline = $flight->eobt->getTimestamp() + ($graceMin * 60);
+            if ($now->getTimestamp() > $deadline) {
+                $flight->delay_status = 'FLS_NRA';
+            }
+        }
 
         // Finalize ARRIVED after a stable 10 min in-block observation
         if ($phase === Flight::PHASE_ARRIVED

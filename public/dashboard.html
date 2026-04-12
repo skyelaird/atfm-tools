@@ -897,7 +897,7 @@ function renderAirportDetail(d) {
             { cls: 'mono', text: f.callsign, sortKey: f.callsign },
             { cls: 'mono muted', text: f.aircraft_type || '—', sortKey: f.aircraft_type || '' },
             { cls: 'mono', text: f.adep || '—', sortKey: f.adep || '' },
-            { html: phaseChip(f.phase), sortKey: f.phase || '' },
+            { html: phaseChip(f.phase, f.delay_status), sortKey: f.delay_status === 'FLS_NRA' ? '!FLS' : (f.phase || '') },
             { cls: 'mono muted', text: hhmmz(f.eobt), sortKey: f.eobt || '' },
             { cls: 'mono muted', text: hhmmz(f.aobt), sortKey: f.aobt || '' },
             { cls: 'mono muted', text: hhmmz(f.atot), sortKey: f.atot || '' },
@@ -973,10 +973,18 @@ function statCard(label, value, unit) {
         )
     );
 }
-function phaseChip(phase) {
+function phaseChip(phase, delayStatus) {
     const span = document.createElement('span');
-    span.className = 'phase ' + (phase || '');
-    span.textContent = phase || '—';
+    if (delayStatus === 'FLS_NRA') {
+        span.className = 'phase FLS_NRA';
+        span.textContent = 'FLS-NRA';
+        span.title = 'Filed, Not Reported Airborne — past EOBT + taxi + grace';
+        span.style.background = 'var(--warn)';
+        span.style.color = '#000';
+    } else {
+        span.className = 'phase ' + (phase || '');
+        span.textContent = phase || '—';
+    }
     return span;
 }
 // Per-table sort state for the drawer flight tables.
