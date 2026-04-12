@@ -24,7 +24,7 @@ from the VATSIM data feed. Serves the CDM EuroScope plugin via its
 - PHP 8.2+, Slim 4, Illuminate Database (Eloquent), MariaDB
 - Vanilla JS dashboard, **no build step**, no SPA framework
 - Deployed to WHC shared hosting at `atfm.momentaryshutter.com`
-- Cron every 5 min: ingest, events, imports, ctots; daily cleanup
+- Cron every 2 min: ingest, events, imports, ctots; daily cleanup
 
 ## Scope (locked)
 

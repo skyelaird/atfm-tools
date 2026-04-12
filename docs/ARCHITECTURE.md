@@ -1016,13 +1016,18 @@ SSH key auth via `~/.ssh/atfm_whc` (set up in v0.2 setup). No password prompts.
 # Silent on no-op; non-zero exit (and cron mail) on any failure.
 * * * * *     cd ~/atfm-tools && bash bin/deploy.sh >> logs/deploy.log 2>&1
 
-# Data collection
-*/5 * * * *   cd ~/atfm-tools && php bin/ingest-vatsim.php >> logs/ingest.log 2>&1
-*/5 * * * *   cd ~/atfm-tools && php bin/ingest-events.php >> logs/events.log 2>&1
-*/5 * * * *   cd ~/atfm-tools && php bin/ingest-imports.php >> logs/imports.log 2>&1
+# Data collection — 2-min cadence (v0.5.1). The VATSIM feed updates
+# every ~15s so 2-min is well within their rate expectations. The
+# tighter cadence materially improves ground-phase milestone precision:
+# AOBT, ATOT, ALDT, AIBT timestamps are ±2 min instead of ±5, which
+# makes AXOT/AXIT measurements meaningful rather than clustered at the
+# sampling floor.
+*/2 * * * *   cd ~/atfm-tools && php bin/ingest-vatsim.php >> logs/ingest.log 2>&1
+*/2 * * * *   cd ~/atfm-tools && php bin/ingest-events.php >> logs/events.log 2>&1
+*/2 * * * *   cd ~/atfm-tools && php bin/ingest-imports.php >> logs/imports.log 2>&1
 
-# Computation
-*/5 * * * *   cd ~/atfm-tools && php bin/compute-ctots.php >> logs/ctots.log 2>&1
+# Computation — runs after each ingest cycle
+*/2 * * * *   cd ~/atfm-tools && php bin/compute-ctots.php >> logs/ctots.log 2>&1
 
 # Daily maintenance
 0 4 * * *     cd ~/atfm-tools && php bin/cleanup.php >> logs/cleanup.log 2>&1
