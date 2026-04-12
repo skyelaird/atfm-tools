@@ -99,6 +99,16 @@
         .alert-val { color: var(--alert); }
         .ok-val { color: var(--ok); }
 
+        /* Column-group separators: a subtle left border marks the start
+           of each logical block (taxi, ELDT quality, TLDT quality). */
+        .grp-start { border-left: 2px solid var(--border); }
+        /* Group header row above the column headers */
+        thead tr.group-row th {
+            text-align: center; font-size: 0.6rem; color: var(--accent);
+            letter-spacing: 0.12em; padding: 0.25rem 0.3rem;
+            border-bottom: none; text-transform: uppercase;
+        }
+
         footer {
             margin-top: 2rem; padding: 1rem; text-align: center;
             color: var(--text-dim); font-size: 0.75rem;
@@ -137,19 +147,25 @@
         <div class="table-wrap">
             <table id="airports-table">
                 <thead>
+                    <tr class="group-row">
+                        <th colspan="3">Movements</th>
+                        <th colspan="3" class="grp-start">Taxi &amp; OBT</th>
+                        <th colspan="3" class="grp-start">ELDT prediction</th>
+                        <th colspan="3" class="grp-start">TLDT slot fidelity</th>
+                    </tr>
                     <tr>
                         <th data-sort="icao">ICAO</th>
                         <th data-sort="arrivals" class="num">Arr</th>
                         <th data-sort="departures" class="num">Dep</th>
-                        <th data-sort="avg_exot_min" class="num" title="Average AXOT (ATOT minus AOBT) in min">AXOT</th>
+                        <th data-sort="avg_exot_min" class="num grp-start" title="Average AXOT (ATOT minus AOBT) in min">AXOT</th>
                         <th data-sort="avg_exit_min" class="num" title="Average AXIT (AIBT minus ALDT) in min">AXIT</th>
-                        <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT minus EOBT) in min. How late pilots actually push vs filed.">&Delta;OBT</th>
-                        <th data-sort="eldt_sample_n" class="num" title="ELDT sample size (flights with both ELDT_locked and ALDT)">n</th>
-                        <th data-sort="eldt_bias_min" class="num" title="ELDT prediction bias: mean (ALDT minus ELDT_locked) in min. Negative = predicted late. Snapshot at T-60min.">ELDT bias</th>
-                        <th data-sort="eldt_within_tolerance_pct" class="num" title="% of ELDT predictions within plus/minus 3 min of ALDT">ELDT &plusmn;3</th>
-                        <th data-sort="tldt_sample_n" class="num" title="TLDT sample size (flights with both TLDT and ALDT)">n</th>
-                        <th data-sort="tldt_bias_min" class="num" title="TLDT slot fidelity: mean (ALDT minus TLDT) in min. Negative = arrived before slot.">TLDT bias</th>
-                        <th data-sort="tldt_within_tolerance_pct" class="num" title="% of TLDTs where |ALDT minus TLDT| within plus/minus 3 min">TLDT &plusmn;3</th>
+                        <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT minus EOBT) in min">&Delta;OBT</th>
+                        <th data-sort="eldt_sample_n" class="num grp-start" title="ELDT sample size">n</th>
+                        <th data-sort="eldt_bias_min" class="num" title="Mean (ALDT minus ELDT_locked) in min. Snapshot at T-60min.">bias</th>
+                        <th data-sort="eldt_within_tolerance_pct" class="num" title="% within plus/minus 3 min">&plusmn;3</th>
+                        <th data-sort="tldt_sample_n" class="num grp-start" title="TLDT sample size">n</th>
+                        <th data-sort="tldt_bias_min" class="num" title="Mean (ALDT minus TLDT) in min">bias</th>
+                        <th data-sort="tldt_within_tolerance_pct" class="num" title="% within plus/minus 3 min">&plusmn;3</th>
                     </tr>
                 </thead>
                 <tbody id="airports-tbody">
@@ -339,13 +355,13 @@ function rerender() {
             el('td', { class: 'mono' }, r.icao),
             el('td', { class: 'num' }, String(r.arrivals)),
             el('td', { class: 'num' }, String(r.departures)),
-            el('td', { class: 'num' }, fmt(r.avg_exot_min)),
+            el('td', { class: 'num grp-start' }, fmt(r.avg_exot_min)),
             el('td', { class: 'num' }, fmt(r.avg_exit_min)),
             el('td', { class: 'num' }, fmt(r.avg_eobt_delay_min)),
-            el('td', { class: 'num muted' }, String(r.eldt_sample_n || 0)),
+            el('td', { class: 'num muted grp-start' }, String(r.eldt_sample_n || 0)),
             el('td', { class: 'num' }, fmt(r.eldt_bias_min)),
             el('td', { class: 'num ' + eldtPctCls }, fmtPct(r.eldt_within_tolerance_pct)),
-            el('td', { class: 'num muted' }, String(r.tldt_sample_n || 0)),
+            el('td', { class: 'num muted grp-start' }, String(r.tldt_sample_n || 0)),
             el('td', { class: 'num' }, fmt(r.tldt_bias_min)),
             el('td', { class: 'num ' + tldtPctCls }, fmtPct(r.tldt_within_tolerance_pct))
         ));
