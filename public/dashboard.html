@@ -267,7 +267,7 @@
         /* ---------- Airport detail drawer (right-docked) ---------- */
         .detail-drawer {
             position: fixed;
-            top: 0; right: 0; bottom: 0;
+            top: var(--header-h, 50px); right: 0; bottom: 0;
             width: min(640px, 48vw);
             background: var(--bg-elev);
             border-left: 1px solid var(--border);
@@ -752,6 +752,12 @@ async function openAirportDetail(icao) {
     $('modal-icao').textContent = icao;
     $('modal-name').textContent = '';
     $('modal-body').textContent = 'Loading…';
+    // Sync drawer top to current header height so the sticky banner
+    // (and its OpLevel pill) stays visible above the drawer.
+    const headerEl = document.querySelector('header');
+    if (headerEl) {
+        document.documentElement.style.setProperty('--header-h', headerEl.offsetHeight + 'px');
+    }
     $('modal-backdrop').classList.add('open');
     $('modal-backdrop').setAttribute('aria-hidden', 'false');
     document.body.classList.add('drawer-open');
