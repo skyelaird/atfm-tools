@@ -272,11 +272,38 @@ EUROCONTROL: *"Metric AIBT − ALDT."*
 The observed/measured taxi-in time.
 
 - **Computed by**: `src/Ingestion/VatsimIngestor.php` once both ALDT and
-  AIBT are stamped on different ingest cycles, capped at 1–60 min. AIBT
-  is deliberately delayed by one cycle vs ALDT so the delta is meaningful
-  on our 5-minute ingest cadence.
-- **In atfm-tools**: stored in the legacy column `flights.actual_exit_min`
-  (synonymous with AXIT). API field: `actual_exit_min`. UI label: **AXIT**.
+  AIBT are stamped on different ingest cycles, capped at 1–60 min.
+- **In atfm-tools**: stored in the legacy column `flights.actual_exit_min`.
+- **Note**: the strict EUROCONTROL definition `AIBT − ALDT` *includes*
+  runway-occupancy time. atfm-tools' reports page surfaces a *post-ROT*
+  variant separately (see below) because for FMP analysis you almost
+  always want to separate runway time from taxi-route time.
+
+### ROT — Runway Occupancy Time
+Time the aircraft physically occupies the runway. Two flavours:
+
+- **ROT (arr)** — `clear_at − threshold_at`. From `rot_observations`,
+  populated by `bin/rot-tracker.php`. `clear_at` is the first
+  `position_scratch` sample after threshold crossing with groundspeed
+  below the taxi threshold (30 kt by default).
+- **ROT (dep)** — `threshold_at − last_on_ground_sample`. *Approximate*
+  on a 5-min ingest cadence: the last on-ground scratch sample probably
+  caught the aircraft still taxiing toward the runway, not lined up,
+  so the value is biased high. Capped at 600 s. Useful for relative
+  comparisons across flights, not for absolute KPI claims. Sub-minute
+  ingest cadence would be required to measure ROT_dep precisely.
+
+### post-ROT AXIT
+Derived: `AIBT − rot_observations.clear_at`. The actual taxi-in
+**route** time, with runway occupancy already excluded. This is what
+atfm-tools' reports page labels `AXIT̄ post`. Capped 1–60 min, computed
+in `/api/v1/reports/summary` per airport per window.
+
+Why bother: the strict EUROCONTROL AXIT mixes two physically distinct
+events (runway occupancy and taxi). Splitting them lets you tune the
+two independently — a high ROT̄ arr suggests slow runway exits (or no
+high-speed turnoffs available); a high AXIT̄ post suggests congested
+or long taxi routes from the runway exits to the gates.
 
 ### MTTT — Minimum Turnaround Time
 Shortest plausible time between AIBT (arrival) and the next EOBT (departure)

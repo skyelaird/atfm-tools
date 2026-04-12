@@ -202,8 +202,37 @@ final class RotTracker
             $source = $closest !== null ? RotObservation::SOURCE_APPROX : RotObservation::SOURCE_FALLBACK;
         }
 
-        // Departures don't get a clear_at — runway is vacated by the act
-        // of becoming airborne, which is the threshold crossing itself.
+        // DEP runway-occupancy approximation. Real ROT_dep is "start of
+        // takeoff roll → wheels-up", which on a 5-min cadence usually
+        // can't be measured precisely (the entire roll happens between
+        // two scratch samples). Best we can do: time from the latest
+        // *on-ground* sample at the airport before threshold_at, to
+        // threshold_at itself. This is biased HIGH because the on-ground
+        // sample probably caught the aircraft still taxiing toward the
+        // runway, not lined up — but it's a number, and the bias is
+        // consistent across flights so the average is comparable.
+        //
+        // Cap at 600 s — anything longer is clearly not the takeoff
+        // sequence (different flight, parked, hold delay) and shouldn't
+        // be claimed as ROT.
+        $rotDepSec = null;
+        $lastGround = null;
+        foreach ($samples as $s) {
+            if ($s->observed_at >= $crossingAt) {
+                break;
+            }
+            $alt = (int) ($s->altitude_ft ?? 0);
+            if ($alt < $thresholdAlt) {
+                $lastGround = $s; // keep walking, take the latest
+            }
+        }
+        if ($lastGround !== null) {
+            $delta = $crossingAt->getTimestamp() - $lastGround->observed_at->getTimestamp();
+            if ($delta >= 5 && $delta <= 600) {
+                $rotDepSec = $delta;
+            }
+        }
+
         return [
             'flight_id'        => $flight->id,
             'airport_icao'     => $flight->adep,
@@ -211,7 +240,7 @@ final class RotTracker
             'event_type'       => RotObservation::EVENT_DEP,
             'threshold_at'     => $crossingAt,
             'clear_at'         => null,
-            'rot_seconds'      => null,
+            'rot_seconds'      => $rotDepSec,
             'threshold_gs_kts' => $thresholdGs,
             'source'           => $source,
         ];

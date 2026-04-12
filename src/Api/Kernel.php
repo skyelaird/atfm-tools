@@ -700,15 +700,57 @@ final class Kernel
             foreach ($airports as $a) {
                 $arrivals = Flight::where('ades', $a->icao)
                     ->where('aldt', '>=', $sinceStr)
-                    ->get(['aldt', 'aibt', 'actual_exit_min', 'fp_enroute_time_min', 'atot']);
+                    ->get(['id', 'aldt', 'aibt', 'fp_enroute_time_min', 'atot']);
 
                 $departures = Flight::where('adep', $a->icao)
                     ->whereNotNull('atot')
                     ->where('atot', '>=', $sinceStr)
-                    ->get(['eobt', 'aobt', 'atot', 'actual_exot_min']);
+                    ->get(['id', 'eobt', 'aobt', 'atot', 'actual_exot_min']);
 
                 $exotValues = $departures->pluck('actual_exot_min')->filter()->values()->all();
-                $exitValues = $arrivals->pluck('actual_exit_min')->filter()->values()->all();
+
+                // Pull rot_observations for this airport's arrivals and
+                // departures in the same window. We use these to:
+                //   • compute mean ROT for both event types
+                //   • compute *post-ROT* AXIT for arrivals as
+                //       (AIBT − rot_observations.clear_at)
+                //     which is the actual taxi-in route time, excluding
+                //     runway-occupancy. The user's mental model: "AXIT
+                //     is post-ROT, remember?" — and they're right that
+                //     the EUROCONTROL bare definition (AIBT − ALDT)
+                //     conflates two different physical events.
+                $arrIds = $arrivals->pluck('id')->all();
+                $depIds = $departures->pluck('id')->all();
+
+                $arrRots = empty($arrIds) ? collect() :
+                    \Atfm\Models\RotObservation::where('event_type', 'ARR')
+                        ->whereIn('flight_id', $arrIds)
+                        ->get(['flight_id', 'threshold_at', 'clear_at', 'rot_seconds']);
+                $depRots = empty($depIds) ? collect() :
+                    \Atfm\Models\RotObservation::where('event_type', 'DEP')
+                        ->whereIn('flight_id', $depIds)
+                        ->get(['flight_id', 'rot_seconds']);
+
+                $arrRotByFlight = $arrRots->keyBy('flight_id');
+
+                // ROT in seconds → minutes for display consistency with
+                // AXOT/AXIT. ROT_arr from rot_seconds (clear_at − threshold_at).
+                $rotArrMinutes = $arrRots->pluck('rot_seconds')->filter()->map(fn ($s) => $s / 60)->all();
+                $rotDepMinutes = $depRots->pluck('rot_seconds')->filter()->map(fn ($s) => $s / 60)->all();
+
+                // Post-ROT AXIT: AIBT − clear_at. Only computable when
+                // rot-tracker observed both ends. Capped 1..60 min same as
+                // the legacy actual_exit_min field.
+                $postRotAxitValues = [];
+                foreach ($arrivals as $f) {
+                    if (! $f->aibt) continue;
+                    $rot = $arrRotByFlight->get($f->id);
+                    if ($rot === null || $rot->clear_at === null) continue;
+                    $delta = ($f->aibt->getTimestamp() - $rot->clear_at->getTimestamp()) / 60;
+                    if ($delta >= 1 && $delta <= 60) {
+                        $postRotAxitValues[] = $delta;
+                    }
+                }
 
                 $eobtDelays = [];
                 foreach ($departures as $f) {
@@ -732,23 +774,24 @@ final class Kernel
                 }
 
                 $rows[] = [
-                    'icao'                 => $a->icao,
-                    'name'                 => $a->name,
-                    'base_arrival_rate'    => (int) $a->base_arrival_rate,
-                    'arrivals'             => $arrivals->count(),
-                    'departures'           => $departures->count(),
-                    'avg_exot_min'         => self::avg($exotValues),
-                    'p50_exot_min'         => self::percentile($exotValues, 50),
-                    'p90_exot_min'         => self::percentile($exotValues, 90),
-                    'avg_exit_min'         => self::avg($exitValues),
-                    'p50_exit_min'         => self::percentile($exitValues, 50),
-                    'p90_exit_min'         => self::percentile($exitValues, 90),
-                    'avg_eobt_delay_min'   => self::avg($eobtDelays),
-                    'p90_eobt_delay_min'   => self::percentile($eobtDelays, 90),
-                    'avg_eta_error_min'    => self::avg($etaErrors),
-                    'p50_eta_error_min'    => self::percentile($etaErrors, 50),
-                    'p90_eta_error_min'    => self::percentile($etaErrors, 90),
-                    'eta_sample_n'         => count($etaErrors),
+                    'icao'                  => $a->icao,
+                    'name'                  => $a->name,
+                    'base_arrival_rate'     => (int) $a->base_arrival_rate,
+                    'arrivals'              => $arrivals->count(),
+                    'departures'            => $departures->count(),
+                    'avg_exot_min'          => self::avg($exotValues),
+                    'p90_exot_min'          => self::percentile($exotValues, 90),
+                    'avg_rot_arr_min'       => self::avg($rotArrMinutes),
+                    'avg_rot_dep_min'       => self::avg($rotDepMinutes),
+                    'rot_arr_sample_n'      => count($rotArrMinutes),
+                    'rot_dep_sample_n'      => count($rotDepMinutes),
+                    'avg_post_rot_axit_min' => self::avg($postRotAxitValues),
+                    'p90_post_rot_axit_min' => self::percentile($postRotAxitValues, 90),
+                    'post_rot_axit_n'       => count($postRotAxitValues),
+                    'avg_eobt_delay_min'    => self::avg($eobtDelays),
+                    'avg_eta_error_min'     => self::avg($etaErrors),
+                    'p90_eta_error_min'     => self::percentile($etaErrors, 90),
+                    'eta_sample_n'          => count($etaErrors),
                 ];
             }
 
