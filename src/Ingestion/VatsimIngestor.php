@@ -353,7 +353,7 @@ final class VatsimIngestor
                 // and the gap is in a sane 1-60 min range. WJA1034 taught us
                 // 123-min EXOTs come from pilots who spawn-then-idle.
                 if ($flight->aobt !== null
-                    && $flight->aobt < $now
+                    && $flight->aobt->getTimestamp() < $now->getTimestamp()
                     && ! $sawAobtThisCycle
                 ) {
                     $diffSeconds = $now->getTimestamp() - $flight->aobt->getTimestamp();
@@ -439,10 +439,16 @@ final class VatsimIngestor
         // allows the previous cycle to have been any landed phase
         // (TAXI_IN / VACATED / ON_RUNWAY / ARRIVED) — which is the
         // common case for short final → gate transitions.
+        // Use integer-second comparison, not datetime objects. Eloquent's
+        // datetime cast strips microseconds from $flight->aldt (Carbon
+        // stores .000000), but $now retains its original microseconds
+        // (.123456). Without this, Carbon(16:08:02.000) < DTI(16:08:02.123)
+        // evaluates TRUE even though they're the same wall-clock second,
+        // causing AIBT to stamp on the same cycle as ALDT.
         if ($phase === Flight::PHASE_ARRIVED
             && $flight->aibt === null
             && $flight->aldt !== null
-            && $flight->aldt < $now
+            && $flight->aldt->getTimestamp() < $now->getTimestamp()
         ) {
             $flight->aibt = $now;
             // AXIT capped 1-60 min — pilots who park then idle generate
