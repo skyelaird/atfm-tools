@@ -378,6 +378,10 @@ final class VatsimIngestor
         ], true)) {
             if ($flight->atot === null) {
                 $flight->atot = $now;
+                // Clear FLS-NRA if it was set — the flight actually departed.
+                if ($flight->delay_status === 'FLS_NRA') {
+                    $flight->delay_status = null;
+                }
                 // Compute EXOT only when we have a meaningful AOBT — i.e. it
                 // was stamped on a *previous* ingest cycle (not this one),
                 // and the gap is in a sane 1-60 min range. WJA1034 taught us
