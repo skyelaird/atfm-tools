@@ -519,6 +519,24 @@ final class VatsimIngestor
             }
         }
 
+        // Stale ARRIVING cleanup: if a flight is in ARRIVING phase and
+        // more than 30 min past its ELDT, it either landed (and we missed
+        // the phase transition because it disconnected during rollout/taxi)
+        // or the pilot went around and we lost track. Either way it's not
+        // real inbound traffic anymore. Mark as ARRIVED so it drops from
+        // the inbound list and appears in recent arrivals with ALDT = now.
+        if (in_array($phase, [Flight::PHASE_ARRIVING, Flight::PHASE_FINAL], true)
+            && $flight->eldt !== null
+            && $now->getTimestamp() > $flight->eldt->getTimestamp() + (30 * 60)
+        ) {
+            $flight->phase = Flight::PHASE_ARRIVED;
+            $phase = Flight::PHASE_ARRIVED;
+            if ($flight->aldt === null) {
+                $flight->aldt = $flight->eldt; // best guess: landed around ELDT
+            }
+            $flight->phase_updated_at = $now;
+        }
+
         // Finalize ARRIVED after a stable 10 min in-block observation
         if ($phase === Flight::PHASE_ARRIVED
             && $flight->aibt !== null
