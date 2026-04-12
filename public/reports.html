@@ -48,7 +48,7 @@
         a.pill { text-decoration: none; }
 
         main { padding: 1rem; max-width: 1600px; margin: 0 auto; }
-        .table-wrap { overflow-x: auto; }  /* let wide tables scroll horizontally rather than overflow the viewport */
+        .table-wrap { overflow-x: auto; }
         section { margin-bottom: 1.5rem; }
         section h2 {
             font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
@@ -81,9 +81,9 @@
         }
         thead th.sortable { cursor: pointer; user-select: none; }
         thead th.sortable:hover { color: var(--text-bright); background: var(--bg-elev-hi); }
-        thead th.sortable::after { content: '↕'; opacity: 0.25; margin-left: 0.3rem; font-size: 0.75rem; }
-        thead th.sortable.sort-asc::after  { content: '↑'; opacity: 1; color: var(--accent); }
-        thead th.sortable.sort-desc::after { content: '↓'; opacity: 1; color: var(--accent); }
+        thead th.sortable::after { content: '\2195'; opacity: 0.25; margin-left: 0.3rem; font-size: 0.75rem; }
+        thead th.sortable.sort-asc::after  { content: '\2191'; opacity: 1; color: var(--accent); }
+        thead th.sortable.sort-desc::after { content: '\2193'; opacity: 1; color: var(--accent); }
         tbody td { padding: 0.45rem 0.5rem; border-bottom: 1px solid var(--border); }
         tbody tr:hover { background: var(--bg-elev); }
         .table-wrap {
@@ -109,7 +109,7 @@
 <body>
 
 <header>
-    <h1>atfm-tools <span class="version" id="version">v…</span> <span class="version">reports</span></h1>
+    <h1>atfm-tools <span class="version" id="version">v...</span> <span class="version">reports</span></h1>
     <div class="nav-pills" id="window-pills">
         <span class="pill" data-hours="6">6h</span>
         <span class="pill" data-hours="12">12h</span>
@@ -118,8 +118,8 @@
         <span class="pill" data-hours="168">7d</span>
     </div>
     <div style="display:flex; gap:0.5rem;">
-        <a href="/dashboard.html" class="pill">← dashboard</a>
-        <a href="/map.html" class="pill">map →</a>
+        <a href="/dashboard.html" class="pill">&larr; dashboard</a>
+        <a href="/map.html" class="pill">map &rarr;</a>
     </div>
 </header>
 
@@ -128,12 +128,12 @@
     <section>
         <h2>Window totals <span class="muted" id="window-label">last 24h</span></h2>
         <div class="totals-grid" id="totals-grid">
-            <div class="stat-card"><div class="lbl">Loading…</div><div class="val">—</div></div>
+            <div class="stat-card"><div class="lbl">Loading...</div><div class="val">&mdash;</div></div>
         </div>
     </section>
 
     <section>
-        <h2>Per-airport movements &amp; observed taxi times</h2>
+        <h2>Per-airport movements, taxi times &amp; prediction quality</h2>
         <div class="table-wrap">
             <table id="airports-table">
                 <thead>
@@ -141,18 +141,22 @@
                         <th data-sort="icao">ICAO</th>
                         <th data-sort="arrivals" class="num">Arr</th>
                         <th data-sort="departures" class="num">Dep</th>
-                        <th data-sort="avg_exot_min" class="num" title="Average observed AXOT (Actual Taxi-Out Time = ATOT − AOBT) in min — EUROCONTROL A-CDM">AXOT̄</th>
-                        <th data-sort="p90_exot_min" class="num" title="p90 AXOT — outlier-resistant upper">AXOT₉₀</th>
-                        <th data-sort="avg_exit_min" class="num" title="Average AXIT (Actual Taxi-In Time = AIBT − ALDT) in min — EUROCONTROL A-CDM">AXIT̄</th>
-                        <th data-sort="p90_exit_min" class="num" title="p90 AXIT">AXIT₉₀</th>
-                        <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT − EOBT) in min — how late pilots actually push back vs filed">ΔEOBT̄</th>
-                        <th data-sort="avg_eta_error_min" class="num" title="Filed-ETA accuracy: ALDT − (ATOT + filed enroute_time) in min. ETE is cruise duration only, so we anchor to ATOT not AOBT.">ΔETĀ</th>
-                        <th data-sort="p90_eta_error_min" class="num" title="p90 ETA error">ΔETA₉₀</th>
-                        <th data-sort="eta_sample_n" class="num" title="ETA sample size">n</th>
+                        <th data-sort="avg_exot_min" class="num" title="Average AXOT (ATOT minus AOBT) in min">AXOT</th>
+                        <th data-sort="p90_exot_min" class="num" title="p90 AXOT">AXOT90</th>
+                        <th data-sort="avg_exit_min" class="num" title="Average AXIT (AIBT minus ALDT) in min">AXIT</th>
+                        <th data-sort="p90_exit_min" class="num" title="p90 AXIT">AXIT90</th>
+                        <th data-sort="avg_eobt_delay_min" class="num" title="Average (AOBT minus EOBT) in min">dEOBT</th>
+                        <th data-sort="eldt_bias_min" class="num" title="ELDT prediction bias: mean (ALDT minus ELDT_locked) in min. Negative = we predicted late. Snapshot taken at T-60min.">ELDT bias</th>
+                        <th data-sort="eldt_p90_abs_min" class="num" title="ELDT p90 absolute error in min">|ELDT|90</th>
+                        <th data-sort="eldt_within_tolerance_pct" class="num" title="% of ELDT predictions within plus/minus 3 min of ALDT">ELDT +/-3%</th>
+                        <th data-sort="eldt_sample_n" class="num" title="ELDT sample size">ne</th>
+                        <th data-sort="tldt_bias_min" class="num" title="TLDT slot fidelity bias: mean (ALDT minus TLDT) in min. Negative = arrived before slot.">TLDT bias</th>
+                        <th data-sort="tldt_within_tolerance_pct" class="num" title="% of TLDTs where |ALDT minus TLDT| within plus/minus 3 min">TLDT +/-3%</th>
+                        <th data-sort="tldt_sample_n" class="num" title="TLDT sample size">nt</th>
                     </tr>
                 </thead>
                 <tbody id="airports-tbody">
-                    <tr><td colspan="11" class="empty-row">Loading…</td></tr>
+                    <tr><td colspan="15" class="empty-row">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -166,33 +170,28 @@
                     <tr>
                         <th data-sort="aircraft_type">Type</th>
                         <th data-sort="count" class="num">Count</th>
-                        <th data-sort="avg_exot_min" class="num" title="Average AXOT (ATOT − AOBT)">Avg AXOT</th>
-                        <th data-sort="avg_exit_min" class="num" title="Average AXIT (AIBT − ALDT)">Avg AXIT</th>
+                        <th data-sort="avg_exot_min" class="num" title="Average AXOT (ATOT minus AOBT)">Avg AXOT</th>
+                        <th data-sort="avg_exit_min" class="num" title="Average AXIT (AIBT minus ALDT)">Avg AXIT</th>
                     </tr>
                 </thead>
                 <tbody id="types-tbody">
-                    <tr><td colspan="4" class="empty-row">Loading…</td></tr>
+                    <tr><td colspan="4" class="empty-row">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
     </section>
 
     <footer>
-        Data window auto-refreshes every 60 s. AXOT is observed AOBT→ATOT
-        per EUROCONTROL. ROT comes from the <span class="mono">rot_observations</span>
-        table populated by <span class="mono">bin/rot-tracker.php</span>;
-        ROT̄ arr is measured between threshold crossing and the first
-        sub-30-kt position sample, ROT̄ dep is approximated from the
-        last on-ground sample to interpolated wheels-up (biased high at
-        5-min sampling but consistent across flights). AXIT̄ post is the
-        post-runway taxi-in time, AIBT − clear_at — physically distinct
-        from the strict EUROCONTROL AXIT (which conflates ROT and taxi).
-        ETA error requires the pilot to have filed an
-        <span class="mono">enroute_time</span>.
+        Data window auto-refreshes every 60 s. AXOT = ATOT minus AOBT, AXIT = AIBT minus ALDT
+        per EUROCONTROL Airport CDM Manual. ELDT bias is measured against
+        a snapshot taken at T-60min before predicted landing; TLDT bias
+        measures whether the allocator's slot decision was honoured in
+        practice. Both &plusmn;3% columns show the fraction of samples
+        within the user's trust gate (&plusmn;3 min).
         <div style="margin-top: 0.5rem;">
             <a href="https://github.com/skyelaird/atfm-tools">source</a>
-            · <a href="https://github.com/skyelaird/atfm-tools/blob/main/docs/ARCHITECTURE.md">architecture</a>
-            · <a href="https://github.com/skyelaird/atfm-tools/blob/main/docs/GLOSSARY.md">glossary</a>
+            &middot; <a href="https://github.com/skyelaird/atfm-tools/blob/main/docs/ARCHITECTURE.md">architecture</a>
+            &middot; <a href="https://github.com/skyelaird/atfm-tools/blob/main/docs/GLOSSARY.md">glossary</a>
         </div>
     </footer>
 
@@ -213,8 +212,9 @@ const el = (tag, attrs = {}, ...children) => {
     }
     return e;
 };
-const fmt = (v, digits = 1) => (v == null ? '—' : Number(v).toFixed(digits));
-const fmtInt = (v) => (v == null ? '—' : String(Math.round(v)));
+const fmt = (v, digits = 1) => (v == null ? '\u2014' : Number(v).toFixed(digits));
+const fmtPct = (v) => (v == null ? '\u2014' : v.toFixed(0) + '%');
+const fmtInt = (v) => (v == null ? '\u2014' : String(Math.round(v)));
 
 // Sortable table helper
 const sortStates = {
@@ -283,8 +283,6 @@ async function refresh() {
     }
 }
 
-// Pull the running version once on load so the banner reflects what's
-// actually deployed (and visibly mismatches if the server is stale).
 fetch('/api/health')
     .then(r => r.json())
     .then(d => { document.getElementById('version').textContent = 'v' + (d.version || '?'); })
@@ -312,7 +310,7 @@ function rerender() {
     addTotal('CTOTs issued',        t.ctots_issued);
     addTotal('compliant departed',  t.compliant_departed);
     addTotal('non-compliant',       t.non_compliant);
-    addTotal('compliance rate',     t.compliance_rate != null ? (t.compliance_rate * 100).toFixed(0) + '%' : '—');
+    addTotal('compliance rate',     t.compliance_rate != null ? (t.compliance_rate * 100).toFixed(0) + '%' : '\u2014');
 
     // Airports
     wireSortableTable('airports-table');
@@ -323,14 +321,24 @@ function rerender() {
         avg_exot_min: r => r.avg_exot_min, p90_exot_min: r => r.p90_exot_min,
         avg_exit_min: r => r.avg_exit_min, p90_exit_min: r => r.p90_exit_min,
         avg_eobt_delay_min: r => r.avg_eobt_delay_min,
-        avg_eta_error_min: r => r.avg_eta_error_min, p90_eta_error_min: r => r.p90_eta_error_min,
-        eta_sample_n: r => r.eta_sample_n,
+        eldt_bias_min: r => r.eldt_bias_min, eldt_p90_abs_min: r => r.eldt_p90_abs_min,
+        eldt_within_tolerance_pct: r => r.eldt_within_tolerance_pct, eldt_sample_n: r => r.eldt_sample_n,
+        tldt_bias_min: r => r.tldt_bias_min,
+        tldt_within_tolerance_pct: r => r.tldt_within_tolerance_pct, tldt_sample_n: r => r.tldt_sample_n,
     };
     const aRows = sortRowsFor('airports-table', d.airports, aAcc);
     updateSortIndicators('airports-table');
     for (const r of aRows) {
+        // Colour the percentage cells: green if >= 80%, yellow 50-80%, red < 50%
+        const eldtPctCls = r.eldt_within_tolerance_pct == null ? 'muted'
+            : r.eldt_within_tolerance_pct >= 80 ? 'ok-val'
+            : r.eldt_within_tolerance_pct >= 50 ? 'warn-val' : 'alert-val';
+        const tldtPctCls = r.tldt_within_tolerance_pct == null ? 'muted'
+            : r.tldt_within_tolerance_pct >= 80 ? 'ok-val'
+            : r.tldt_within_tolerance_pct >= 50 ? 'warn-val' : 'alert-val';
+
         aTbody.appendChild(el('tr', {},
-            el('td', { class: 'mono' }, r.icao + (r.name ? '' : '')),
+            el('td', { class: 'mono' }, r.icao),
             el('td', { class: 'num' }, String(r.arrivals)),
             el('td', { class: 'num' }, String(r.departures)),
             el('td', { class: 'num' }, fmt(r.avg_exot_min)),
@@ -338,13 +346,17 @@ function rerender() {
             el('td', { class: 'num' }, fmt(r.avg_exit_min)),
             el('td', { class: 'num muted' }, fmt(r.p90_exit_min)),
             el('td', { class: 'num' }, fmt(r.avg_eobt_delay_min)),
-            el('td', { class: 'num' }, fmt(r.avg_eta_error_min)),
-            el('td', { class: 'num muted' }, fmt(r.p90_eta_error_min)),
-            el('td', { class: 'num muted' }, String(r.eta_sample_n || 0))
+            el('td', { class: 'num' }, fmt(r.eldt_bias_min)),
+            el('td', { class: 'num muted' }, fmt(r.eldt_p90_abs_min)),
+            el('td', { class: 'num ' + eldtPctCls }, fmtPct(r.eldt_within_tolerance_pct)),
+            el('td', { class: 'num muted' }, String(r.eldt_sample_n || 0)),
+            el('td', { class: 'num' }, fmt(r.tldt_bias_min)),
+            el('td', { class: 'num ' + tldtPctCls }, fmtPct(r.tldt_within_tolerance_pct)),
+            el('td', { class: 'num muted' }, String(r.tldt_sample_n || 0))
         ));
     }
     if (aRows.length === 0) {
-        aTbody.appendChild(el('tr', {}, el('td', { colspan: '11', class: 'empty-row' }, 'No data yet.')));
+        aTbody.appendChild(el('tr', {}, el('td', { colspan: '15', class: 'empty-row' }, 'No data yet.')));
     }
 
     // Top aircraft
@@ -383,7 +395,7 @@ document.querySelectorAll('#window-pills .pill').forEach(p => {
 });
 
 refresh();
-setInterval(refresh, 60000);  // 60s auto-refresh
+setInterval(refresh, 60000);
 </script>
 
 </body>

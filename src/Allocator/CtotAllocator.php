@@ -65,17 +65,22 @@ final class CtotAllocator
 
         $stats['restrictions_active'] = $restrictions->count();
 
-        // Release any previously-issued CTOTs whose restriction is no longer
-        // active (deleted, expired, or window closed). Without this, CTOTs
-        // from yesterday's programs would persist forever on flight records.
+        // Release any previously-issued allocations whose restriction is no
+        // longer active (deleted, expired, or window closed). Without this,
+        // allocations from yesterday's programs would persist forever on
+        // flight records. v0.5.0: also clears TLDT, not just CTOT.
         $activeRestrictionIds = $restrictions->pluck('restriction_id')->all();
         $stale = Flight::query()
-            ->whereNotNull('ctot')
+            ->where(function ($q) {
+                $q->whereNotNull('ctot')->orWhereNotNull('tldt');
+            })
             ->whereNotNull('ctl_restriction_id')
             ->whereNotIn('ctl_restriction_id', $activeRestrictionIds ?: [''])
             ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
             ->get();
         foreach ($stale as $flight) {
+            $flight->tldt               = null;
+            $flight->tldt_assigned_at   = null;
             $flight->ctot               = null;
             $flight->ctl_type           = null;
             $flight->ctl_element        = null;
@@ -116,6 +121,25 @@ final class CtotAllocator
     /**
      * Allocate one airport's arrival slots.
      *
+     * v0.5.0 — TLDT-primary model. The allocator now writes a TLDT
+     * (Target Landing Time, per EUROCONTROL Airport CDM Manual) for
+     * every inbound flight within the restriction's tier window. CTOT
+     * is derived for ground-bound flights as the back-calculated
+     * departure time that would achieve the assigned TLDT — i.e.
+     * CTOT enforces TLDT, not the other way around. Airborne flights
+     * receive a TLDT but no CTOT (the controller has to slow them
+     * down or vector to meet it; we don't issue post-departure
+     * regulations).
+     *
+     * Order of operations:
+     *   1. Validate / carry forward existing TLDTs from prior runs
+     *      (frozen-slot semantics across cron ticks)
+     *   2. Honour imported CTOTs (vATCSCC events, etc.) as fixed
+     *      slot reservations
+     *   3. Pack remaining inbounds into the rate ladder, sorted by ELDT
+     *   4. Derive CTOT for ground flights whose TLDT requires non-zero
+     *      delay
+     *
      * @param array $stats Passed by reference to accumulate counters.
      */
     private function allocateAirport(
@@ -124,113 +148,99 @@ final class CtotAllocator
         DateTimeImmutable $now,
         array &$stats
     ): void {
-        $capacity = max(1, (int) $restriction->capacity);
-        $slotSec  = (int) round(3600 / $capacity);
-        $tierSec  = ((int) $restriction->tier_minutes) * 60;
+        $capacity   = max(1, (int) $restriction->capacity);
+        $slotSec    = (int) round(3600 / $capacity);
+        $tierSec    = ((int) $restriction->tier_minutes) * 60;
         $tierCutoff = $now->getTimestamp() + $tierSec;
+        $earlyMin   = (int) $restriction->compliance_window_early_min;
+        $lateMin    = (int) $restriction->compliance_window_late_min;
 
-        // Candidates: inbound flights to this airport, not terminal.
         $inbound = Flight::query()
             ->where('ades', $airport->icao)
             ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
-            ->orderBy('eobt')
             ->get();
 
         $stats['flights_evaluated'] += $inbound->count();
 
-        // ---- Step 0 / 1: validate existing frozen CTOTs ----
-        $takenSlots = []; // map<int slot_epoch, true>
+        $takenSlots = []; // map<int slot_epoch, flight_id>
 
+        // ---- Step 1: Validate existing TLDTs and carry them forward ----
         foreach ($inbound as $flight) {
-            if ($flight->ctot === null) {
+            if ($flight->tldt === null) {
                 continue;
             }
-            $ctotEpoch = $flight->ctot->getTimestamp();
-            $earlyMin  = (int) $restriction->compliance_window_early_min;
-            $lateMin   = (int) $restriction->compliance_window_late_min;
 
+            // Disconnected: release the slot entirely.
             if ($flight->phase === Flight::PHASE_DISCONNECTED) {
-                // Flight disappeared from feed — release its slot.
-                $flight->ctot = null;
-                $flight->ctl_type = null;
-                $flight->ctl_element = null;
-                $flight->ctl_restriction_id = null;
+                $this->clearAllocation($flight);
                 $flight->delay_status = Flight::DELAY_WITHDRAWN;
                 $flight->save();
                 $stats['ctots_released']++;
                 continue;
             }
 
-            if ($flight->atot !== null) {
-                // Flight already departed — compute compliance.
-                $actualEpoch = $flight->atot->getTimestamp();
-                $drift = $actualEpoch - $ctotEpoch;
-                if ($drift >= -$earlyMin * 60 && $drift <= $lateMin * 60) {
-                    $flight->delay_status = Flight::DELAY_COMPLIANT_DEPARTED;
-                } else {
-                    $flight->delay_status = Flight::DELAY_NON_COMPLIANT;
-                }
+            // Already departed: compute CTOT compliance, keep the slot
+            // reserved (the inbound is still coming).
+            if ($flight->atot !== null && $flight->ctot !== null) {
+                $drift = $flight->atot->getTimestamp() - $flight->ctot->getTimestamp();
+                $flight->delay_status = ($drift >= -$earlyMin * 60 && $drift <= $lateMin * 60)
+                    ? Flight::DELAY_COMPLIANT_DEPARTED
+                    : Flight::DELAY_NON_COMPLIANT;
                 $flight->save();
-                // Slot is released to downstream
-                $stats['ctots_released']++;
-                continue;
             }
 
-            if ($now->getTimestamp() > $ctotEpoch + $lateMin * 60) {
-                // Missed the window on the ground. Release + reissue candidate.
-                $flight->ctot = null;
+            // Ground flight that missed its CTOT compliance window:
+            // release CTOT and TLDT for re-allocation this cycle.
+            if ($flight->ctot !== null
+                && $flight->atot === null
+                && $now->getTimestamp() > $flight->ctot->getTimestamp() + $lateMin * 60
+            ) {
+                $this->clearAllocation($flight);
                 $flight->delay_status = Flight::DELAY_NON_COMPLIANT;
                 $flight->save();
                 $stats['ctots_reissued']++;
                 continue;
             }
 
-            // Still valid — keep the slot.
-            $slotStart = $this->snapSlot($ctotEpoch, $slotSec);
-            $takenSlots[$slotStart] = true;
+            // Slot is still valid — reserve it.
+            $slotStart = $this->snapSlot($flight->tldt->getTimestamp(), $slotSec);
+            $takenSlots[$slotStart] = $flight->id;
             $stats['ctots_frozen_kept']++;
         }
 
-        // ---- Step 2: Airborne inbound pre-consume capacity ----
-        foreach ($inbound as $flight) {
-            if (! $flight->isAirborne()) {
-                continue;
-            }
-            if ($flight->ctot !== null) {
-                continue; // handled in step 0
-            }
-            $etaEpoch = $this->estimateArrivalEpoch($flight, $airport, $now);
-            if ($etaEpoch === null) {
-                continue;
-            }
-            if ($etaEpoch > $tierCutoff) {
-                continue; // beyond tier
-            }
-            $slot = $this->nextFreeSlot($takenSlots, $etaEpoch, $slotSec);
-            $takenSlots[$slot] = true;
-            // Airborne flights don't get a CTOT — just consume the bucket.
-        }
-
-        // ---- Step 3: Imported / event CTOTs (priority-ordered) ----
+        // ---- Step 2: Imported (event/file) CTOTs as fixed reservations ----
+        // An imported source declares "this callsign must depart at
+        // CTOT_imp"; we honour it as the truth and derive a TLDT from it
+        // by adding the flight's expected enroute time to land at the
+        // destination.
         $importedMap = $this->loadImportedCtots($inbound, $now);
         foreach ($inbound as $flight) {
             $hit = $this->matchImported($flight, $importedMap);
             if ($hit === null) {
                 continue;
             }
-            if ($flight->ctot !== null && $flight->ctot->getTimestamp() === $hit->ctot->getTimestamp()) {
-                continue; // already frozen at the imported time
+            // Skip if we already wrote this exact CTOT in a prior run.
+            if ($flight->ctot !== null
+                && $flight->ctot->getTimestamp() === $hit->ctot->getTimestamp()
+            ) {
+                continue;
             }
-            $slotStart = $this->snapSlot($hit->ctot->getTimestamp(), $slotSec);
-            if (isset($takenSlots[$slotStart])) {
-                // Imported source says this slot — if it collides, we still
-                // honor the import; allocator's later issuances will avoid it.
-            }
-            $flight->ctot            = $hit->ctot;
-            $flight->ctl_type        = (str_starts_with($hit->source_file ?? '', 'vatcan:'))
+
+            $ctotImpEpoch = $hit->ctot->getTimestamp();
+            $eteMin       = (int) ($flight->fp_enroute_time_min ?? 0);
+            $exotMin      = (int) ($flight->planned_exot_min ?? $airport->default_exot_min ?? 10);
+            $impliedTldt  = $ctotImpEpoch + (($eteMin + $exotMin) * 60);
+
+            $slotStart = $this->snapSlot($impliedTldt, $slotSec);
+
+            $flight->ctot               = $hit->ctot;
+            $flight->tldt               = (new DateTimeImmutable('@' . $impliedTldt))
+                ->setTimezone(new DateTimeZone('UTC'));
+            $flight->tldt_assigned_at   = $now;
+            $flight->ctl_type           = (str_starts_with($hit->source_file ?? '', 'vatcan:'))
                 ? 'EVENT_BOOKED'
                 : 'IMPORTED_CTOT';
-            $flight->ctl_element     = $airport->icao;
+            $flight->ctl_element        = $airport->icao;
             $flight->ctl_restriction_id = $restriction->restriction_id;
             $delay = (int) round(
                 ($hit->ctot->getTimestamp() - ($flight->ttot?->getTimestamp() ?? $hit->ctot->getTimestamp())) / 60
@@ -238,16 +248,22 @@ final class CtotAllocator
             $flight->delay_minutes  = max(0, $delay);
             $flight->delay_status   = $delay > 0 ? Flight::DELAY_DELAYED : Flight::DELAY_ON_TIME;
             $flight->save();
-            $takenSlots[$slotStart] = true;
+
+            $takenSlots[$slotStart] = $flight->id;
             $stats['ctots_issued']++;
         }
 
-        // ---- Step 4: Ground CASA for remaining inbound, within tier ----
-        $ground = $inbound
-            ->filter(fn (Flight $f) => $f->isOnGround() && $f->ctot === null)
-            ->sortBy(fn (Flight $f) => $f->eobt?->getTimestamp() ?? PHP_INT_MAX);
-
-        foreach ($ground as $flight) {
+        // ---- Step 3: Pack remaining inbounds into the rate ladder ----
+        // Build candidates with their estimated landing times, sort by
+        // ELDT (closest first), then walk the ladder.
+        $candidates = [];
+        foreach ($inbound as $flight) {
+            if ($flight->tldt !== null) {
+                continue; // already allocated above
+            }
+            if ($flight->phase === Flight::PHASE_DISCONNECTED) {
+                continue;
+            }
             $etaEpoch = $this->estimateArrivalEpoch($flight, $airport, $now);
             if ($etaEpoch === null) {
                 continue;
@@ -255,28 +271,67 @@ final class CtotAllocator
             if ($etaEpoch > $tierCutoff) {
                 continue;
             }
-            $assignedSlot = $this->nextFreeSlot($takenSlots, $etaEpoch, $slotSec);
-            $takenSlots[$assignedSlot] = true;
+            $candidates[] = ['flight' => $flight, 'eldt' => $etaEpoch];
+        }
+        usort($candidates, fn ($a, $b) => $a['eldt'] <=> $b['eldt']);
 
-            $delaySec = $assignedSlot - $etaEpoch;
-            if ($delaySec < 5 * 60) {
-                // Delay below threshold — no CTOT needed.
-                continue;
-            }
+        foreach ($candidates as $cand) {
+            $flight   = $cand['flight'];
+            $etaEpoch = $cand['eldt'];
 
-            // Issue CTOT = TTOT + delay. If TTOT is unknown, use now + delay as fallback.
-            $ttotEpoch = $flight->ttot?->getTimestamp() ?? $now->getTimestamp();
-            $newCtotEpoch = $ttotEpoch + $delaySec;
+            $slotEpoch = $this->nextFreeSlot($takenSlots, $etaEpoch, $slotSec);
+            $takenSlots[$slotEpoch] = $flight->id;
 
-            $flight->ctot = (new DateTimeImmutable('@' . $newCtotEpoch))->setTimezone(new DateTimeZone('UTC'));
+            $delaySec = $slotEpoch - $etaEpoch;
+
+            $flight->tldt               = (new DateTimeImmutable('@' . $slotEpoch))
+                ->setTimezone(new DateTimeZone('UTC'));
+            $flight->tldt_assigned_at   = $now;
             $flight->ctl_type           = 'AIRPORT_ARR_RATE';
             $flight->ctl_element        = $airport->icao;
             $flight->ctl_restriction_id = $restriction->restriction_id;
             $flight->delay_minutes      = (int) round($delaySec / 60);
-            $flight->delay_status       = Flight::DELAY_DELAYED;
+
+            // ---- Step 4: Derive CTOT for ground-bound flights ----
+            // Only ground flights get a CTOT — and only if the assigned
+            // delay exceeds the 5-minute floor (below that, the pilot
+            // can absorb it in taxi-out without issuing a regulation).
+            if ($flight->isOnGround() && $delaySec >= 5 * 60) {
+                // CTOT = TTOT + delay (algebraically equivalent to
+                // TLDT − ETE − EXOT for our non-CDM scope where we
+                // don't have a separate ETE field stored).
+                $ttotEpoch    = $flight->ttot?->getTimestamp() ?? $now->getTimestamp();
+                $newCtotEpoch = $ttotEpoch + $delaySec;
+                $flight->ctot = (new DateTimeImmutable('@' . $newCtotEpoch))
+                    ->setTimezone(new DateTimeZone('UTC'));
+                $flight->delay_status = Flight::DELAY_DELAYED;
+                $stats['ctots_issued']++;
+            } elseif ($delaySec >= 5 * 60) {
+                // Airborne with non-trivial delay — flag as delayed but
+                // no CTOT (controller must slow / vector to meet TLDT).
+                $flight->delay_status = Flight::DELAY_DELAYED;
+            } else {
+                $flight->delay_status = Flight::DELAY_ON_TIME;
+            }
+
             $flight->save();
-            $stats['ctots_issued']++;
         }
+    }
+
+    /**
+     * Wipe an existing allocation off a flight (used by Step 1's
+     * release branches). Doesn't touch state we should never override
+     * here, like phase or ALDT.
+     */
+    private function clearAllocation(Flight $flight): void
+    {
+        $flight->tldt               = null;
+        $flight->tldt_assigned_at   = null;
+        $flight->ctot               = null;
+        $flight->ctl_type           = null;
+        $flight->ctl_element        = null;
+        $flight->ctl_restriction_id = null;
+        $flight->delay_minutes      = null;
     }
 
     /**

@@ -80,7 +80,16 @@ final class Flight extends Model
         // E* = estimated, T* = target, A* = actual, C* = calculated.
         'eobt', 'tobt', 'tsat', 'ttot', 'ctot',
         'asat', 'aobt', 'atot',
-        'eldt', 'cta', 'aldt', 'aibt',
+        'eldt',
+        // ELDT snapshot frozen at the validation horizon (default 60 min
+        // before predicted landing). Used to compute (ALDT − eldt_locked)
+        // as the prediction-quality KPI.
+        'eldt_locked', 'eldt_locked_at', 'eldt_locked_source',
+        // TLDT (Target Landing Time per EUROCONTROL): the slot the local
+        // allocator assigned. CTOT for ground flights is derived from this:
+        // CTOT = TLDT − ETE − EXOT.
+        'tldt', 'tldt_assigned_at',
+        'aldt', 'aibt',
         // *_exot_min: Estimated Taxi-Out Time (EXOT). Per the manual:
         // "the estimated taxi time between off-block and take off."
         // *_exit_min: Estimated Taxi-In Time (EXIT). Per the manual:
@@ -117,7 +126,10 @@ final class Flight extends Model
         'aobt'                 => 'datetime',
         'atot'                 => 'datetime',
         'eldt'                 => 'datetime',
-        'cta'                  => 'datetime',
+        'eldt_locked'          => 'datetime',
+        'eldt_locked_at'       => 'datetime',
+        'tldt'                 => 'datetime',
+        'tldt_assigned_at'     => 'datetime',
         'aldt'                 => 'datetime',
         'aibt'                 => 'datetime',
         'planned_exot_min'     => 'int',

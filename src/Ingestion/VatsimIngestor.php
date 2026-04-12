@@ -30,6 +30,15 @@ final class VatsimIngestor
 {
     public const FEED_URL = 'https://data.vatsim.net/v3/vatsim-data.json';
 
+    /**
+     * Validation horizon for the ELDT freeze. When a flight's predicted
+     * landing time first drops below this many minutes from now, we
+     * snapshot the current ELDT into eldt_locked. The choice of 60 min
+     * matches the typical FMP slot-blocking decision horizon. Bump this
+     * to test prediction quality at different lookback windows.
+     */
+    public const ELDT_LOCK_HORIZON_MIN = 60;
+
     private Client $http;
 
     /** @var array<string, array> map icao → airport row (flat array) */
@@ -380,6 +389,25 @@ final class VatsimIngestor
                 if ($est['epoch'] !== null) {
                     $flight->eldt = (new DateTimeImmutable('@' . $est['epoch']))
                         ->setTimezone(new DateTimeZone('UTC'));
+
+                    // ELDT freeze (v0.5.0). Snapshot once when the flight
+                    // first crosses inside the validation horizon (default
+                    // 60 min before predicted landing). After ALDT lands,
+                    // (ALDT − eldt_locked) is the prediction-quality KPI
+                    // we surface on the reports page. The 10-minute window
+                    // (50..60) accommodates the discreteness of 5-min ingest
+                    // cycles — without it, a flight could skip past the
+                    // 60-min threshold in a single cycle and never lock.
+                    if ($flight->eldt_locked === null && $flight->aldt === null) {
+                        $minutesToLanding = ($flight->eldt->getTimestamp() - $now->getTimestamp()) / 60;
+                        if ($minutesToLanding <= self::ELDT_LOCK_HORIZON_MIN
+                            && $minutesToLanding >= self::ELDT_LOCK_HORIZON_MIN - 10
+                        ) {
+                            $flight->eldt_locked        = $flight->eldt;
+                            $flight->eldt_locked_at     = $now;
+                            $flight->eldt_locked_source = $est['source'];
+                        }
+                    }
                 }
             }
         }

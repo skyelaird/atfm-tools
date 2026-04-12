@@ -331,4 +331,56 @@ if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'fp_enroute_
 // rot_observations, aar_calculations;` if you want to reclaim the
 // space.)
 
+//
+// v0.5.0: rename `cta` → `tldt` (Target Landing Time per EUROCONTROL
+// Airport CDM Manual). The previous name "Calculated Time of Arrival"
+// was a Network-Manager / CFMU concept and didn't match what we're
+// actually storing — which is the local FMP's slot allocation.
+// Idempotent: if `tldt` already exists, skip.
+//
+if ($schema->hasTable('flights')
+    && $schema->hasColumn('flights', 'cta')
+    && ! $schema->hasColumn('flights', 'tldt')
+) {
+    Capsule::connection()->statement(
+        'ALTER TABLE flights CHANGE cta tldt DATETIME NULL'
+    );
+    echo "✓ renamed flights.cta → flights.tldt (v0.5.0)\n";
+}
+
+//
+// v0.5.0: ELDT freeze columns. We snapshot the predicted ELDT once
+// per flight when it first crosses inside the validation horizon
+// (default 60 min before predicted landing). After ALDT is observed,
+// the (ALDT − eldt_locked) delta tells us how good our prediction
+// was at the moment we'd have to make a slot-blocking decision.
+//
+// See VatsimIngestor::stampEldtLockIfNeeded() and
+// /api/v1/reports/summary which surfaces the bias / p90 / %-within-3min.
+//
+if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'eldt_locked')) {
+    $schema->table('flights', function (Blueprint $t) {
+        $t->dateTime('eldt_locked')->nullable()->after('eldt')
+            ->comment('ELDT snapshot at the validation horizon — frozen, not refreshed');
+        $t->dateTime('eldt_locked_at')->nullable()->after('eldt_locked')
+            ->comment('When the snapshot was taken');
+        $t->string('eldt_locked_source', 16)->nullable()->after('eldt_locked_at')
+            ->comment('EtaEstimator tier that produced the snapshot (OBSERVED_POS, FILED, etc.)');
+    });
+    echo "✓ added flights.eldt_locked + eldt_locked_at + eldt_locked_source (v0.5.0)\n";
+}
+
+//
+// v0.5.0: TLDT provenance — when the allocator assigned the slot,
+// and which restriction was binding. Helps debugging "why does this
+// flight have a TLDT 8 minutes after its ELDT?"
+//
+if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'tldt_assigned_at')) {
+    $schema->table('flights', function (Blueprint $t) {
+        $t->dateTime('tldt_assigned_at')->nullable()->after('tldt')
+            ->comment('When the allocator assigned this TLDT');
+    });
+    echo "✓ added flights.tldt_assigned_at (v0.5.0)\n";
+}
+
 echo "done.\n";

@@ -882,13 +882,17 @@ function renderAirportDetail(d) {
 
     // Inbound flights — full A-CDM timeline:
     //   EOBT (filed off-block) → AOBT (actually pushed) → ATOT (actually
-    //   airborne) → ELDT (computed live by EtaEstimator if not stored).
-    // CTOT is shown only if the allocator regulated this flight.
-    // ELDT source chip indicates which tier of the cascade produced it
-    // (OBSERVED_POS / FILED / CALC_*).
+    //   airborne) → ELDT (live prediction) → TLDT (allocator's slot
+    //   decision) → CTOT (departure-side enforcement, ground only).
+    //
+    // ELDT vs TLDT vs CTOT is the v0.5.0 model:
+    //   ELDT  = what we predict
+    //   TLDT  = what the allocator decided the slot should be
+    //   CTOT  = how we enforce TLDT for ground-bound flights
+    //           (= TTOT + delay required to hit the slot)
     body.appendChild(flightTable(
         `Inbound (${d.inbound.length})`,
-        ['Callsign', 'Type', 'From', 'Phase', 'EOBT', 'AOBT', 'ATOT', 'ELDT', 'src', 'CTOT'],
+        ['Callsign', 'Type', 'From', 'Phase', 'EOBT', 'AOBT', 'ATOT', 'ELDT', 'src', 'TLDT', 'CTOT'],
         d.inbound.map(f => [
             { cls: 'mono', text: f.callsign, sortKey: f.callsign },
             { cls: 'mono muted', text: f.aircraft_type || '—', sortKey: f.aircraft_type || '' },
@@ -899,6 +903,7 @@ function renderAirportDetail(d) {
             { cls: 'mono muted', text: hhmmz(f.atot), sortKey: f.atot || '' },
             { cls: 'mono', text: hhmmz(f.eldt), sortKey: f.eldt || '' },
             { cls: 'muted', text: f.eldt_source ? eldtSrcShort(f.eldt_source) : '—', sortKey: f.eldt_source || '' },
+            { cls: 'mono', text: hhmmz(f.tldt), sortKey: f.tldt || '' },
             { cls: 'mono', text: hhmmz(f.ctot), sortKey: f.ctot || '' },
         ])
     ), 'inbound');

@@ -422,8 +422,11 @@ final class Kernel
                         'ttot'            => $f->ttot?->format('c'),
                         'eldt'            => $eldtIso,
                         'eldt_source'     => $eldtSource,
+                        'eldt_locked'     => $f->eldt_locked?->format('c'),
+                        // tldt is the FMP control decision (allocator output);
+                        // ctot is its enforcement for ground-bound flights.
+                        'tldt'            => $f->tldt?->format('c'),
                         'ctot'            => $f->ctot?->format('c'),
-                        'cta'             => $f->cta?->format('c'),
                         'delay_minutes'   => $f->delay_minutes,
                         'delay_status'    => $f->delay_status,
                         'last_gs'         => $f->last_groundspeed_kts,
@@ -697,10 +700,17 @@ final class Kernel
             $airports = Airport::orderBy('icao')->get();
             $rows = [];
 
+            // Tolerance for the "% within ±N min" KPI columns. The user's
+            // gut number for "ELDT good enough to allocate slots against."
+            $toleranceMin = 3;
+
             foreach ($airports as $a) {
                 $arrivals = Flight::where('ades', $a->icao)
                     ->where('aldt', '>=', $sinceStr)
-                    ->get(['aldt', 'aibt', 'actual_exit_min', 'fp_enroute_time_min', 'atot']);
+                    ->get([
+                        'aldt', 'aibt', 'actual_exit_min',
+                        'eldt_locked', 'tldt',
+                    ]);
 
                 $departures = Flight::where('adep', $a->icao)
                     ->whereNotNull('atot')
@@ -717,14 +727,40 @@ final class Kernel
                     }
                 }
 
-                // ETA error = ALDT − (ATOT + ETE). ETE on VATSIM is the cruise
-                // duration only, so we anchor to ATOT not AOBT. Negative =
-                // arrived early, positive = arrived late.
-                $etaErrors = [];
+                // ELDT prediction quality. For each completed arrival with
+                // an eldt_locked snapshot (taken when the flight was T-60 min
+                // from predicted landing), compute (ALDT − eldt_locked) in
+                // minutes. Bias is the signed mean (negative = we predicted
+                // late). Spread is the p90 of absolute values.
+                $eldtErrors = [];
+                $eldtAbsErrors = [];
+                $eldtWithinTolerance = 0;
                 foreach ($arrivals as $f) {
-                    if ($f->aldt && $f->atot && $f->fp_enroute_time_min) {
-                        $predicted = $f->atot->getTimestamp() + ($f->fp_enroute_time_min * 60);
-                        $etaErrors[] = (int) round(($f->aldt->getTimestamp() - $predicted) / 60);
+                    if ($f->aldt && $f->eldt_locked) {
+                        $err = ($f->aldt->getTimestamp() - $f->eldt_locked->getTimestamp()) / 60;
+                        $eldtErrors[]    = $err;
+                        $eldtAbsErrors[] = abs($err);
+                        if (abs($err) <= $toleranceMin) {
+                            $eldtWithinTolerance++;
+                        }
+                    }
+                }
+
+                // TLDT slot fidelity. For each completed arrival with a
+                // tldt assigned by the allocator, compute (ALDT − tldt) in
+                // minutes. This is the operational metric: how well did
+                // the system's slot allocation match reality?
+                $tldtErrors = [];
+                $tldtAbsErrors = [];
+                $tldtWithinTolerance = 0;
+                foreach ($arrivals as $f) {
+                    if ($f->aldt && $f->tldt) {
+                        $err = ($f->aldt->getTimestamp() - $f->tldt->getTimestamp()) / 60;
+                        $tldtErrors[]    = $err;
+                        $tldtAbsErrors[] = abs($err);
+                        if (abs($err) <= $toleranceMin) {
+                            $tldtWithinTolerance++;
+                        }
                     }
                 }
 
@@ -739,11 +775,25 @@ final class Kernel
                     'avg_exit_min'         => self::avg($exitValues),
                     'p90_exit_min'         => self::percentile($exitValues, 90),
                     'avg_eobt_delay_min'   => self::avg($eobtDelays),
-                    'avg_eta_error_min'    => self::avg($etaErrors),
-                    'p90_eta_error_min'    => self::percentile($etaErrors, 90),
-                    'eta_sample_n'         => count($etaErrors),
+                    // ELDT prediction quality
+                    'eldt_bias_min'            => self::avg($eldtErrors),
+                    'eldt_p90_abs_min'         => self::percentile($eldtAbsErrors, 90),
+                    'eldt_within_tolerance_pct'=> count($eldtErrors) > 0
+                                                  ? round(100 * $eldtWithinTolerance / count($eldtErrors), 1)
+                                                  : null,
+                    'eldt_sample_n'            => count($eldtErrors),
+                    // TLDT slot fidelity
+                    'tldt_bias_min'            => self::avg($tldtErrors),
+                    'tldt_p90_abs_min'         => self::percentile($tldtAbsErrors, 90),
+                    'tldt_within_tolerance_pct'=> count($tldtErrors) > 0
+                                                  ? round(100 * $tldtWithinTolerance / count($tldtErrors), 1)
+                                                  : null,
+                    'tldt_sample_n'            => count($tldtErrors),
                 ];
             }
+
+            // Surface the tolerance value so the UI can label its columns.
+            $toleranceForResponse = $toleranceMin;
 
             // Overall totals
             $totalFlights = Flight::where('last_updated_at', '>=', $sinceStr)->count();
@@ -775,6 +825,8 @@ final class Kernel
 
             return self::json($res, [
                 'generated_at' => $now->format('c'),
+                'tolerance_min' => $toleranceForResponse,
+                'eldt_lock_horizon_min' => \Atfm\Ingestion\VatsimIngestor::ELDT_LOCK_HORIZON_MIN,
                 'window' => [
                     'hours' => $hours,
                     'start' => $since->format('c'),
