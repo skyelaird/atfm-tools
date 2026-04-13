@@ -513,7 +513,9 @@ final class VatsimIngestor
         if ($adesAirport !== null && ($atCruise || $inApproach)) {
             $airportRow = $this->airportModelsByIcao[$adesAirport['icao']] ?? null;
             if ($airportRow !== null) {
-                $est = \Atfm\Allocator\EtaEstimator::estimate($flight, $airportRow, $now);
+                $est = \Atfm\Allocator\EtaEstimator::estimate($flight, $airportRow, $now, [
+                    'force_observed' => $levelFlight && !$nearFiledAlt,
+                ]);
                 if ($est['epoch'] !== null) {
                     $flight->eldt = (new DateTimeImmutable('@' . $est['epoch']))
                         ->setTimezone(new DateTimeZone('UTC'));
@@ -532,6 +534,15 @@ final class VatsimIngestor
                             $flight->eldt_locked        = $flight->eldt;
                             $flight->eldt_locked_at     = $now;
                             $flight->eldt_locked_source = $est['source'];
+
+                            // TLDT = frozen ELDT. This is an immovable
+                            // arrival slot — the aircraft is airborne and
+                            // physics determines when it lands. The allocator
+                            // counts this against the declared rate.
+                            if ($flight->tldt === null) {
+                                $flight->tldt             = $flight->eldt;
+                                $flight->tldt_assigned_at = $now;
+                            }
 
                             // Snapshot PERTI's ETA at freeze time for
                             // three-way comparison: ours vs PERTI vs ALDT.

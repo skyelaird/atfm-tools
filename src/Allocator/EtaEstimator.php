@@ -55,7 +55,7 @@ final class EtaEstimator
      * @return array{epoch:int|null, source:string, confidence:int}
      *         confidence is a rough 0-100 self-rating of the estimate quality
      */
-    public static function estimate(Flight $flight, Airport $destAirport, DateTimeImmutable $now): array
+    public static function estimate(Flight $flight, Airport $destAirport, DateTimeImmutable $now, array $options = []): array
     {
         // -- Tier 2: airborne with known position → descent-aware ETA
         //
@@ -78,12 +78,12 @@ final class EtaEstimator
 
             // Still climbing — skip OBSERVED_POS, fall through to
             // ground tiers which use filed ETE or computed TAS.
-            // "At cruise" = within 2000ft of filed altitude. This is
-            // physically grounded: GS stabilises once the aircraft
-            // levels off, and 2000ft captures top-of-climb without
-            // waiting for the exact filed FL (which pilots often
-            // don't reach exactly).
-            if ($currentAlt < $filedAlt - 2000) {
+            // "At cruise" = within 2000ft of filed altitude, OR level
+            // flight above FL100 (vertical rate < 1000 fpm, detected
+            // by the ingestor and passed as $forceObserved). This
+            // catches pilots who cruise below their filed altitude.
+            $forceObserved = ($options['force_observed'] ?? false);
+            if (!$forceObserved && $currentAlt < $filedAlt - 2000) {
                 // Fall through to Tier 1 (FILED) or Tiers 3-5 below.
                 // Don't return — let the cascade continue.
             } else {
