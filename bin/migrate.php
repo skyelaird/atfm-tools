@@ -383,4 +383,15 @@ if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'tldt_assign
     echo "✓ added flights.tldt_assigned_at (v0.5.0)\n";
 }
 
+// v0.5.13: SimBrief flag — true when flight plan remarks contain "SIMBRIEF".
+// SimBrief-filed ETEs include wind correction and proper routing, so the
+// FILED tier ETA can be trusted more than a manually filed ETE.
+if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'is_simbrief')) {
+    $schema->table('flights', function (Blueprint $t) {
+        $t->boolean('is_simbrief')->default(false)->after('fp_enroute_time_min')
+            ->comment('True if remarks contain SIMBRIEF — ETE is wind-corrected');
+    });
+    echo "✓ added flights.is_simbrief (v0.5.13)\n";
+}
+
 echo "done.\n";

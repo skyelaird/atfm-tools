@@ -299,6 +299,11 @@ final class VatsimIngestor
         if ($enrouteTimeMin !== null) {
             $flight->fp_enroute_time_min = $enrouteTimeMin;
         }
+        // SimBrief detection — their remarks always contain "SIMBRIEF".
+        // SimBrief ETEs are wind-corrected and route-following, so the
+        // FILED tier ETA can be trusted more than a manually filed ETE.
+        $remarks = (string) ($fp['remarks'] ?? '');
+        $flight->is_simbrief = stripos($remarks, 'SIMBRIEF') !== false;
         if ($flight->airline_icao === null) {
             $flight->airline_icao = $this->airlineFromCallsign($callsign);
         }

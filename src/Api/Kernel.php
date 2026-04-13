@@ -579,6 +579,7 @@ final class Kernel
                         'adep'            => $f->adep,
                         'phase'           => $f->phase,
                         'display_phase'   => self::displayPhase($f),
+                        'is_simbrief'     => (bool) $f->is_simbrief,
                         'eobt'            => $f->eobt?->format('c'),
                         'aobt'            => $f->aobt?->format('c'),
                         'atot'            => $f->atot?->format('c'),
