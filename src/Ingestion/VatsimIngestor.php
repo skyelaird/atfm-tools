@@ -476,10 +476,21 @@ final class VatsimIngestor
         //   - ENROUTE at cruise (alt >= filedAlt - 2000ft)
         //   - ARRIVING (already in descent, simple GS-based estimate)
         //
-        // This means the ELDT column shows "—" until the flight reaches
-        // cruise, then shows a meaningful physics-based estimate. Clean.
+        // Cruise detection: airborne, ENROUTE phase, and either:
+        //   (a) within 2000ft of filed altitude, OR
+        //   (b) vertical rate < 1000 fpm (level flight, even if below filed alt)
+        // The vertical rate check catches pilots who level off below their
+        // filed altitude (e.g. filed FL360, cruising at FL334).
+        $prevAlt = (int) ($flight->getOriginal('last_altitude_ft') ?? 0);
+        $curAlt  = (int) ($altitude ?? 0);
+        $vertRateFpm = ($prevAlt > 0 && $curAlt > 0)
+            ? abs($curAlt - $prevAlt) / 2  // delta_ft over 2 min = fpm
+            : 9999; // unknown — assume climbing
+        $nearFiledAlt = $curAlt >= (($flight->fp_altitude_ft ?? 35000) - 2000);
+        $levelFlight  = $vertRateFpm < 1000 && $curAlt > 10000; // above FL100 and level
+
         $atCruise = in_array($phase, [Flight::PHASE_ENROUTE], true)
-            && ($flight->last_altitude_ft ?? 0) >= (($flight->fp_altitude_ft ?? 35000) - 2000);
+            && ($nearFiledAlt || $levelFlight);
         $inApproach = $phase === Flight::PHASE_ARRIVING;
 
         if ($adesAirport !== null && !$atCruise && !$inApproach) {
