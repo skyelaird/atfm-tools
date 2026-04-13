@@ -222,19 +222,42 @@ function renderCard(icao) {
     const wxCls = { VFR: 'wx-vfr', MVFR: 'wx-mvfr', IFR: 'wx-ifr', LIFR: 'wx-lifr' }[st.rules] || '';
     const lahso = !st.wet && (st.rules === 'VFR' || st.rules === 'MVFR');
 
-    // Group into reciprocal pairs for 2-row display
-    const allRwys = Object.entries(st.runways).sort((a, b) => a[1].hdg - b[1].hdg);
+    // Group into reciprocal pairs for 2-row display.
+    // Same physical strip: 08L↔26R, 08R↔26L, 13↔31, 15L↔33R.
+    // Rule: reciprocal number = ±18, swap L↔R suffix.
+    function reciprocalIdent(id) {
+        const m = id.match(/^(\d+)(L|R|C)?$/);
+        if (!m) return null;
+        let num = parseInt(m[1]);
+        let sfx = m[2] || '';
+        let rNum = num <= 18 ? num + 18 : num - 18;
+        let rSfx = sfx === 'L' ? 'R' : sfx === 'R' ? 'L' : sfx;
+        return String(rNum).padStart(2, '0') + rSfx;
+    }
+
+    const allRwys = Object.entries(st.runways);
+    // Take runways with heading < 180 as row 1 (or lower number)
+    const row1ids = [], row2ids = [];
     const used = new Set();
-    const pairs = [];
-    for (const [id1, r1] of allRwys) {
-        if (used.has(id1)) continue;
-        const recip = allRwys.find(([id2, r2]) => {
-            if (id2 === id1 || used.has(id2)) return false;
-            const diff = Math.abs(r1.hdg - r2.hdg);
-            return (diff > 160 && diff < 200) || (360 - diff > 160 && 360 - diff < 200);
-        });
-        if (recip) { pairs.push([id1, recip[0]]); used.add(id1); used.add(recip[0]); }
-        else { pairs.push([id1, null]); used.add(id1); }
+    // Sort by ident number then suffix for consistent column order
+    allRwys.sort((a, b) => {
+        const na = parseInt(a[0]), nb = parseInt(b[0]);
+        if (na !== nb) return na - nb;
+        return a[0].localeCompare(b[0]);
+    });
+    for (const [id] of allRwys) {
+        if (used.has(id)) continue;
+        const rid = reciprocalIdent(id);
+        if (rid && st.runways[rid] && !used.has(rid)) {
+            // Lower number goes to row 1
+            const n1 = parseInt(id), n2 = parseInt(rid);
+            if (n1 <= n2) { row1ids.push(id); row2ids.push(rid); }
+            else { row1ids.push(rid); row2ids.push(id); }
+            used.add(id); used.add(rid);
+        } else {
+            row1ids.push(id); row2ids.push(null);
+            used.add(id);
+        }
     }
 
     function rwyCardHtml(ident) {
@@ -253,9 +276,9 @@ function renderCard(icao) {
         </div>`;
     }
 
-    // Row 1: lower headings, Row 2: reciprocals
-    const row1 = pairs.map(p => rwyCardHtml(p[0])).join('');
-    const row2 = pairs.map(p => rwyCardHtml(p[1])).join('');
+    // Row 1: lower numbers, Row 2: reciprocals aligned below
+    const row1 = row1ids.map(id => rwyCardHtml(id)).join('');
+    const row2 = row2ids.map(id => rwyCardHtml(id)).join('');
     const cards = `<div class="rwy-row">${row1}</div><div class="rwy-row">${row2}</div>`;
 
     return `
