@@ -1320,41 +1320,39 @@ final class Kernel
                 $gs[$cat] = max($info['vat_kt'] - $headwindKt, 80); // floor 80kt
             }
 
-            // Compute weighted average inter-arrival time
-            $weightedGapSec = 0;
+            // Compute weighted average inter-arrival gap in MINUTES.
+            // gap_min = separation_nm / follower_GS_kt * 60
+            // (distance / speed = hours, * 60 = minutes)
             $activeCats = array_keys(array_filter($mix, fn($p) => $p > 0));
 
+            $avgGapMin = 0;
             foreach ($activeCats as $leader) {
                 foreach ($activeCats as $follower) {
                     $pairProb = ($mix[$leader] ?? 0) * ($mix[$follower] ?? 0);
                     if ($pairProb <= 0) continue;
-
                     $sepNm = $sepMatrix[$leader][$follower] ?? $sepMatrix['M']['M'] ?? 3;
-                    $followerGs = $gs[$follower];
-                    $gapMin = ($sepNm / $followerGs) * 60; // minutes
-                    $weightedGapSec += $pairProb * $gapMin * 60;
+                    $gapMin = ($sepNm / $gs[$follower]) * 60;
+                    $avgGapMin += $pairProb * $gapMin;
                 }
             }
-
-            $avgGapMin = $weightedGapSec > 0 ? $weightedGapSec / 60 : 2;
-            $aar = (int) round(60 / ($avgGapMin / 60));
+            if ($avgGapMin <= 0) $avgGapMin = 2;
+            $aar = (int) round(60 / $avgGapMin);
 
             // Also compute AAR with no wind for comparison
             $gsCalm = [];
             foreach ($cats as $cat => $info) {
                 $gsCalm[$cat] = $info['vat_kt'];
             }
-            $calmGapSec = 0;
+            $calmGapMin = 0;
             foreach ($activeCats as $leader) {
                 foreach ($activeCats as $follower) {
                     $pairProb = ($mix[$leader] ?? 0) * ($mix[$follower] ?? 0);
                     if ($pairProb <= 0) continue;
                     $sepNm = $sepMatrix[$leader][$follower] ?? 3;
-                    $gapMin = ($sepNm / $gsCalm[$follower]) * 60;
-                    $calmGapSec += $pairProb * $gapMin * 60;
+                    $calmGapMin += $pairProb * ($sepNm / $gsCalm[$follower]) * 60;
                 }
             }
-            $aarCalm = $calmGapSec > 0 ? (int) round(60 / ($calmGapSec / 3600)) : $aar;
+            $aarCalm = $calmGapMin > 0 ? (int) round(60 / $calmGapMin) : $aar;
 
             // Per-category detail
             $catDetail = [];
@@ -1376,7 +1374,7 @@ final class Kernel
                 'headwind_kt'    => $headwindKt,
                 'aar'            => $aar,
                 'aar_calm'       => $aarCalm,
-                'avg_gap_sec'    => round($weightedGapSec / 60),
+                'avg_gap_sec'    => round($avgGapMin * 60),
                 'mix_source'     => $mixSource,
                 'categories'     => $catDetail,
                 'separation_nm'  => $sepMatrix,
