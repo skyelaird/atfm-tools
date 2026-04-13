@@ -213,6 +213,7 @@ airport_restrictions
 ├── reason                       varchar(32) default 'ATC_CAPACITY'
 │                                -- ATC_CAPACITY | WEATHER | RUNWAY_CLOSED | STAFFING |
 │                                -- EVENT | OTHER
+├── op_level                     tinyint default 2  -- PERTI TMU OpLevel (1-4, see §8.5)
 ├── type                         varchar(8) default 'ARR'  -- ARR | DEP | BOTH
 ├── runway                       varchar(4) null  -- required if type=DEP
 ├── tier_minutes                 int default 120  -- lookahead window for eligible flights
@@ -287,7 +288,12 @@ flights
 ├── aobt                       datetime null     -- actual off-block (observed: first ingest cycle with GS > 0 at ADEP geofence, only if previous phase was pre-departure)
 ├── atot                       datetime null     -- actual take-off (threshold crossing)
 ├── eldt                       datetime null     -- estimated landing (computed)
-├── cta                        datetime null     -- calculated arrival (allocator output)
+├── eldt_locked                datetime null     -- ELDT snapshot at T-2h freeze (§7.1.3)
+├── eldt_locked_at             datetime null     -- when the freeze happened
+├── eldt_locked_source         varchar(16) null  -- ETA source tier at freeze time
+├── eldt_perti                 datetime null     -- PERTI eta_utc snapshot at freeze (§8.5)
+├── tldt                       datetime null     -- target landing time (allocator slot, see §8.4)
+├── tldt_assigned_at           datetime null     -- when allocator set TLDT
 ├── aldt                       datetime null     -- actual landing (threshold crossing)
 ├── aibt                       datetime null     -- actual in-block (stationary at gate)
 │
@@ -774,12 +780,15 @@ matches the aircraft position.
 ### 7.1.3 ELDT freeze for validation
 
 The ingestor snapshots the current ELDT once per flight when it first
-enters the validation horizon (T-2h / 120 min before predicted landing,
-freeze window 116..120 min,
+enters the validation horizon (T-2h / 122 min before predicted landing
+to account for 2-min cron cadence, freeze window 118..122 min,
 AND at least 5 min in ENROUTE phase for GS stabilisation). Stored as
 `eldt_locked` + `eldt_locked_at` + `eldt_locked_source`. After ALDT
 is observed, `ALDT - eldt_locked` is the prediction-quality KPI
 surfaced in the reports page as ELDT bias / ELDT ±3%.
+
+At freeze time, if a PERTI ETA is available, it is also snapshotted to
+`eldt_perti` for three-way comparison (ours vs PERTI vs ALDT) — see §8.5.
 
 TLDT (the allocator's slot decision) is frozen at assignment and never
 revised. `ALDT - TLDT` measures slot fidelity.
@@ -833,7 +842,9 @@ for each airport with an active restriction:
     3. Pack remaining inbounds into the rate ladder:
          - all flights (airborne + ground) without TLDT
          - within tier_cutoff
-         - sorted by ELDT ascending (closest landing first)
+         - airborne first (immovable — TLDT = ELDT, see §8.4)
+         - then ground within CTOT scope (movable — §8.5)
+         - sorted by ELDT ascending within each group
          - for each: find next free slot from ELDT forward
          - write TLDT + tldt_assigned_at
 
@@ -866,6 +877,51 @@ Rationale: on VATSIM, every flight is essentially a popup (no commercial
 schedule, no advance demand forecast). Reserving slots would create a gameable
 two-tier system with no principled population to justify it. One queue,
 strict EOBT-order CASA, no reserves.
+
+### 8.4 TLDT semantics — immovable vs movable slots
+
+Both sources write to the same `tldt` column. The allocator does not
+distinguish origin — a slot is a slot.
+
+1. **Frozen ELDT (airborne)**: for flights already airborne, TLDT = the
+   physics-derived ELDT at assignment time. These slots are **immovable** —
+   the aircraft is committed to its trajectory and cannot be delayed via
+   departure hold. The allocator lays these down first as fixed obstacles
+   in the rate ladder.
+
+2. **GDP / tactical CTOT (ground)**: for flights still on the ground within
+   CTOT scope (§8.5), TLDT = allocator-assigned landing slot. These slots
+   are **movable** — the ground flight's departure is delayed so it arrives
+   at the assigned TLDT. The allocator fits these into remaining capacity
+   after immovable slots are placed.
+
+The two-pass structure (immovable first, then movable) ensures airborne
+traffic is never penalised and ground delays absorb the full regulation
+burden.
+
+### 8.5 CTOT scope by OpLevel
+
+The `op_level` on `airport_restrictions` (PERTI-compatible OpLevel taxonomy)
+controls how far upstream the allocator reaches for CTOT-eligible flights:
+
+| OpLevel | Label | CTOT scope |
+|---------|-------|------------|
+| 1 | Steady State | No CTOTs issued. TLDT from frozen ELDT only (monitoring mode). |
+| 2 | Localized | CTOTs for ground flights at **adjacent airports** (FirMap adjacency, §OpLevel in `src/Allocator/FirMap.php`). Covers short-haul domestic. |
+| 3 | Regional | CTOTs for ground flights with **ETE < 2 h** to the constrained airport. Broader reach than Level 2. |
+
+**Long-haul airborne flights** (ETE > 2 h at time of slot assignment) are
+always exempt from CTOTs regardless of OpLevel. They receive a TLDT (from
+frozen ELDT) but never a CTOT — the flight is already committed and
+departure delay is meaningless.
+
+### 8.6 PERTI ETA comparison
+
+The `eldt_perti` column snapshots PERTI's `eta_utc` at ELDT freeze time
+(§7.1.3) for three-way accuracy comparison: our ELDT vs PERTI vs actual
+ALDT. PERTI API lives at `perti.vatcscc.org`; authentication is via a
+SWIM partner key (Bearer token). This column is informational — the
+allocator never consumes it.
 
 ## 9. Capacity model (AAR derivation)
 
