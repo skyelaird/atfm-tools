@@ -14,6 +14,8 @@
             --alert: #f87171; --alert-dim: #5e1f1f;
             --ok: #4ade80; --ok-dim: #1e4a2e;
             --info: #60a5fa;
+            --arr: #60a5fa; --arr-dim: #1e3a5f;
+            --dep: #c084fc; --dep-dim: #3b1f5e;
             --mono: "SF Mono", Consolas, Monaco, monospace;
         }
         * { box-sizing: border-box; }
@@ -32,7 +34,7 @@
         button.refresh:hover { background: var(--accent); color: var(--bg); }
         .last-update { font-size: 0.75rem; color: var(--text-dim); }
 
-        .airport-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem; }
+        .airport-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; }
         .apt-card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
         .apt-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
         .apt-icao { font-size: 1.2rem; font-weight: 700; color: var(--text-bright); font-family: var(--mono); }
@@ -43,41 +45,51 @@
         .wx-lifr { background: #5e1f3f; color: #f472b6; }
         .badge-dry { background: var(--ok-dim); color: var(--ok); }
         .badge-wet { background: var(--warn-dim); color: var(--warn); }
-        .badge-config { background: var(--accent-dim); color: var(--accent); }
+        .badge-lahso { background: var(--ok-dim); color: var(--ok); }
+        .badge-nolahso { background: var(--bg); border: 1px solid var(--border); color: var(--text-dim); }
 
-        .wind-line { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.5rem; }
+        .wind-line { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.6rem; }
         .wind-line .val { color: var(--text-bright); font-family: var(--mono); }
 
-        .config-section { margin-bottom: 0.5rem; }
-        .config-label { font-size: 0.75rem; color: var(--text-dim); margin-bottom: 0.3rem; }
-        .rwy-roles { display: flex; gap: 0.6rem; flex-wrap: wrap; font-size: 0.8rem; }
-        .rwy-role { font-family: var(--mono); }
-        .rwy-role .ident { color: var(--text-bright); font-weight: 600; }
-        .rwy-role .role { color: var(--text-dim); font-size: 0.7rem; }
-        .rwy-role.unavail { text-decoration: line-through; opacity: 0.4; }
+        /* Runway selector grid */
+        .rwy-grid { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 0.6rem; }
+        .rwy-chip {
+            display: flex; flex-direction: column; align-items: center;
+            padding: 0.3rem 0.6rem; border-radius: 6px; cursor: pointer;
+            border: 2px solid var(--border); background: var(--bg);
+            min-width: 52px; transition: all 0.15s;
+            user-select: none;
+        }
+        .rwy-chip:hover { border-color: var(--text-dim); }
+        .rwy-chip.unavail { opacity: 0.25; cursor: not-allowed; border-style: dashed; }
+        .rwy-chip .rwy-id { font-family: var(--mono); font-size: 0.85rem; font-weight: 700; color: var(--text-bright); }
+        .rwy-chip .rwy-role { font-size: 0.6rem; font-weight: 600; margin-top: 0.1rem; }
+        .rwy-chip .rwy-wind { font-size: 0.6rem; color: var(--text-dim); margin-top: 0.1rem; }
+        .rwy-chip.role-A { border-color: var(--arr); background: var(--arr-dim); }
+        .rwy-chip.role-A .rwy-role { color: var(--arr); }
+        .rwy-chip.role-D { border-color: var(--dep); background: var(--dep-dim); }
+        .rwy-chip.role-D .rwy-role { color: var(--dep); }
+        .rwy-chip.role-AD { border-color: var(--accent); background: var(--accent-dim); }
+        .rwy-chip.role-AD .rwy-role { color: var(--accent); }
+        .rwy-chip.role-off { border-color: var(--border); background: var(--bg); }
+        .rwy-chip.role-off .rwy-role { color: var(--text-dim); }
+        .rwy-chip.role-off .rwy-id { color: var(--text-dim); }
 
-        .rwy-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; margin-bottom: 0.5rem; }
-        .rwy-table th { text-align: left; padding: 0.2rem 0.4rem; color: var(--text-dim); font-weight: 500; border-bottom: 1px solid var(--border); }
-        .rwy-table td { padding: 0.2rem 0.4rem; font-family: var(--mono); }
-        .rwy-table tr.unavail td { opacity: 0.35; text-decoration: line-through; }
-        .rwy-table tr.best td { color: var(--accent); font-weight: 600; }
-        .hw-pos { color: var(--ok); }
-        .hw-neg { color: var(--alert); }
-        .xw-ok { color: var(--text-dim); }
-        .xw-warn { color: var(--warn); }
-        .xw-bad { color: var(--alert); }
+        .rate-box { display: flex; gap: 1.5rem; align-items: baseline; padding: 0.6rem 0; border-top: 1px solid var(--border); margin-top: 0.4rem; flex-wrap: wrap; }
+        .rate-item { text-align: center; }
+        .rate-num { font-size: 1.5rem; font-weight: 700; font-family: var(--mono); }
+        .rate-label { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; }
+        .rate-arr .rate-num { color: var(--arr); }
+        .rate-dep .rate-num { color: var(--dep); }
+        .rate-total .rate-num { color: var(--accent); }
+        .rate-declared { font-size: 0.7rem; color: var(--text-dim); }
+        .rate-declared .val { font-family: var(--mono); }
+        .rate-sub { font-size: 0.65rem; color: var(--text-dim); width: 100%; }
 
-        .rate-box { padding: 0.6rem; margin-top: 0.5rem; border-top: 1px solid var(--border); display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; }
-        .rate-achievable { font-size: 1.6rem; font-weight: 700; font-family: var(--mono); }
-        .rate-declared { font-size: 0.85rem; color: var(--text-dim); }
-        .rate-declared .val { font-family: var(--mono); font-weight: 600; }
-        .rate-green { color: var(--ok); }
-        .rate-yellow { color: var(--warn); }
-        .rate-red { color: var(--alert); }
-        .rate-sub { font-size: 0.7rem; color: var(--text-dim); width: 100%; }
+        .metar-raw { font-size: 0.6rem; color: var(--text-dim); margin-top: 0.4rem; word-break: break-all; }
 
-        .metar-raw { font-size: 0.65rem; color: var(--text-dim); margin-top: 0.4rem; word-break: break-all; cursor: pointer; }
-        .metar-raw:hover { color: var(--text); }
+        .propose-btn { font-size: 0.65rem; background: none; border: 1px solid var(--accent-dim); color: var(--accent); border-radius: 3px; padding: 0.15rem 0.4rem; cursor: pointer; margin-left: auto; }
+        .propose-btn:hover { background: var(--accent-dim); }
     </style>
 </head>
 <body>
@@ -87,7 +99,6 @@
         <a href="/dashboard.html" class="pill">dashboard</a>
         <a href="/reports.html" class="pill">reports</a>
         <a href="/perti.html" class="pill">perti</a>
-        <a href="/map.html" class="pill">map</a>
     </div>
 </header>
 <main>
@@ -104,9 +115,12 @@ const PRECIP_CODES = ['RA','SN','DZ','TS','SH','FZ','GR','GS','PL','IC','UP'];
 const MAX_TAILWIND = 5;
 const MAX_XW_DRY = 25;
 const MAX_XW_WET = 15;
+const ROLE_CYCLE = ['off', 'A', 'D', 'A/D'];
 
 let thresholdsByApt = {};
 let configsByApt = {};
+// Per-airport state: { icao: { runways: { ident: { role, hdg, hw, xw, avail } }, metar, wet, rules } }
+let aptState = {};
 
 async function loadData() {
     const [thRes, cfgRes] = await Promise.all([
@@ -114,6 +128,7 @@ async function loadData() {
         fetch('/api/v1/runway-configs')
     ]);
     const thData = await thRes.json();
+    thresholdsByApt = {};
     for (const t of thData) {
         if (!thresholdsByApt[t.airport_icao]) thresholdsByApt[t.airport_icao] = [];
         thresholdsByApt[t.airport_icao].push({ ident: t.runway_ident, hdg: t.heading_deg });
@@ -123,205 +138,257 @@ async function loadData() {
 
 function windComponents(windDir, windSpd, rwyHdg) {
     const angle = ((windDir - rwyHdg + 360) % 360) * Math.PI / 180;
-    return {
-        headwind: Math.round(windSpd * Math.cos(angle)),
-        crosswind: Math.round(windSpd * Math.sin(angle))
-    };
+    return { headwind: Math.round(windSpd * Math.cos(angle)), crosswind: Math.round(windSpd * Math.sin(angle)) };
 }
 
-function isWet(metar) {
-    if (!metar || !metar.wx_codes) return false;
-    for (const wx of metar.wx_codes) {
-        const val = (wx.repr || wx.value || '').toUpperCase();
-        if (PRECIP_CODES.some(p => val.includes(p))) return true;
-    }
-    return false;
+function isWet(m) {
+    if (!m || !m.wx_codes) return false;
+    return m.wx_codes.some(wx => PRECIP_CODES.some(p => (wx.repr || wx.value || '').toUpperCase().includes(p)));
 }
 
-function rwyAvailable(headwind, xwAbs, wet) {
-    if (headwind < -MAX_TAILWIND) return false; // tailwind exceeds 5kt
-    const xwLimit = wet ? MAX_XW_WET : MAX_XW_DRY;
-    if (xwAbs > xwLimit) return false;
-    return true;
+function rwyAvailable(hw, xwAbs, wet) {
+    if (hw < -MAX_TAILWIND) return false;
+    return xwAbs <= (wet ? MAX_XW_WET : MAX_XW_DRY);
 }
 
-function selectConfig(icao, windDir, windSpd, wet, rules) {
+function autoPropose(icao) {
+    const st = aptState[icao];
+    if (!st) return;
     const aptCfg = configsByApt[icao];
-    if (!aptCfg || !aptCfg.configs) return null;
+    const vmc = (st.rules === 'VFR' || st.rules === 'MVFR');
 
-    // Calm wind: < 5kt, use preferred config
-    if (windSpd < 5 && aptCfg.calm_wind_config) {
-        const calm = aptCfg.configs.find(c => c.name === aptCfg.calm_wind_config);
-        if (calm) return { ...calm, _reason: 'calm wind' };
-    }
+    // Reset all to off
+    for (const r of Object.values(st.runways)) r.role = 'off';
 
-    // Determine VMC from flight rules
-    const vmc = (rules === 'VFR' || rules === 'MVFR');
-
-    // Score each config by headwind on primary arrival runway
-    // Prefer LAHSO configs when conditions allow (higher capacity)
-    let best = null, bestHw = -999, bestRate = 0;
-    for (const cfg of aptCfg.configs) {
-        // Check LAHSO requirements
-        if (cfg.requires) {
-            if (cfg.requires.dry && wet) continue;
-            if (cfg.requires.vmc && !vmc) continue;
-        }
-        const arrRwy = cfg.runways[cfg.primary_arr];
-        if (!arrRwy) continue;
-        const wc = windComponents(windDir, windSpd, arrRwy.hdg);
-        const avail = rwyAvailable(wc.headwind, Math.abs(wc.crosswind), wet);
-        if (!avail) continue;
-        // Also check departure runway if different
-        if (cfg.primary_dep !== cfg.primary_arr) {
-            const depRwy = cfg.runways[cfg.primary_dep];
-            if (depRwy) {
-                const dwc = windComponents(windDir, windSpd, depRwy.hdg);
-                if (!rwyAvailable(dwc.headwind, Math.abs(dwc.crosswind), wet)) continue;
+    if (aptCfg && aptCfg.configs) {
+        // Find best config
+        let best = null, bestRate = 0, bestHw = -999;
+        for (const cfg of aptCfg.configs) {
+            if (cfg.requires) {
+                if (cfg.requires.dry && st.wet) continue;
+                if (cfg.requires.vmc && !vmc) continue;
+            }
+            const arrRwy = st.runways[cfg.primary_arr];
+            if (!arrRwy || !arrRwy.avail) continue;
+            if (cfg.primary_dep !== cfg.primary_arr) {
+                const depRwy = st.runways[cfg.primary_dep];
+                if (!depRwy || !depRwy.avail) continue;
+            }
+            const rate = cfg.declared_arr_rate || 0;
+            const hw = arrRwy.hw;
+            if (rate > bestRate || (rate === bestRate && hw > bestHw)) {
+                bestRate = rate; bestHw = hw; best = cfg;
             }
         }
-        // Prefer higher declared rate, then better headwind
-        const rate = cfg.declared_arr_rate || 0;
-        if (rate > bestRate || (rate === bestRate && wc.headwind > bestHw)) {
-            bestHw = wc.headwind;
-            bestRate = rate;
-            const mode = cfg.mode === 'lahso' ? 'LAHSO' : cfg.mode === 'single_interleaved' ? 'single' : 'segregated';
-            best = { ...cfg, _hw: wc.headwind, _reason: `${mode}, best headwind` };
+        if (best) {
+            for (const [ident, info] of Object.entries(best.runways)) {
+                if (st.runways[ident]) st.runways[ident].role = info.role;
+            }
+            st.configName = best.label;
+            return;
         }
     }
-    return best;
+
+    // Fallback: best headwind runway as A/D
+    let bestRwy = null, bestHw2 = -999;
+    for (const [ident, r] of Object.entries(st.runways)) {
+        if (r.avail && r.hw > bestHw2) { bestHw2 = r.hw; bestRwy = ident; }
+    }
+    if (bestRwy) {
+        st.runways[bestRwy].role = 'A/D';
+        st.configName = `${bestRwy} (auto)`;
+    }
 }
 
-async function renderAirport(icao) {
-    const card = document.createElement('div');
-    card.className = 'apt-card';
+function renderCard(icao) {
+    const st = aptState[icao];
+    if (!st) return '<div class="apt-card"><span class="apt-icao">' + icao + '</span> No data</div>';
 
-    try {
-        const res = await fetch(`https://avwx.rest/api/metar/${icao}?token=${AVWX_TOKEN}`);
-        if (!res.ok) throw new Error('METAR fetch failed');
-        const m = await res.json();
+    const wxClass = { VFR: 'wx-vfr', MVFR: 'wx-mvfr', IFR: 'wx-ifr', LIFR: 'wx-lifr' }[st.rules] || '';
+    const wxCond = (st.rules === 'VFR' || st.rules === 'MVFR') ? 'VMC' : 'IMC';
+    const lahso = !st.wet && (st.rules === 'VFR' || st.rules === 'MVFR');
+    const xwLimit = st.wet ? MAX_XW_WET : MAX_XW_DRY;
 
-        const windDir = parseInt(m.wind_direction?.value || 0);
-        const windSpd = parseInt(m.wind_speed?.value || 0);
-        const gustSpd = parseInt(m.wind_gust?.value || windSpd);
-        const effectiveWind = Math.max(windSpd, gustSpd);
-        const rules = m.flight_rules || '?';
-        const wet = isWet(m);
-        const xwLimit = wet ? MAX_XW_WET : MAX_XW_DRY;
+    // Runway chips
+    const rwySorted = Object.entries(st.runways).sort((a, b) => a[1].hdg - b[1].hdg);
+    const chips = rwySorted.map(([ident, r]) => {
+        const roleClass = r.role === 'A' ? 'role-A' : r.role === 'D' ? 'role-D' : r.role === 'A/D' ? 'role-AD' : 'role-off';
+        const unavail = !r.avail ? 'unavail' : '';
+        const hwStr = r.hw >= 0 ? `+${r.hw}` : `${r.hw}`;
+        const roleLabel = r.role === 'off' ? '—' : r.role;
+        return `<div class="rwy-chip ${roleClass} ${unavail}" data-icao="${icao}" data-rwy="${ident}" onclick="toggleRwy('${icao}','${ident}')">
+            <span class="rwy-id">${ident}</span>
+            <span class="rwy-role">${roleLabel}</span>
+            <span class="rwy-wind">${hwStr} | ${r.xwAbs}${r.xw > 0 ? 'R' : 'L'}</span>
+        </div>`;
+    }).join('');
 
-        // Weather badges
-        const wxClass = { VFR: 'wx-vfr', MVFR: 'wx-mvfr', IFR: 'wx-ifr', LIFR: 'wx-lifr' }[rules] || '';
-        const wxCond = (rules === 'VFR' || rules === 'MVFR') ? 'VMC' : 'IMC';
+    // Count active arr/dep runways
+    const arrRwys = rwySorted.filter(([, r]) => r.role === 'A' || r.role === 'A/D');
+    const depRwys = rwySorted.filter(([, r]) => r.role === 'D' || r.role === 'A/D');
 
-        // Compute wind components for all runways
-        const rwys = (thresholdsByApt[icao] || []).map(r => {
-            const wc = windComponents(windDir, effectiveWind, r.hdg);
-            return { ...r, ...wc, xwAbs: Math.abs(wc.crosswind), avail: rwyAvailable(wc.headwind, Math.abs(wc.crosswind), wet) };
-        });
-        rwys.sort((a, b) => b.headwind - a.headwind);
+    // Get best headwind from active arrival runways for AAR calc
+    const bestArrHw = arrRwys.length > 0 ? Math.max(...arrRwys.map(([, r]) => r.hw)) : 0;
 
-        // Select config
-        const cfg = selectConfig(icao, windDir, effectiveWind, wet, rules);
+    return `
+        <div class="apt-header">
+            <span class="apt-icao">${icao}</span>
+            <span class="badge ${wxClass}">${st.rules}</span>
+            <span class="badge" style="background:var(--bg);border:1px solid var(--border);color:var(--text-dim)">${wxCond}</span>
+            <span class="badge ${st.wet ? 'badge-wet' : 'badge-dry'}">${st.wet ? 'WET' : 'DRY'}</span>
+            ${lahso ? '<span class="badge badge-lahso">LAHSO</span>' : '<span class="badge badge-nolahso">no LAHSO</span>'}
+            <button class="propose-btn" onclick="propose('${icao}')">Auto</button>
+        </div>
+        <div class="wind-line">Wind <span class="val">${st.windDir}°/${st.windSpd}kt</span>${st.gustSpd > st.windSpd ? ` G${st.gustSpd}` : ''} | XW lim ${xwLimit}kt | ${st.configName || ''}</div>
+        <div class="rwy-grid">${chips}</div>
+        <div class="rate-box" id="rates-${icao}">
+            <div class="rate-item rate-arr"><div class="rate-num" id="aar-${icao}">—</div><div class="rate-label">AAR</div></div>
+            <div class="rate-item rate-dep"><div class="rate-num" id="adr-${icao}">—</div><div class="rate-label">ADR</div></div>
+            <div class="rate-item rate-total"><div class="rate-num" id="total-${icao}">—</div><div class="rate-label">Total</div></div>
+            <div class="rate-sub" id="rate-detail-${icao}"></div>
+        </div>
+        <div class="metar-raw">${st.metar || ''}</div>
+    `;
+}
 
-        // Config display
-        let configHtml = '';
-        let arrHw = 0;
-        if (cfg) {
-            const roles = Object.entries(cfg.runways).map(([ident, r]) => {
-                const rwy = rwys.find(x => x.ident === ident);
-                const avail = rwy ? rwy.avail : true;
-                return `<span class="rwy-role ${avail ? '' : 'unavail'}"><span class="ident">${ident}</span> <span class="role">${r.role}</span></span>`;
-            }).join('');
-            const arrRwy = rwys.find(r => r.ident === cfg.primary_arr);
-            arrHw = arrRwy ? arrRwy.headwind : 0;
-            const lahsoAvail = !wet && (rules === 'VFR' || rules === 'MVFR');
-            const lahsoBadge = lahsoAvail
-                ? '<span class="badge" style="background:var(--ok-dim);color:var(--ok)">LAHSO avail</span>'
-                : '<span class="badge" style="background:var(--bg);border:1px solid var(--border);color:var(--text-dim)">no LAHSO</span>';
-            configHtml = `<div class="config-section">
-                <div class="config-label">Config: <span class="badge badge-config">${cfg.label}</span> ${lahsoBadge} (${cfg._reason})</div>
-                <div class="rwy-roles">${roles}</div>
-            </div>`;
-        }
+function toggleRwy(icao, ident) {
+    const st = aptState[icao];
+    if (!st || !st.runways[ident]) return;
+    const r = st.runways[ident];
+    if (!r.avail) return; // can't activate unavailable runway
 
-        // Runway table (all runways, not just config)
-        let rwyHtml = '<table class="rwy-table"><thead><tr><th>Rwy</th><th>Hdg</th><th>HW/TW</th><th>XW</th><th></th></tr></thead><tbody>';
-        for (const r of rwys) {
-            const isBest = cfg && r.ident === cfg.primary_arr;
-            const hwClass = r.headwind >= 0 ? 'hw-pos' : 'hw-neg';
-            const hwLabel = r.headwind >= 0 ? `+${r.headwind}` : `${r.headwind}`;
-            const xwClass = r.xwAbs <= 12 ? 'xw-ok' : r.xwAbs <= 20 ? 'xw-warn' : 'xw-bad';
-            const xwDir = r.crosswind > 0 ? 'R' : r.crosswind < 0 ? 'L' : '';
-            const reason = !r.avail ? (r.headwind < -MAX_TAILWIND ? 'TW' : 'XW') : '';
-            rwyHtml += `<tr class="${!r.avail ? 'unavail' : ''} ${isBest ? 'best' : ''}">
-                <td>${r.ident}</td><td>${r.hdg}°</td>
-                <td class="${hwClass}">${hwLabel}kt</td>
-                <td class="${xwClass}">${r.xwAbs}kt${xwDir}</td>
-                <td style="font-size:0.65rem;color:var(--alert)">${reason}</td>
-            </tr>`;
-        }
-        rwyHtml += '</tbody></table>';
+    const idx = ROLE_CYCLE.indexOf(r.role);
+    r.role = ROLE_CYCLE[(idx + 1) % ROLE_CYCLE.length];
+    st.configName = 'Manual';
 
-        // AAR computation
-        let rateHtml = '';
-        if (cfg) {
-            try {
-                const aarRes = await fetch(`/api/v1/aar/calculate?airport=${icao}&headwind=${arrHw}`);
-                const aar = await aarRes.json();
-                const declared = cfg.declared_arr_rate;
-                const ratio = aar.aar / declared;
-                const rateClass = ratio >= 0.95 ? 'rate-green' : ratio >= 0.8 ? 'rate-yellow' : 'rate-red';
-                const windEffect = aar.aar_calm - aar.aar;
-                rateHtml = `<div class="rate-box">
-                    <span class="rate-achievable ${rateClass}">${aar.aar}/hr</span>
-                    <span class="rate-declared">declared <span class="val">${declared}/hr</span></span>
-                    <div class="rate-sub">Calm: ${aar.aar_calm}/hr${windEffect > 0 ? ` | Wind: -${windEffect}` : ''} | Gap: ${aar.avg_gap_sec}s | Mix: ${aar.mix_source}</div>
-                </div>`;
-            } catch (e) {
-                rateHtml = '<div class="rate-sub">AAR unavailable</div>';
-            }
-        } else {
-            // No config — show best runway AAR
-            const bestRwy = rwys.find(r => r.avail);
-            if (bestRwy) {
-                try {
-                    const aarRes = await fetch(`/api/v1/aar/calculate?airport=${icao}&headwind=${bestRwy.headwind}`);
-                    const aar = await aarRes.json();
-                    rateHtml = `<div class="rate-box">
-                        <span class="rate-achievable" style="color:var(--text-bright)">${aar.aar}/hr</span>
-                        <span class="rate-declared">best rwy ${bestRwy.ident}</span>
-                        <div class="rate-sub">Gap: ${aar.avg_gap_sec}s | Mix: ${aar.mix_source}</div>
-                    </div>`;
-                } catch (e) {}
-            }
-        }
+    refreshCard(icao);
+}
 
-        card.innerHTML = `
-            <div class="apt-header">
-                <span class="apt-icao">${icao}</span>
-                <span class="badge ${wxClass}">${rules}</span>
-                <span class="badge" style="background:var(--bg);border:1px solid var(--border);color:var(--text-dim)">${wxCond}</span>
-                <span class="badge ${wet ? 'badge-wet' : 'badge-dry'}">${wet ? 'WET' : 'DRY'}</span>
-            </div>
-            <div class="wind-line">Wind <span class="val">${windDir}°/${effectiveWind}kt</span>${gustSpd > windSpd ? ` G${gustSpd}` : ''} | XW limit ${xwLimit}kt</div>
-            ${configHtml}
-            ${rwyHtml}
-            ${rateHtml}
-            <div class="metar-raw">${m.raw || ''}</div>
-        `;
-    } catch (err) {
-        card.innerHTML = `<div class="apt-header"><span class="apt-icao">${icao}</span></div><div style="color:var(--alert);padding:0.5rem 0">${err.message}</div>`;
+function propose(icao) {
+    autoPropose(icao);
+    refreshCard(icao);
+}
+
+function refreshCard(icao) {
+    const card = document.querySelector(`[data-card="${icao}"]`);
+    if (card) {
+        card.innerHTML = renderCard(icao);
+        computeRates(icao);
     }
-    return card;
+}
+
+async function computeRates(icao) {
+    const st = aptState[icao];
+    if (!st) return;
+
+    const arrRwys = Object.entries(st.runways).filter(([, r]) => r.role === 'A' || r.role === 'A/D');
+    const depRwys = Object.entries(st.runways).filter(([, r]) => r.role === 'D' || r.role === 'A/D');
+
+    if (arrRwys.length === 0 && depRwys.length === 0) {
+        document.getElementById(`aar-${icao}`).textContent = '—';
+        document.getElementById(`adr-${icao}`).textContent = '—';
+        document.getElementById(`total-${icao}`).textContent = '—';
+        document.getElementById(`rate-detail-${icao}`).textContent = 'No active runways';
+        return;
+    }
+
+    // For each arrival runway, compute AAR from fleet mix + headwind
+    let totalArr = 0;
+    let arrDetails = [];
+    for (const [ident, r] of arrRwys) {
+        try {
+            const res = await fetch(`/api/v1/aar/calculate?airport=${icao}&headwind=${r.hw}`);
+            const d = await res.json();
+            // If this runway is also A/D (shared), halve the arrival rate
+            const shared = r.role === 'A/D';
+            const rate = shared ? Math.round(d.aar * 0.6) : d.aar; // ~60% arrivals on shared
+            totalArr += rate;
+            arrDetails.push(`${ident}: ${rate}`);
+        } catch (e) {
+            arrDetails.push(`${ident}: err`);
+        }
+    }
+
+    // Departure rate: dedicated dep runways get full rate estimate,
+    // shared A/D runways get remainder
+    let totalDep = 0;
+    let depDetails = [];
+    for (const [ident, r] of depRwys) {
+        if (r.role === 'D') {
+            // Dedicated departure runway — estimate ~20/hr (typ single runway dep rate)
+            totalDep += 20;
+            depDetails.push(`${ident}: 20`);
+        } else {
+            // A/D shared — remainder after arrivals
+            const shared = Math.round(totalArr * 0.4 / 0.6); // inverse of the 60/40 split
+            totalDep += Math.min(shared, 12);
+            depDetails.push(`${ident}: ${Math.min(shared, 12)}`);
+        }
+    }
+
+    const el = (id, txt) => { const e = document.getElementById(id); if (e) e.textContent = txt; };
+    el(`aar-${icao}`, `${totalArr}/hr`);
+    el(`adr-${icao}`, `${totalDep}/hr`);
+    el(`total-${icao}`, `${totalArr + totalDep}/hr`);
+    el(`rate-detail-${icao}`, `ARR: ${arrDetails.join(', ')} | DEP: ${depDetails.join(', ')}`);
 }
 
 async function loadAll() {
     const grid = document.getElementById('grid');
     grid.innerHTML = '<div style="color:var(--text-dim);padding:1rem;">Loading...</div>';
     await loadData();
-    const cards = await Promise.all(AIRPORTS.map(renderAirport));
+
+    // Fetch all METARs
+    const metarPromises = AIRPORTS.map(async (icao) => {
+        try {
+            const res = await fetch(`https://avwx.rest/api/metar/${icao}?token=${AVWX_TOKEN}`);
+            if (!res.ok) throw new Error('fail');
+            return { icao, data: await res.json() };
+        } catch (e) {
+            return { icao, data: null };
+        }
+    });
+    const metars = await Promise.all(metarPromises);
+
+    // Build state
+    for (const { icao, data: m } of metars) {
+        if (!m) { aptState[icao] = null; continue; }
+
+        const windDir = parseInt(m.wind_direction?.value || 0);
+        const windSpd = parseInt(m.wind_speed?.value || 0);
+        const gustSpd = parseInt(m.wind_gust?.value || windSpd);
+        const effectiveWind = Math.max(windSpd, gustSpd);
+        const wet = isWet(m);
+        const rules = m.flight_rules || '?';
+
+        const rwys = {};
+        for (const t of (thresholdsByApt[icao] || [])) {
+            const wc = windComponents(windDir, effectiveWind, t.hdg);
+            rwys[t.ident] = {
+                hdg: t.hdg,
+                hw: wc.headwind,
+                xw: wc.crosswind,
+                xwAbs: Math.abs(wc.crosswind),
+                avail: rwyAvailable(wc.headwind, Math.abs(wc.crosswind), wet),
+                role: 'off'
+            };
+        }
+
+        aptState[icao] = { windDir, windSpd, gustSpd, effectiveWind: effectiveWind, wet, rules, runways: rwys, metar: m.raw || '', configName: '' };
+        autoPropose(icao);
+    }
+
+    // Render
     grid.innerHTML = '';
-    cards.forEach(c => grid.appendChild(c));
+    for (const icao of AIRPORTS) {
+        const card = document.createElement('div');
+        card.className = 'apt-card';
+        card.setAttribute('data-card', icao);
+        card.innerHTML = renderCard(icao);
+        grid.appendChild(card);
+        computeRates(icao);
+    }
+
     document.getElementById('last-update').textContent = `Updated ${new Date().toISOString().substring(11, 16)}Z`;
 }
 
