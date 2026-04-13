@@ -1361,8 +1361,8 @@ final class Kernel
             Flight::PHASE_FILED      => 'FILED',
             Flight::PHASE_TAXI_OUT   => 'TAXI_OUT',
             Flight::PHASE_DEPARTED   => 'CLIMBOUT',
-            Flight::PHASE_ENROUTE    => ($alt < $fp - 2000) ? 'CLIMBOUT'
-                                      : (($alt > $fp - 2000 && $f->last_groundspeed_kts !== null
+            Flight::PHASE_ENROUTE    => ($alt < $fp - 2000 && $f->eldt === null) ? 'CLIMBOUT'
+                                      : (($f->last_groundspeed_kts !== null
                                           && $f->ades !== null
                                           && $f->last_lat !== null && $f->last_lon !== null
                                           && self::isDescending($f)) ? 'DESCENT' : 'CRUISE'),

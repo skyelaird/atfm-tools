@@ -977,8 +977,10 @@ function renderAirportDetail(d) {
             { cls: 'mono muted', text: hhmmz(f.eobt), sortKey: f.eobt || '' },
             { cls: 'mono muted', text: hhmmz(f.ttot), sortKey: f.ttot || '' },
             { cls: 'mono', text: hhmmz(f.ctot), sortKey: f.ctot || '' },
-        ])
-    ), 'outbound');
+        ]),
+        'outbound',
+        (idx) => showFlightPopup(d.outbound[idx])
+    ));
 
     // Recent arrivals (last 6h). AXIT = AIBT − ALDT per the EUROCONTROL
     // Airport CDM Manual; what users colloquially call "actual taxi-in".
@@ -997,8 +999,10 @@ function renderAirportDetail(d) {
             { cls: 'mono', text: hhmmz(f.aldt), sortKey: f.aldt || '' },
             { cls: 'mono muted', text: hhmmz(f.aibt), sortKey: f.aibt || '' },
             { cls: 'mono', text: f.actual_exit_min ? f.actual_exit_min + 'm' : '—', sortKey: f.actual_exit_min ?? -1 },
-        ])
-    ), 'recent_arrivals');
+        ]),
+        'recent_arrivals',
+        (idx) => showFlightPopup(d.recent_arrivals[idx])
+    ));
 
     // Recent departures (last 6h). EOBT shown so the EOBT-vs-AOBT delta is
     // legible at a glance — usually it'll show that filed EOBT is, ahem,
@@ -1016,8 +1020,10 @@ function renderAirportDetail(d) {
             { cls: 'mono', text: hhmmz(f.atot), sortKey: f.atot || '' },
             { cls: 'mono', text: f.actual_exot_min ? f.actual_exot_min + 'm' : '—', sortKey: f.actual_exot_min ?? -1 },
             { cls: 'mono muted', text: f.eobt_delay_min == null ? '—' : (f.eobt_delay_min >= 0 ? '+' : '') + f.eobt_delay_min + 'm', sortKey: f.eobt_delay_min ?? -9999 },
-        ])
-    ), 'recent_departures');
+        ]),
+        'recent_departures',
+        (idx) => showFlightPopup(d.recent_departures[idx])
+    ));
 }
 
 function statCard(label, value, unit) {
