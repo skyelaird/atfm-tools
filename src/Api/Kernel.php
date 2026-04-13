@@ -543,7 +543,19 @@ final class Kernel
                 ->map(function (Flight $f) use ($airport, $now) {
                     $eldtIso = $f->eldt?->format('c');
                     $eldtSource = $f->eldt !== null ? 'STORED' : null;
-                    if ($eldtIso === null) {
+                    // Live ELDT fallback: only compute for flights that are
+                    // at cruise or approaching — same eligibility as the
+                    // ingestor. No ELDT for FILED, FLS-NRA, or climbing.
+                    $atCruise = $f->phase === Flight::PHASE_ENROUTE
+                        && ($f->last_altitude_ft ?? 0) >= (($f->fp_altitude_ft ?? 35000) - 2000);
+                    $inApproach = $f->phase === Flight::PHASE_ARRIVING;
+                    // Suppress ELDT for FLS-NRA — flight hasn't departed,
+                    // any stored ELDT is noise from before the filter deployed.
+                    if ($f->delay_status === 'FLS_NRA' && $f->eldt_locked === null) {
+                        $eldtIso = null;
+                        $eldtSource = null;
+                    }
+                    if ($eldtIso === null && ($atCruise || $inApproach)) {
                         $est = \Atfm\Allocator\EtaEstimator::estimate($f, $airport, $now);
                         if ($est['epoch'] !== null) {
                             $eldtIso = (new DateTimeImmutable('@' . $est['epoch']))
