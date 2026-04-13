@@ -38,7 +38,7 @@ final class VatsimIngestor
      * matches the typical FMP slot-blocking decision horizon. Bump this
      * to test prediction quality at different lookback windows.
      */
-    public const ELDT_LOCK_HORIZON_MIN = 120;
+    public const ELDT_LOCK_HORIZON_MIN = 122;
 
     private Client $http;
 
