@@ -1146,6 +1146,101 @@ final class Kernel
         });
 
         // ------------------------------------------------------------------
+        //  Observed wind from recent final approach speeds
+        // ------------------------------------------------------------------
+        $app->get('/api/v1/aar/observed-wind', function ($req, $res) {
+            $params = $req->getQueryParams();
+            $icao = strtoupper($params['airport'] ?? '');
+            $hours = min((int) ($params['hours'] ?? 2), 6);
+
+            if (!$icao) {
+                return self::json($res, ['error' => 'airport required'], 400);
+            }
+
+            $wakeData = json_decode(
+                file_get_contents(__DIR__ . '/../../data/wake-separation.json'),
+                true
+            );
+            $cats = $wakeData['categories'];
+
+            // Map types to Vat
+            $typeToVat = [];
+            foreach ($cats as $cat => $info) {
+                foreach ($info['examples'] as $type) {
+                    $typeToVat[$type] = $info['vat_kt'];
+                }
+            }
+
+            // Find recent arrivals with ALDT
+            $since = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify("-{$hours} hours");
+            $arrivals = Flight::where('ades', $icao)
+                ->whereNotNull('aldt')
+                ->where('aldt', '>=', $since->format('Y-m-d H:i:s'))
+                ->whereNotNull('aircraft_type')
+                ->get(['id', 'callsign', 'aircraft_type', 'aldt']);
+
+            $observations = [];
+            $headwinds = [];
+
+            $airport = Airport::where('icao', $icao)->first();
+            $aptLat = $airport ? (float) $airport->latitude : null;
+            $aptLon = $airport ? (float) $airport->longitude : null;
+
+            foreach ($arrivals as $f) {
+                // Get the last position_scratch observation for this flight
+                // where altitude < 3000ft AGL and within 10nm of airport
+                $aptElev = $airport ? (int) $airport->elevation_ft : 0;
+                $lastPos = \Atfm\Models\PositionScratch::where('flight_id', $f->id)
+                    ->where('altitude_ft', '<', $aptElev + 3000)
+                    ->where('groundspeed_kts', '>', 50) // on approach, not taxiing
+                    ->orderBy('observed_at', 'desc')
+                    ->first();
+
+                if (!$lastPos) continue;
+
+                // Check within 10nm of airport
+                if ($aptLat !== null) {
+                    $dist = Geo::distanceNm(
+                        (float) $lastPos->lat, (float) $lastPos->lon,
+                        $aptLat, $aptLon
+                    );
+                    if ($dist > 10) continue;
+                }
+
+                $vat = $typeToVat[$f->aircraft_type] ?? 135; // default Cat C
+                $gs = $lastPos->groundspeed_kts;
+                $hw = $vat - $gs; // positive = headwind
+
+                $observations[] = [
+                    'callsign' => $f->callsign,
+                    'type'     => $f->aircraft_type,
+                    'vat_kt'   => $vat,
+                    'gs_kt'    => $gs,
+                    'hw_kt'    => $hw,
+                    'alt_ft'   => $lastPos->altitude_ft,
+                    'dist_nm'  => $aptLat ? round(Geo::distanceNm(
+                        (float) $lastPos->lat, (float) $lastPos->lon,
+                        $aptLat, $aptLon
+                    ), 1) : null,
+                    'at'       => $lastPos->observed_at->format('c'),
+                ];
+                $headwinds[] = $hw;
+            }
+
+            $avgHw = count($headwinds) > 0
+                ? (int) round(array_sum($headwinds) / count($headwinds))
+                : null;
+
+            return self::json($res, [
+                'airport'          => $icao,
+                'hours'            => $hours,
+                'sample_count'     => count($observations),
+                'avg_headwind_kt'  => $avgHw,
+                'observations'     => $observations,
+            ]);
+        });
+
+        // ------------------------------------------------------------------
         //  AAR Calculator
         // ------------------------------------------------------------------
         $app->get('/api/v1/aar/calculate', function ($req, $res) {

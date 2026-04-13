@@ -89,8 +89,12 @@
             <input type="number" id="headwind" value="10" min="-30" max="50" step="1" style="width:70px">
         </div>
         <div class="control-group">
-            <label>or fetch METAR</label>
-            <button class="compute" id="fetch-wind">Get Wind</button>
+            <label>METAR wind</label>
+            <button class="compute" id="fetch-wind">METAR</button>
+        </div>
+        <div class="control-group">
+            <label>Observed finals</label>
+            <button class="compute" id="fetch-observed" style="background:#1e3a5f;color:#60a5fa;border-color:#60a5fa;">Observed</button>
         </div>
         <div class="control-group" id="wind-info" style="font-size:0.8rem;color:var(--text-dim)"></div>
     </div>
@@ -253,12 +257,62 @@ $('fetch-wind').addEventListener('click', async () => {
     }
 });
 
+// Fetch observed headwind from recent final approach speeds
+$('fetch-observed').addEventListener('click', async () => {
+    const icao = $('airport').value;
+    $('wind-info').textContent = 'Fetching approach data...';
+    try {
+        const res = await fetch(`/api/v1/aar/observed-wind?airport=${icao}&hours=2`);
+        const d = await res.json();
+        if (d.sample_count === 0) {
+            $('wind-info').textContent = `No recent arrivals at ${icao} in last 2h`;
+            return;
+        }
+        $('headwind').value = d.avg_headwind_kt;
+        let detail = d.observations.slice(0, 5).map(o =>
+            `${o.callsign} ${o.type} Vat${o.vat_kt}-GS${o.gs_kt}=${o.hw_kt}kt`
+        ).join(', ');
+        if (d.sample_count > 5) detail += ` +${d.sample_count - 5} more`;
+        $('wind-info').innerHTML = `Observed: avg HW <b>${d.avg_headwind_kt}kt</b> from ${d.sample_count} arrivals<br><span style="font-size:0.7rem">${detail}</span>`;
+        compute();
+    } catch (err) {
+        $('wind-info').textContent = `Error: ${err.message}`;
+    }
+});
+
 // Recompute on any input change
 $('airport').addEventListener('change', compute);
 $('headwind').addEventListener('change', compute);
 
-// Initial load
-compute();
+// Initial load: fetch METAR wind, then check if observed data exists
+async function init() {
+    const icao = $('airport').value;
+    // Start with METAR
+    try {
+        const res = await fetch(`https://avwx.rest/api/metar/${icao}?token=vmtkb1D8Tuva2Jw2tXihWcKE3m2sfDJkySBZygVx82I`);
+        const data = await res.json();
+        const windDir = parseInt(data.wind_direction?.value || 0);
+        const windSpd = parseInt(data.wind_speed?.value || 0);
+        const gustSpd = parseInt(data.wind_gust?.value || windSpd);
+        const effectiveWind = Math.max(windSpd, gustSpd);
+        // Simple headwind estimate using runway — assume into-wind runway
+        $('headwind').value = effectiveWind;
+        $('wind-info').textContent = `METAR: ${windDir}/${effectiveWind}kt (assuming into-wind runway)`;
+    } catch (e) { /* silent */ }
+
+    // Then try observed — if we have data, it overrides METAR
+    try {
+        const res = await fetch(`/api/v1/aar/observed-wind?airport=${icao}&hours=2`);
+        const d = await res.json();
+        if (d.sample_count >= 3) {
+            $('headwind').value = d.avg_headwind_kt;
+            $('wind-info').textContent = `Observed: avg HW ${d.avg_headwind_kt}kt from ${d.sample_count} arrivals (overrides METAR)`;
+        }
+    } catch (e) { /* silent — stick with METAR */ }
+
+    compute();
+}
+init();
 </script>
 </body>
 </html>
