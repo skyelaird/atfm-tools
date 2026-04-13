@@ -529,7 +529,10 @@ final class Kernel
             // estimate). ELDT is computed live via EtaEstimator if the
             // ingestor's stored value is null — that way long-range
             // ENROUTE flights still get a usable arrival estimate.
-            $liveExclude = [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED];
+            $liveExclude = [
+                Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED,
+                Flight::PHASE_TAXI_IN, Flight::PHASE_ON_RUNWAY, Flight::PHASE_VACATED,
+            ];
             // Sort inbound by ELDT ascending, nulls last. Flights without
             // an ELDT (e.g. FILED phase, no ETE filed) sink to the bottom
             // rather than floating to the top via EOBT fallback — an

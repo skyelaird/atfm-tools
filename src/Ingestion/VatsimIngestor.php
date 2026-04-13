@@ -518,11 +518,20 @@ final class VatsimIngestor
 
         $flight->last_updated_at = $now;
 
-        // Belt-and-suspenders: clear FLS-NRA for any flight that already
-        // has ATOT (airborne). Catches flights whose ATOT was stamped
-        // before the FLS-NRA clear-on-departure fix was deployed.
-        if ($flight->delay_status === 'FLS_NRA' && $flight->atot !== null) {
+        // Belt-and-suspenders: clear FLS-NRA / WITHDRAWN for any flight
+        // that already has ATOT (airborne). Catches flights whose ATOT
+        // was stamped before the clear-on-departure fix, or that were
+        // WITHDRAWN by the 60-min timeout then actually departed.
+        if (in_array($flight->delay_status, ['FLS_NRA', Flight::DELAY_WITHDRAWN], true)
+            && $flight->atot !== null
+        ) {
             $flight->delay_status = null;
+            // Also un-withdraw the phase if it was set to WITHDRAWN
+            if ($flight->phase === Flight::PHASE_WITHDRAWN) {
+                $flight->phase = $phase; // restore to current observed phase
+                $flight->phase_updated_at = $now;
+                $flight->finalized_at = null;
+            }
         }
 
         // Stale TAXI_OUT detection: if a flight has been in TAXI_OUT phase
