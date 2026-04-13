@@ -518,6 +518,13 @@ final class VatsimIngestor
 
         $flight->last_updated_at = $now;
 
+        // Belt-and-suspenders: clear FLS-NRA for any flight that already
+        // has ATOT (airborne). Catches flights whose ATOT was stamped
+        // before the FLS-NRA clear-on-departure fix was deployed.
+        if ($flight->delay_status === 'FLS_NRA' && $flight->atot !== null) {
+            $flight->delay_status = null;
+        }
+
         // Stale TAXI_OUT detection: if a flight has been in TAXI_OUT phase
         // for more than 30 min past its TTOT, something is wrong — pilot
         // is AFK, holding indefinitely, or the sim froze. Flag as FLS-NRA
