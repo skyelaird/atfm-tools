@@ -518,6 +518,18 @@ final class VatsimIngestor
 
         $flight->last_updated_at = $now;
 
+        // Stale TAXI_OUT detection: if a flight has been in TAXI_OUT phase
+        // for more than 30 min past its TTOT, something is wrong — pilot
+        // is AFK, holding indefinitely, or the sim froze. Flag as FLS-NRA
+        // so the FMP knows this slot is unreliable.
+        if ($phase === Flight::PHASE_TAXI_OUT
+            && $flight->ttot !== null
+            && $now->getTimestamp() > $flight->ttot->getTimestamp() + (30 * 60)
+            && $flight->atot === null
+        ) {
+            $flight->delay_status = 'FLS_NRA';
+        }
+
         // FLS-NRA detection: "Filed, Not Reported Airborne." If the flight
         // has an EOBT in the past, is still on the ground (no ATOT), and
         // hasn't been assigned a CTOT, flag it. This tells the FMP "this
