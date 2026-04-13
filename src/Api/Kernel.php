@@ -666,6 +666,9 @@ final class Kernel
                     'aibt'            => $f->aibt?->format('c'),
                     'actual_exit_min' => $f->actual_exit_min,
                     'eldt_locked'     => $f->eldt_locked?->format('c'),
+                    'eldt_simbrief'   => $f->eldt_simbrief?->format('c'),
+                    'eldt_perti'      => $f->eldt_perti?->format('c'),
+                    'is_simbrief'     => (bool) $f->is_simbrief,
                     'tldt'            => $f->tldt?->format('c'),
                 ])->values()->all();
 

@@ -521,6 +521,10 @@ final class VatsimIngestor
                             $flight->eldt_locked        = $flight->eldt;
                             $flight->eldt_locked_at     = $now;
                             $flight->eldt_locked_source = $est['source'];
+
+                            // Snapshot PERTI's ETA at freeze time for
+                            // three-way comparison: ours vs PERTI vs ALDT.
+                            $this->snapshotPertiEta($flight);
                         }
                     }
                 }
@@ -684,6 +688,70 @@ final class VatsimIngestor
                 'observed_at'     => $now,
             ]);
         }
+    }
+
+    /**
+     * Snapshot PERTI's current ETA for a flight at ELDT freeze time.
+     * Best-effort — failure is silent (PERTI may be down or slow).
+     */
+    private function snapshotPertiEta(Flight $flight): void
+    {
+        if ($flight->eldt_perti !== null) {
+            return; // already captured
+        }
+
+        // Lazy-load PERTI ADL index (once per ingest run)
+        if ($this->pertiAdlIndex === null) {
+            $this->pertiAdlIndex = $this->fetchPertiAdlIndex();
+        }
+
+        $pf = $this->pertiAdlIndex[$flight->flight_key]
+            ?? $this->pertiAdlIndex[$flight->callsign . '|' . $flight->ades]
+            ?? null;
+
+        if ($pf !== null && !empty($pf['eta_utc'])) {
+            $ts = strtotime($pf['eta_utc']);
+            if ($ts && $ts > 0) {
+                $flight->eldt_perti = (new DateTimeImmutable('@' . $ts))
+                    ->setTimezone(new \DateTimeZone('UTC'));
+            }
+        }
+    }
+
+    /** @var array|null Lazy-loaded PERTI ADL index (flight_key + cs|ades) */
+    private ?array $pertiAdlIndex = null;
+
+    private function fetchPertiAdlIndex(): array
+    {
+        $key = 'swim_pub_7783b37a28c167af41788599954e3e39';
+        $ctx = stream_context_create([
+            'http' => [
+                'header' => "Authorization: Bearer {$key}\r\n",
+                'timeout' => 5,
+            ],
+            'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
+        ]);
+        $raw = @file_get_contents('https://perti.vatcscc.org/api/adl/current', false, $ctx);
+        if ($raw === false) {
+            return []; // PERTI unreachable — silent fail
+        }
+        $adl = json_decode($raw, true);
+        if (!$adl || !isset($adl['flights'])) {
+            return [];
+        }
+
+        $index = [];
+        foreach ($adl['flights'] as $pf) {
+            if (isset($pf['flight_key'])) {
+                $index[$pf['flight_key']] = $pf;
+            }
+            $cs = $pf['callsign'] ?? '';
+            $dest = $pf['fp_dest_icao'] ?? '';
+            if ($cs && $dest) {
+                $index[$cs . '|' . $dest] = $pf;
+            }
+        }
+        return $index;
     }
 
     private function parseAltitude(?string $alt): ?int

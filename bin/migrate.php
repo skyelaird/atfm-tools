@@ -414,4 +414,14 @@ if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'had_atc_at_
     echo "✓ added flights.had_atc_at_arrival (v0.5.13)\n";
 }
 
+// v0.5.15: PERTI ETA snapshot — captured at ELDT freeze time for
+// three-way comparison: our ELDT vs PERTI ETA vs ALDT.
+if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'eldt_perti')) {
+    $schema->table('flights', function (Blueprint $t) {
+        $t->dateTime('eldt_perti')->nullable()->after('eldt_simbrief')
+            ->comment('PERTI eta_utc snapshot at ELDT freeze time');
+    });
+    echo "✓ added flights.eldt_perti (v0.5.15)\n";
+}
+
 echo "done.\n";
