@@ -1,0 +1,58 @@
+{
+  "_doc": "Per-airport runway configurations. Each config is a direction grouping with arrival/departure runway roles and declared rates. Wind auto-selects the best config.",
+  "CYYZ": {
+    "calm_wind_config": "15",
+    "configs": [
+      {
+        "name": "06",
+        "label": "06 Direction",
+        "runways": {
+          "05":  { "role": "A/D", "hdg": 57 },
+          "06L": { "role": "D",   "hdg": 57 },
+          "06R": { "role": "A",   "hdg": 57 }
+        },
+        "primary_arr": "06R",
+        "primary_dep": "06L",
+        "declared_arr_rate": 40,
+        "declared_dep_rate": 16
+      },
+      {
+        "name": "24",
+        "label": "24 Direction",
+        "runways": {
+          "23":  { "role": "A/D", "hdg": 237 },
+          "24L": { "role": "A",   "hdg": 237 },
+          "24R": { "role": "D",   "hdg": 237 }
+        },
+        "primary_arr": "24L",
+        "primary_dep": "24R",
+        "declared_arr_rate": 40,
+        "declared_dep_rate": 16
+      },
+      {
+        "name": "15",
+        "label": "15 Direction",
+        "runways": {
+          "15R": { "role": "A", "hdg": 147 },
+          "15L": { "role": "D", "hdg": 147 }
+        },
+        "primary_arr": "15R",
+        "primary_dep": "15L",
+        "declared_arr_rate": 40,
+        "declared_dep_rate": 16
+      },
+      {
+        "name": "33",
+        "label": "33 Direction",
+        "runways": {
+          "33L": { "role": "A", "hdg": 327 },
+          "33R": { "role": "D", "hdg": 327 }
+        },
+        "primary_arr": "33L",
+        "primary_dep": "33R",
+        "declared_arr_rate": 40,
+        "declared_dep_rate": 16
+      }
+    ]
+  }
+}
