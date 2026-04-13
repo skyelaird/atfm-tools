@@ -1141,6 +1141,107 @@ final class Kernel
         $app->get('/api/v1/debug/runway-thresholds', function ($req, $res) {
             return self::json($res, RunwayThreshold::orderBy('airport_icao')->orderBy('runway_ident')->get()->toArray());
         });
+
+        // ------------------------------------------------------------------
+        //  PERTI cross-validation endpoint
+        // ------------------------------------------------------------------
+        $app->get('/api/v1/perti/compare', function ($req, $res) {
+            $swimKey = 'swim_pub_7783b37a28c167af41788599954e3e39';
+            $airports = ['CYHZ', 'CYOW', 'CYUL', 'CYVR', 'CYWG', 'CYYC', 'CYYZ'];
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+
+            // Fetch PERTI ADL
+            $ctx = stream_context_create([
+                'http' => [
+                    'header' => "Authorization: Bearer {$swimKey}\r\n",
+                    'timeout' => 10,
+                ],
+                'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
+            ]);
+            $raw = @file_get_contents('https://perti.vatcscc.org/api/adl/current', false, $ctx);
+            if ($raw === false) {
+                return self::json($res, ['error' => 'Failed to fetch PERTI ADL'], 502);
+            }
+            $adl = json_decode($raw, true);
+            if (!$adl || !isset($adl['flights'])) {
+                return self::json($res, ['error' => 'Invalid PERTI response'], 502);
+            }
+
+            // Index PERTI by flight_key and callsign|ades
+            $pertiByKey = [];
+            $pertiByCsAdes = [];
+            foreach ($adl['flights'] as $pf) {
+                if (isset($pf['flight_key'])) $pertiByKey[$pf['flight_key']] = $pf;
+                $cs = $pf['callsign'] ?? '';
+                $dest = $pf['fp_dest_icao'] ?? '';
+                if ($cs && $dest) $pertiByCsAdes[$cs . '|' . $dest] = $pf;
+            }
+
+            // Load our active inbound flights
+            $ours = Flight::whereIn('ades', $airports)
+                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED])
+                ->get();
+
+            $comparisons = [];
+            $matched = 0;
+            $unmatched = 0;
+
+            foreach ($ours as $f) {
+                $pf = $pertiByKey[$f->flight_key] ?? $pertiByCsAdes[$f->callsign . '|' . $f->ades] ?? null;
+                if (!$pf) { $unmatched++; continue; }
+                $matched++;
+
+                $ourEldt = $f->eldt ? $f->eldt->getTimestamp() : null;
+                $pertiEta = isset($pf['eta_utc']) && $pf['eta_utc'] ? strtotime($pf['eta_utc']) : null;
+                $etaDelta = ($ourEldt && $pertiEta && $pertiEta > 0)
+                    ? round(($ourEldt - $pertiEta) / 60)
+                    : null;
+
+                $comparisons[] = [
+                    'callsign'     => $f->callsign,
+                    'aircraft_type'=> $f->aircraft_type,
+                    'adep'         => $f->adep,
+                    'ades'         => $f->ades,
+                    'our_phase'    => $f->phase,
+                    'perti_phase'  => $pf['phase'] ?? null,
+                    'our_eldt'     => $f->eldt?->format('c'),
+                    'perti_eta'    => $pf['eta_utc'] ?? null,
+                    'eta_delta_min'=> $etaDelta,
+                    'our_frozen'   => $f->eldt_locked !== null,
+                    'our_simbrief' => (bool) $f->is_simbrief,
+                    'perti_dist_nm'=> $pf['dist_to_dest_nm'] ?? null,
+                    'perti_gs_flag'=> (bool) ($pf['gs_flag'] ?? false),
+                    'perti_edct'   => $pf['edct_utc'] ?? null,
+                    'match_method' => isset($pertiByKey[$f->flight_key]) ? 'flight_key' : 'callsign',
+                ];
+            }
+
+            // TMI check — any GDP/GS/EDCT on our airports
+            $tmis = [];
+            foreach ($adl['flights'] as $pf) {
+                $dest = $pf['fp_dest_icao'] ?? '';
+                if (in_array($dest, $airports, true) && (!empty($pf['edct_utc']) || ($pf['gs_flag'] ?? 0))) {
+                    $tmis[] = [
+                        'callsign' => $pf['callsign'] ?? '?',
+                        'adep'     => $pf['fp_dept_icao'] ?? '?',
+                        'ades'     => $dest,
+                        'gs_flag'  => (bool) ($pf['gs_flag'] ?? false),
+                        'edct'     => $pf['edct_utc'] ?? null,
+                    ];
+                }
+            }
+
+            return self::json($res, [
+                'timestamp'       => $now->format('c'),
+                'perti_snapshot'  => $adl['snapshot_utc'] ?? null,
+                'perti_total'     => count($adl['flights']),
+                'our_active'      => count($ours),
+                'matched'         => $matched,
+                'unmatched'       => $unmatched,
+                'comparisons'     => $comparisons,
+                'active_tmis'     => $tmis,
+            ]);
+        });
     }
 
     // ------------------------------------------------------------------

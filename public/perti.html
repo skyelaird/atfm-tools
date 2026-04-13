@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>atfm-tools — PERTI Comparison</title>
+    <style>
+        :root {
+            --bg: #0f1419; --bg-elev: #1a2028; --bg-elev-hi: #242c38;
+            --border: #2a3340;
+            --text: #d7dee8; --text-dim: #8a94a3; --text-bright: #f0f4fa;
+            --accent: #5eead4; --accent-dim: #2a6b5f;
+            --warn: #facc15; --warn-dim: #5e4a0f;
+            --alert: #f87171; --alert-dim: #5e1f1f;
+            --ok: #4ade80; --ok-dim: #1e4a2e;
+            --info: #60a5fa; --info-dim: #1e3a5f;
+            --mono: "SF Mono", Consolas, Monaco, monospace;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; padding: 0;
+            background: var(--bg); color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+            font-size: 14px; line-height: 1.45;
+        }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+        header {
+            position: sticky; top: 0; z-index: 100;
+            background: var(--bg-elev);
+            border-bottom: 1px solid var(--border);
+            padding: 0.65rem 1rem;
+            display: flex; align-items: center; gap: 1rem;
+            flex-wrap: wrap;
+        }
+        header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+        header .nav-pills { display: flex; gap: 0.5rem; margin-left: auto; align-items: center; }
+        .pill {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.2rem 0.6rem; border-radius: 999px;
+            background: var(--bg-elev-hi); border: 1px solid var(--border);
+            font-size: 0.75rem; color: var(--text-dim);
+        }
+
+        main { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+
+        .summary-bar {
+            display: flex; gap: 1.5rem; flex-wrap: wrap;
+            margin-bottom: 1.5rem; padding: 1rem;
+            background: var(--bg-elev); border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+        .summary-stat .lbl { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; }
+        .summary-stat .val { font-size: 1.2rem; font-weight: 600; color: var(--text-bright); font-family: var(--mono); }
+
+        section { margin-bottom: 2rem; }
+        section h2 { font-size: 0.95rem; color: var(--text-bright); margin: 0 0 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+
+        .table-wrap { overflow-x: auto; }
+        table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+        th { text-align: left; padding: 0.4rem 0.6rem; color: var(--text-dim); font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap; }
+        td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+        tr:hover td { background: var(--bg-elev); }
+
+        .delta-good { color: var(--ok); }
+        .delta-warn { color: var(--warn); }
+        .delta-bad { color: var(--alert); }
+        .muted { color: var(--text-dim); }
+        .tag { font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
+        .tag-simbrief { background: #3a3018; color: #e8a020; }
+        .tag-frozen { background: #183a3a; color: var(--accent); }
+        .tag-gs { background: var(--alert-dim); color: var(--alert); }
+        .tag-edct { background: var(--warn-dim); color: var(--warn); }
+        .tag-keymatch { background: var(--ok-dim); color: var(--ok); }
+        .tag-csmatch { background: var(--warn-dim); color: var(--warn); }
+
+        .loading { color: var(--text-dim); padding: 2rem; text-align: center; }
+        .error { color: var(--alert); padding: 2rem; text-align: center; }
+
+        .tmi-none { color: var(--ok); }
+        .tmi-active { color: var(--alert); }
+    </style>
+</head>
+<body>
+<header>
+    <h1>atfm-tools <span class="muted">PERTI Comparison</span></h1>
+    <div class="nav-pills">
+        <a href="/dashboard.html" class="pill">dashboard</a>
+        <a href="/reports.html" class="pill">reports</a>
+        <a href="/map.html" class="pill">map</a>
+        <span class="pill" id="status-pill">loading...</span>
+    </div>
+</header>
+
+<main>
+    <div id="content"><div class="loading">Fetching PERTI comparison...</div></div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function hhmmz(iso) {
+    if (!iso) return '—';
+    return iso.substring(11, 16);
+}
+
+function deltaClass(d) {
+    if (d === null) return 'muted';
+    const abs = Math.abs(d);
+    if (abs <= 5) return 'delta-good';
+    if (abs <= 15) return 'delta-warn';
+    return 'delta-bad';
+}
+
+async function load() {
+    try {
+        const res = await fetch('/api/v1/perti/compare');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const d = await res.json();
+        render(d);
+    } catch (err) {
+        $('content').innerHTML = `<div class="error">Failed: ${err.message}</div>`;
+    }
+}
+
+function render(d) {
+    $('status-pill').textContent = `PERTI ${hhmmz(d.perti_snapshot)}Z`;
+
+    let html = '';
+
+    // Summary bar
+    html += `<div class="summary-bar">
+        <div class="summary-stat"><div class="lbl">PERTI flights</div><div class="val">${d.perti_total}</div></div>
+        <div class="summary-stat"><div class="lbl">Our active</div><div class="val">${d.our_active}</div></div>
+        <div class="summary-stat"><div class="lbl">Matched</div><div class="val">${d.matched}</div></div>
+        <div class="summary-stat"><div class="lbl">Unmatched</div><div class="val">${d.unmatched}</div></div>
+        <div class="summary-stat"><div class="lbl">TMIs</div><div class="val ${d.active_tmis.length ? 'tmi-active' : 'tmi-none'}">${d.active_tmis.length || 'None'}</div></div>
+    </div>`;
+
+    // TMI section
+    if (d.active_tmis.length > 0) {
+        html += `<section><h2>Active TMIs (GDP / Ground Stop / EDCT)</h2><div class="table-wrap"><table>
+            <thead><tr><th>Callsign</th><th>From</th><th>To</th><th>GS</th><th>EDCT</th></tr></thead><tbody>`;
+        for (const t of d.active_tmis) {
+            html += `<tr>
+                <td class="mono">${t.callsign}</td>
+                <td class="mono">${t.adep}</td>
+                <td class="mono">${t.ades}</td>
+                <td>${t.gs_flag ? '<span class="tag tag-gs">GS</span>' : '—'}</td>
+                <td class="mono">${t.edct ? hhmmz(t.edct) : '—'}</td>
+            </tr>`;
+        }
+        html += '</tbody></table></div></section>';
+    }
+
+    // Flight comparisons
+    // Split into: with ETA delta (sortable) and without
+    const withEta = d.comparisons.filter(c => c.eta_delta_min !== null);
+    const withoutEta = d.comparisons.filter(c => c.eta_delta_min === null);
+
+    if (withEta.length > 0) {
+        withEta.sort((a, b) => Math.abs(b.eta_delta_min) - Math.abs(a.eta_delta_min));
+        const avgDelta = withEta.reduce((s, c) => s + Math.abs(c.eta_delta_min), 0) / withEta.length;
+
+        html += `<section><h2>ETA Comparison — ${withEta.length} flights, avg |delta| = ${avgDelta.toFixed(0)} min</h2>
+            <div class="table-wrap"><table>
+            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>Our ELDT</th><th>PERTI ETA</th><th>Delta</th><th>Tags</th><th>Phase (ours/PERTI)</th></tr></thead><tbody>`;
+        for (const c of withEta) {
+            const tags = [];
+            if (c.our_simbrief) tags.push('<span class="tag tag-simbrief">SB</span>');
+            if (c.our_frozen) tags.push('<span class="tag tag-frozen">FRZ</span>');
+            if (c.match_method === 'flight_key') tags.push('<span class="tag tag-keymatch">key</span>');
+            else tags.push('<span class="tag tag-csmatch">cs</span>');
+
+            html += `<tr>
+                <td class="mono">${c.callsign}</td>
+                <td class="mono muted">${c.aircraft_type || '?'}</td>
+                <td class="mono">${c.adep || '?'} → ${c.ades}</td>
+                <td class="mono">${hhmmz(c.our_eldt)}</td>
+                <td class="mono">${hhmmz(c.perti_eta)}</td>
+                <td class="mono ${deltaClass(c.eta_delta_min)}">${c.eta_delta_min > 0 ? '+' : ''}${c.eta_delta_min}m</td>
+                <td>${tags.join(' ')}</td>
+                <td class="muted">${c.our_phase} / ${c.perti_phase || '?'}</td>
+            </tr>`;
+        }
+        html += '</tbody></table></div></section>';
+    }
+
+    // Flights matched but no ETA comparison possible
+    if (withoutEta.length > 0) {
+        html += `<section><h2>Matched — No ETA Comparison (${withoutEta.length})</h2>
+            <div class="table-wrap"><table>
+            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>Our ELDT</th><th>PERTI ETA</th><th>Phase (ours/PERTI)</th><th>Tags</th></tr></thead><tbody>`;
+        for (const c of withoutEta) {
+            const tags = [];
+            if (c.our_simbrief) tags.push('<span class="tag tag-simbrief">SB</span>');
+            if (c.our_frozen) tags.push('<span class="tag tag-frozen">FRZ</span>');
+            if (c.perti_gs_flag) tags.push('<span class="tag tag-gs">GS</span>');
+            if (c.perti_edct) tags.push('<span class="tag tag-edct">EDCT</span>');
+            html += `<tr>
+                <td class="mono">${c.callsign}</td>
+                <td class="mono muted">${c.aircraft_type || '?'}</td>
+                <td class="mono">${c.adep || '?'} → ${c.ades}</td>
+                <td class="mono">${hhmmz(c.our_eldt)}</td>
+                <td class="mono muted">${hhmmz(c.perti_eta)}</td>
+                <td class="muted">${c.our_phase} / ${c.perti_phase || '?'}</td>
+                <td>${tags.join(' ')}</td>
+            </tr>`;
+        }
+        html += '</tbody></table></div></section>';
+    }
+
+    $('content').innerHTML = html;
+}
+
+load();
+setInterval(load, 120000); // refresh every 2 min
+</script>
+</body>
+</html>
