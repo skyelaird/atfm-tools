@@ -558,7 +558,12 @@ final class Kernel
                         $eldtIso = null;
                         $eldtSource = null;
                     }
-                    if ($eldtIso === null && ($atCruise || $inApproach)) {
+                    // For ARRIVING flights, always recompute live — the
+                    // controller needs "how far out is this aircraft now",
+                    // not a stale frozen value from hours ago.
+                    if (($eldtIso === null && ($atCruise || $inApproach))
+                        || $inApproach
+                    ) {
                         $est = \Atfm\Allocator\EtaEstimator::estimate($f, $airport, $now);
                         if ($est['epoch'] !== null) {
                             $eldtIso = (new DateTimeImmutable('@' . $est['epoch']))
