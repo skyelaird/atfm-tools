@@ -506,22 +506,20 @@ final class VatsimIngestor
             }
         }
 
-        // Non-CDM-airport defaults per the EUROCONTROL Airport CDM Manual.
-        // For airports without a real CDM platform we have no TOBT (AO/GH
-        // input) and no TSAT (DMAN output), so we cascade:
-        //   TOBT ← EOBT  (assume the AO is ready exactly when filed)
-        //   TSAT ← TOBT  (assume ATC issues start-up at TOBT)
-        //   TTOT = TOBT + EXOT  (canonical formula; with TSAT≡TOBT, equivalent
-        //                        to TSAT + EXOT, which is what the manual
-        //                        states for the DMAN-equipped case)
-        if ($flight->tobt === null && $flight->eobt !== null) {
-            $flight->tobt = $flight->eobt;
-        }
-        if ($flight->tsat === null && $flight->tobt !== null) {
-            $flight->tsat = $flight->tobt;
-        }
-        if ($flight->ttot === null && $flight->tobt !== null && $flight->planned_exot_min !== null) {
-            $flight->ttot = $flight->tobt->modify("+{$flight->planned_exot_min} minutes");
+        // Non-CDM defaults — only for flights departing a monitored airport
+        // where we actually observe the pushback. For non-monitored airports
+        // (EDDF, EGLL, etc.) we have no AOBT observation and EOBT is garbage
+        // on VATSIM — don't cascade a fictional TOBT/TSAT/TTOT from it.
+        if ($adepAirport !== null) {
+            if ($flight->tobt === null && $flight->eobt !== null) {
+                $flight->tobt = $flight->eobt;
+            }
+            if ($flight->tsat === null && $flight->tobt !== null) {
+                $flight->tsat = $flight->tobt;
+            }
+            if ($flight->ttot === null && $flight->tobt !== null && $flight->planned_exot_min !== null) {
+                $flight->ttot = $flight->tobt->modify("+{$flight->planned_exot_min} minutes");
+            }
         }
 
         $flight->last_updated_at = $now;

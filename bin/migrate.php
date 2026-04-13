@@ -394,4 +394,24 @@ if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'is_simbrief
     echo "✓ added flights.is_simbrief (v0.5.13)\n";
 }
 
+// v0.5.13: SimBrief ELDT — snapshot of the FILED-tier ELDT for SimBrief
+// flights, preserved for triple comparison (SimBrief vs frozen vs ALDT).
+if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'eldt_simbrief')) {
+    $schema->table('flights', function (Blueprint $t) {
+        $t->dateTime('eldt_simbrief')->nullable()->after('eldt_locked_source')
+            ->comment('FILED-tier ELDT for SimBrief flights (EOBT + taxi + ETE)');
+    });
+    echo "✓ added flights.eldt_simbrief (v0.5.13)\n";
+}
+
+// v0.5.13: ATC staffing flag — was approach/tower online at ADES when
+// the flight was in the terminal area? For correlation analysis.
+if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'had_atc_at_arrival')) {
+    $schema->table('flights', function (Blueprint $t) {
+        $t->boolean('had_atc_at_arrival')->nullable()->after('eldt_simbrief')
+            ->comment('True if APP/TWR was online at ADES during arrival');
+    });
+    echo "✓ added flights.had_atc_at_arrival (v0.5.13)\n";
+}
+
 echo "done.\n";
