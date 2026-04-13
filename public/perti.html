@@ -212,6 +212,38 @@ function render(d) {
     }
 
     // Tags legend
+    // Post-landing accuracy: three-way comparison
+    const landings = (d.recent_landings || []).filter(l => !l.synthetic);
+    if (landings.length > 0) {
+        const ourErrs = landings.map(l => Math.abs(l.our_err_min));
+        const ourAvg = (ourErrs.reduce((a,b) => a+b, 0) / ourErrs.length).toFixed(1);
+        const pertiLandings = landings.filter(l => l.perti_err_min !== null);
+        const pertiAvg = pertiLandings.length > 0
+            ? (pertiLandings.map(l => Math.abs(l.perti_err_min)).reduce((a,b) => a+b, 0) / pertiLandings.length).toFixed(1)
+            : '—';
+
+        html += `<section><h2>Post-Landing Accuracy (last 2h) — ${landings.length} flights, avg |err|: us=${ourAvg}m, PERTI=${pertiAvg}m</h2>
+            <div class="table-wrap"><table>
+            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>ALDT</th><th>Our ELDT</th><th>Us err</th><th>PERTI ETA</th><th>PERTI err</th><th>SimBrief</th><th>SB err</th></tr></thead><tbody>`;
+        for (const l of landings) {
+            html += `<tr>
+                <td class="mono">${l.callsign}</td>
+                <td class="mono muted">${l.aircraft_type || '?'}</td>
+                <td class="mono">${l.adep || '?'} &rarr; ${l.ades}</td>
+                <td class="mono">${hhmmz(l.aldt)}</td>
+                <td class="mono">${hhmmz(l.eldt_locked)}</td>
+                <td class="mono ${deltaClass(l.our_err_min)}">${l.our_err_min > 0 ? '+' : ''}${l.our_err_min}m</td>
+                <td class="mono">${hhmmz(l.eldt_perti) || '—'}</td>
+                <td class="mono ${l.perti_err_min !== null ? deltaClass(l.perti_err_min) : 'muted'}">${l.perti_err_min !== null ? (l.perti_err_min > 0 ? '+' : '') + l.perti_err_min + 'm' : '—'}</td>
+                <td class="mono">${hhmmz(l.eldt_simbrief) || '—'}</td>
+                <td class="mono ${l.sb_err_min !== null ? deltaClass(l.sb_err_min) : 'muted'}">${l.sb_err_min !== null ? (l.sb_err_min > 0 ? '+' : '') + l.sb_err_min + 'm' : '—'}</td>
+            </tr>`;
+        }
+        html += '</tbody></table></div></section>';
+    } else {
+        html += `<section><h2>Post-Landing Accuracy (last 2h)</h2><div class="muted" style="padding:0.5rem 0;">No flights with frozen ELDT have landed in the last 2 hours.</div></section>`;
+    }
+
     html += `<section><h2>Legend</h2>
         <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.8rem;">
             <span><span class="tag tag-simbrief">SB</span> SimBrief flight plan</span>

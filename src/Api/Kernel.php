@@ -1258,6 +1258,46 @@ final class Kernel
                 }
             }
 
+            // Post-landing accuracy: flights with ALDT in last 2h that had
+            // a frozen ELDT. Three-way: ours vs PERTI vs ALDT.
+            $landedSince = $now->modify('-120 minutes');
+            $landings = Flight::whereIn('ades', $airports)
+                ->whereNotNull('aldt')
+                ->whereNotNull('eldt_locked')
+                ->where('aldt', '>=', $landedSince->format('Y-m-d H:i:s'))
+                ->orderBy('aldt', 'desc')
+                ->limit(50)
+                ->get()
+                ->map(function (Flight $f) {
+                    $aldt = $f->aldt->getTimestamp();
+                    $ourErr = round(($aldt - $f->eldt_locked->getTimestamp()) / 60);
+                    $pertiErr = null;
+                    if ($f->eldt_perti) {
+                        $pertiErr = round(($aldt - $f->eldt_perti->getTimestamp()) / 60);
+                    }
+                    $sbErr = null;
+                    if ($f->eldt_simbrief) {
+                        $sbErr = round(($aldt - $f->eldt_simbrief->getTimestamp()) / 60);
+                    }
+                    // Detect synthetic ALDT (ALDT = eldt_locked exactly)
+                    $synthetic = $f->aldt->getTimestamp() === $f->eldt_locked->getTimestamp();
+                    return [
+                        'callsign'      => $f->callsign,
+                        'aircraft_type' => $f->aircraft_type,
+                        'adep'          => $f->adep,
+                        'ades'          => $f->ades,
+                        'aldt'          => $f->aldt->format('c'),
+                        'eldt_locked'   => $f->eldt_locked->format('c'),
+                        'eldt_perti'    => $f->eldt_perti?->format('c'),
+                        'eldt_simbrief' => $f->eldt_simbrief?->format('c'),
+                        'our_err_min'   => $ourErr,
+                        'perti_err_min' => $pertiErr,
+                        'sb_err_min'    => $sbErr,
+                        'is_simbrief'   => (bool) $f->is_simbrief,
+                        'synthetic'     => $synthetic,
+                    ];
+                })->values()->all();
+
             return self::json($res, [
                 'timestamp'       => $now->format('c'),
                 'perti_snapshot'  => $adl['snapshot_utc'] ?? null,
@@ -1267,6 +1307,7 @@ final class Kernel
                 'unmatched'       => $unmatched,
                 'comparisons'     => $comparisons,
                 'active_tmis'     => $tmis,
+                'recent_landings' => $landings,
             ]);
         });
     }
