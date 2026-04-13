@@ -446,9 +446,7 @@ final class VatsimIngestor
                     // 60-min threshold in a single cycle and never lock.
                     if ($flight->eldt_locked === null && $flight->aldt === null) {
                         $minutesToLanding = ($flight->eldt->getTimestamp() - $now->getTimestamp()) / 60;
-                        if ($minutesToLanding <= self::ELDT_LOCK_HORIZON_MIN
-                            && $minutesToLanding >= self::ELDT_LOCK_HORIZON_MIN - 4
-                        ) {
+                        if ($minutesToLanding <= self::ELDT_LOCK_HORIZON_MIN) {
                             $flight->eldt_locked        = $flight->eldt;
                             $flight->eldt_locked_at     = $now;
                             $flight->eldt_locked_source = $est['source'];
