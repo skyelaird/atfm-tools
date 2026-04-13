@@ -606,18 +606,21 @@ final class Kernel
                 ->limit(100)
                 ->get()
                 ->map(fn (Flight $f) => [
-                    'callsign'      => $f->callsign,
-                    'cid'           => (int) $f->cid,
-                    'aircraft_type' => $f->aircraft_type,
-                    'ades'          => $f->ades,
-                    'phase'         => $f->phase,
-                    'eobt'          => $f->eobt?->format('c'),
-                    'tobt'          => $f->tobt?->format('c'),
-                    'tsat'          => $f->tsat?->format('c'),
-                    'ttot'          => $f->ttot?->format('c'),
-                    'ctot'          => $f->ctot?->format('c'),
-                    'atot'          => $f->atot?->format('c'),
-                    'delay_minutes' => $f->delay_minutes,
+                    'callsign'       => $f->callsign,
+                    'cid'            => (int) $f->cid,
+                    'aircraft_type'  => $f->aircraft_type,
+                    'ades'           => $f->ades,
+                    'phase'          => $f->phase,
+                    'eobt'           => $f->eobt?->format('c'),
+                    'first_seen_at'  => $f->first_seen_at?->format('c'),
+                    'aobt'           => $f->aobt?->format('c'),
+                    'tobt'           => $f->tobt?->format('c'),
+                    'tsat'           => $f->tsat?->format('c'),
+                    'ttot'           => $f->ttot?->format('c'),
+                    'ctot'           => $f->ctot?->format('c'),
+                    'atot'           => $f->atot?->format('c'),
+                    'delay_minutes'  => $f->delay_minutes,
+                    'last_gs'        => $f->last_groundspeed_kts,
                 ])->values()->all();
 
             // Recent arrivals — last 60 min, sorted newest first.
@@ -661,16 +664,27 @@ final class Kernel
                             ($f->aobt->getTimestamp() - $f->eobt->getTimestamp()) / 60
                         );
                     }
+                    // Spawn-to-pushback: how long did the pilot sit at
+                    // the gate after connecting before starting to move?
+                    $spawnToMovMin = null;
+                    if ($f->first_seen_at && $f->aobt) {
+                        $delta = $f->aobt->getTimestamp() - $f->first_seen_at->getTimestamp();
+                        if ($delta >= 0 && $delta <= 7200) { // cap at 2h sanity
+                            $spawnToMovMin = (int) round($delta / 60);
+                        }
+                    }
                     return [
-                        'callsign'        => $f->callsign,
-                        'aircraft_type'   => $f->aircraft_type,
-                        'ades'            => $f->ades,
-                        'eobt'            => $f->eobt?->format('c'),
-                        'aobt'            => $f->aobt?->format('c'),
-                        'atot'            => $f->atot?->format('c'),
-                        'actual_exot_min' => $f->actual_exot_min,
-                        'eobt_delay_min'  => $eobtDelayMin,
-                        'delay_minutes'   => $f->delay_minutes,
+                        'callsign'         => $f->callsign,
+                        'aircraft_type'    => $f->aircraft_type,
+                        'ades'             => $f->ades,
+                        'eobt'             => $f->eobt?->format('c'),
+                        'first_seen_at'    => $f->first_seen_at?->format('c'),
+                        'aobt'             => $f->aobt?->format('c'),
+                        'atot'             => $f->atot?->format('c'),
+                        'actual_exot_min'  => $f->actual_exot_min,
+                        'spawn_to_mov_min' => $spawnToMovMin,
+                        'eobt_delay_min'   => $eobtDelayMin,
+                        'delay_minutes'    => $f->delay_minutes,
                     ];
                 })->values()->all();
 
