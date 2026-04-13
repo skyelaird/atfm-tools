@@ -1200,22 +1200,41 @@ final class Kernel
                     ? round(($ourEldt - $pertiEta) / 60)
                     : null;
 
+                // Why no ELDT?
+                $noEldtReason = null;
+                if ($ourEldt === null) {
+                    $alt = (int) ($f->last_altitude_ft ?? 0);
+                    $fpAlt = (int) ($f->fp_altitude_ft ?? 35000);
+                    if (in_array($f->phase, [Flight::PHASE_PREFILE, 'FILED'], true)) {
+                        $noEldtReason = 'At gate';
+                    } elseif ($f->phase === Flight::PHASE_TAXI_OUT) {
+                        $noEldtReason = 'Taxiing out';
+                    } elseif ($f->phase === Flight::PHASE_DEPARTED || ($f->phase === Flight::PHASE_ENROUTE && $alt < $fpAlt - 2000)) {
+                        $noEldtReason = 'Climbing (FL' . round($alt / 100) . ', needs FL' . round(($fpAlt - 2000) / 100) . '+)';
+                    } else {
+                        $noEldtReason = 'Unknown';
+                    }
+                }
+
                 $comparisons[] = [
-                    'callsign'     => $f->callsign,
-                    'aircraft_type'=> $f->aircraft_type,
-                    'adep'         => $f->adep,
-                    'ades'         => $f->ades,
-                    'our_phase'    => $f->phase,
-                    'perti_phase'  => $pf['phase'] ?? null,
-                    'our_eldt'     => $f->eldt?->format('c'),
-                    'perti_eta'    => $pf['eta_utc'] ?? null,
-                    'eta_delta_min'=> $etaDelta,
-                    'our_frozen'   => $f->eldt_locked !== null,
-                    'our_simbrief' => (bool) $f->is_simbrief,
-                    'perti_dist_nm'=> $pf['dist_to_dest_nm'] ?? null,
-                    'perti_gs_flag'=> (bool) ($pf['gs_flag'] ?? false),
-                    'perti_edct'   => $pf['edct_utc'] ?? null,
-                    'match_method' => isset($pertiByKey[$f->flight_key]) ? 'flight_key' : 'callsign',
+                    'callsign'      => $f->callsign,
+                    'aircraft_type' => $f->aircraft_type,
+                    'adep'          => $f->adep,
+                    'ades'          => $f->ades,
+                    'our_phase'     => $f->phase,
+                    'display_phase' => self::displayPhase($f),
+                    'perti_phase'   => $pf['phase'] ?? null,
+                    'our_eldt'      => $f->eldt?->format('c'),
+                    'perti_eta'     => $pf['eta_utc'] ?? null,
+                    'eta_delta_min' => $etaDelta,
+                    'no_eldt_reason'=> $noEldtReason,
+                    'our_frozen'    => $f->eldt_locked !== null,
+                    'our_simbrief'  => (bool) $f->is_simbrief,
+                    'last_alt'      => $f->last_altitude_ft,
+                    'fp_alt'        => $f->fp_altitude_ft,
+                    'perti_dist_nm' => $pf['dist_to_dest_nm'] ?? null,
+                    'perti_edct'    => $pf['edct_utc'] ?? null,
+                    'match_method'  => isset($pertiByKey[$f->flight_key]) ? 'flight_key' : 'callsign',
                 ];
             }
 

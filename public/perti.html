@@ -183,7 +183,7 @@ function render(d) {
                 <td class="mono">${hhmmz(c.perti_eta)}</td>
                 <td class="mono ${deltaClass(c.eta_delta_min)}">${c.eta_delta_min > 0 ? '+' : ''}${c.eta_delta_min}m</td>
                 <td>${tags.join(' ')}</td>
-                <td class="muted">${c.our_phase} / ${c.perti_phase || '?'}</td>
+                <td class="muted">${c.display_phase || c.our_phase} / ${c.perti_phase || '?'}</td>
             </tr>`;
         }
         html += '</tbody></table></div></section>';
@@ -193,20 +193,19 @@ function render(d) {
     if (withoutEta.length > 0) {
         html += `<section><h2>Matched — No ETA Comparison (${withoutEta.length})</h2>
             <div class="table-wrap"><table>
-            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>Our ELDT</th><th>PERTI ETA</th><th>Phase (ours/PERTI)</th><th>Tags</th></tr></thead><tbody>`;
+            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>Phase</th><th>Why no ELDT</th><th>PERTI ETA</th><th>Tags</th></tr></thead><tbody>`;
         for (const c of withoutEta) {
             const tags = [];
             if (c.our_simbrief) tags.push('<span class="tag tag-simbrief">SB</span>');
             if (c.our_frozen) tags.push('<span class="tag tag-frozen">FRZ</span>');
-            if (c.perti_gs_flag) tags.push('<span class="tag tag-gs">GS</span>');
             if (c.perti_edct) tags.push('<span class="tag tag-edct">EDCT</span>');
             html += `<tr>
                 <td class="mono">${c.callsign}</td>
                 <td class="mono muted">${c.aircraft_type || '?'}</td>
                 <td class="mono">${c.adep || '?'} → ${c.ades}</td>
-                <td class="mono">${hhmmz(c.our_eldt)}</td>
+                <td class="muted">${c.display_phase || c.our_phase}</td>
+                <td class="muted">${c.no_eldt_reason || '—'}</td>
                 <td class="mono muted">${hhmmz(c.perti_eta)}</td>
-                <td class="muted">${c.our_phase} / ${c.perti_phase || '?'}</td>
                 <td>${tags.join(' ')}</td>
             </tr>`;
         }
