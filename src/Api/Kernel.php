@@ -1146,6 +1146,149 @@ final class Kernel
         });
 
         // ------------------------------------------------------------------
+        //  AAR Calculator
+        // ------------------------------------------------------------------
+        $app->get('/api/v1/aar/calculate', function ($req, $res) {
+            $params = $req->getQueryParams();
+            $icao = strtoupper($params['airport'] ?? '');
+            $headwindKt = (int) ($params['headwind'] ?? 0);
+            $runwayIdent = $params['runway'] ?? null;
+
+            // Load wake separation data
+            $wakeData = json_decode(
+                file_get_contents(__DIR__ . '/../../data/wake-separation.json'),
+                true
+            );
+            $cats = $wakeData['categories'];
+            $sepMatrix = $wakeData['separation_nm'];
+
+            // Build the mix: either from query params or from historical data
+            // Query params: mix[H]=30&mix[M]=60&mix[T]=10 (percentages)
+            $mixParam = $params['mix'] ?? null;
+            $mix = [];
+            $mixSource = 'default';
+
+            if ($mixParam && is_array($mixParam)) {
+                $total = array_sum($mixParam);
+                if ($total > 0) {
+                    foreach ($mixParam as $cat => $pct) {
+                        $mix[strtoupper($cat)] = (float) $pct / $total;
+                    }
+                    $mixSource = 'manual';
+                }
+            }
+
+            // If no manual mix, compute from recent arrivals at this airport
+            if (empty($mix) && $icao) {
+                $since = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify('-7 days');
+                $typeCounts = Flight::where('ades', $icao)
+                    ->whereNotNull('aldt')
+                    ->where('aldt', '>=', $since->format('Y-m-d H:i:s'))
+                    ->whereNotNull('aircraft_type')
+                    ->selectRaw('aircraft_type, COUNT(*) as cnt')
+                    ->groupBy('aircraft_type')
+                    ->pluck('cnt', 'aircraft_type')
+                    ->toArray();
+
+                // Map aircraft types to wake categories
+                $typeToWake = [];
+                foreach ($cats as $cat => $info) {
+                    foreach ($info['examples'] as $type) {
+                        $typeToWake[$type] = $cat;
+                    }
+                }
+
+                $catCounts = [];
+                foreach ($typeCounts as $type => $count) {
+                    $cat = $typeToWake[$type] ?? 'M'; // default to Medium
+                    $catCounts[$cat] = ($catCounts[$cat] ?? 0) + $count;
+                }
+
+                $total = array_sum($catCounts);
+                if ($total > 0) {
+                    foreach ($catCounts as $cat => $count) {
+                        $mix[$cat] = $count / $total;
+                    }
+                    $mixSource = 'historical_7d';
+                }
+            }
+
+            // Fallback: generic domestic mix
+            if (empty($mix)) {
+                $mix = ['H' => 0.15, 'M' => 0.70, 'T' => 0.15];
+                $mixSource = 'generic';
+            }
+
+            // Compute approach GS for each category (Vat - headwind)
+            $gs = [];
+            foreach ($cats as $cat => $info) {
+                $gs[$cat] = max($info['vat_kt'] - $headwindKt, 80); // floor 80kt
+            }
+
+            // Compute weighted average inter-arrival time
+            $weightedGapSec = 0;
+            $activeCats = array_keys(array_filter($mix, fn($p) => $p > 0));
+
+            foreach ($activeCats as $leader) {
+                foreach ($activeCats as $follower) {
+                    $pairProb = ($mix[$leader] ?? 0) * ($mix[$follower] ?? 0);
+                    if ($pairProb <= 0) continue;
+
+                    $sepNm = $sepMatrix[$leader][$follower] ?? $sepMatrix['M']['M'] ?? 3;
+                    $followerGs = $gs[$follower];
+                    $gapMin = ($sepNm / $followerGs) * 60; // minutes
+                    $weightedGapSec += $pairProb * $gapMin * 60;
+                }
+            }
+
+            $avgGapMin = $weightedGapSec > 0 ? $weightedGapSec / 60 : 2;
+            $aar = (int) round(60 / ($avgGapMin / 60));
+
+            // Also compute AAR with no wind for comparison
+            $gsCalm = [];
+            foreach ($cats as $cat => $info) {
+                $gsCalm[$cat] = $info['vat_kt'];
+            }
+            $calmGapSec = 0;
+            foreach ($activeCats as $leader) {
+                foreach ($activeCats as $follower) {
+                    $pairProb = ($mix[$leader] ?? 0) * ($mix[$follower] ?? 0);
+                    if ($pairProb <= 0) continue;
+                    $sepNm = $sepMatrix[$leader][$follower] ?? 3;
+                    $gapMin = ($sepNm / $gsCalm[$follower]) * 60;
+                    $calmGapSec += $pairProb * $gapMin * 60;
+                }
+            }
+            $aarCalm = $calmGapSec > 0 ? (int) round(60 / ($calmGapSec / 3600)) : $aar;
+
+            // Per-category detail
+            $catDetail = [];
+            foreach ($cats as $cat => $info) {
+                if (!isset($mix[$cat]) || $mix[$cat] <= 0) continue;
+                $catDetail[] = [
+                    'cat'       => $cat,
+                    'label'     => $info['label'],
+                    'vat_kt'    => $info['vat_kt'],
+                    'gs_kt'     => $gs[$cat],
+                    'mix_pct'   => round(($mix[$cat] ?? 0) * 100, 1),
+                    'examples'  => array_slice($info['examples'], 0, 5),
+                ];
+            }
+
+            return self::json($res, [
+                'airport'        => $icao,
+                'runway'         => $runwayIdent,
+                'headwind_kt'    => $headwindKt,
+                'aar'            => $aar,
+                'aar_calm'       => $aarCalm,
+                'avg_gap_sec'    => round($weightedGapSec / 60),
+                'mix_source'     => $mixSource,
+                'categories'     => $catDetail,
+                'separation_nm'  => $sepMatrix,
+            ]);
+        });
+
+        // ------------------------------------------------------------------
         //  PERTI cross-validation endpoint
         // ------------------------------------------------------------------
         $app->get('/api/v1/perti/compare', function ($req, $res) {

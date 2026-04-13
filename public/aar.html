@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>atfm-tools — AAR Calculator</title>
+    <style>
+        :root {
+            --bg: #0f1419; --bg-elev: #1a2028; --bg-elev-hi: #242c38;
+            --border: #2a3340;
+            --text: #d7dee8; --text-dim: #8a94a3; --text-bright: #f0f4fa;
+            --accent: #5eead4; --accent-dim: #2a6b5f;
+            --warn: #facc15; --warn-dim: #5e4a0f;
+            --alert: #f87171;
+            --ok: #4ade80;
+            --mono: "SF Mono", Consolas, Monaco, monospace;
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; font-size: 14px; }
+        a { color: var(--accent); text-decoration: none; }
+        .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+        header { position: sticky; top: 0; z-index: 100; background: var(--bg-elev); border-bottom: 1px solid var(--border); padding: 0.65rem 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+        header .nav-pills { display: flex; gap: 0.5rem; margin-left: auto; }
+        .pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px; background: var(--bg-elev-hi); border: 1px solid var(--border); font-size: 0.75rem; color: var(--text-dim); }
+
+        main { max-width: 900px; margin: 0 auto; padding: 1.5rem; }
+
+        .controls { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-elev); border-radius: 6px; border: 1px solid var(--border); align-items: flex-end; }
+        .control-group { display: flex; flex-direction: column; gap: 0.3rem; }
+        .control-group label { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; }
+        .control-group select, .control-group input { background: var(--bg); color: var(--text-bright); border: 1px solid var(--border); border-radius: 4px; padding: 0.4rem 0.6rem; font-size: 0.85rem; font-family: var(--mono); }
+        .control-group input[type=range] { width: 100px; }
+        button.compute { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0.4rem 1rem; cursor: pointer; font-weight: 600; }
+        button.compute:hover { background: var(--accent); color: var(--bg); }
+
+        .result-box { padding: 1.5rem; background: var(--bg-elev); border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1.5rem; text-align: center; }
+        .aar-value { font-size: 3rem; font-weight: 700; color: var(--accent); font-family: var(--mono); }
+        .aar-label { font-size: 0.8rem; color: var(--text-dim); margin-top: 0.2rem; }
+        .aar-sub { font-size: 0.85rem; color: var(--text-dim); margin-top: 0.5rem; }
+        .aar-sub .calm { color: var(--ok); }
+        .aar-sub .wind-effect { color: var(--warn); }
+
+        .mix-section { padding: 1rem; background: var(--bg-elev); border-radius: 6px; border: 1px solid var(--border); margin-bottom: 1rem; }
+        .mix-section h3 { margin: 0 0 0.8rem; font-size: 0.85rem; color: var(--text-bright); }
+        .mix-row { display: flex; align-items: center; gap: 0.8rem; margin-bottom: 0.5rem; }
+        .mix-row .cat-label { width: 80px; font-size: 0.8rem; color: var(--text-dim); }
+        .mix-row .cat-pct { width: 50px; font-family: var(--mono); font-size: 0.85rem; color: var(--text-bright); text-align: right; }
+        .mix-row input[type=range] { flex: 1; }
+        .mix-row .cat-gs { width: 60px; font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim); text-align: right; }
+        .mix-source { font-size: 0.7rem; color: var(--text-dim); margin-top: 0.5rem; }
+
+        .sep-matrix { margin-top: 1rem; }
+        .sep-matrix h3 { margin: 0 0 0.5rem; font-size: 0.85rem; color: var(--text-bright); }
+        table { border-collapse: collapse; font-size: 0.75rem; }
+        th, td { padding: 0.3rem 0.6rem; border: 1px solid var(--border); text-align: center; }
+        th { background: var(--bg-elev-hi); color: var(--text-dim); }
+        td { font-family: var(--mono); }
+    </style>
+</head>
+<body>
+<header>
+    <h1>atfm-tools <span style="color:var(--text-dim)">AAR Calculator</span></h1>
+    <div class="nav-pills">
+        <a href="/dashboard.html" class="pill">dashboard</a>
+        <a href="/reports.html" class="pill">reports</a>
+        <a href="/perti.html" class="pill">perti</a>
+        <a href="/map.html" class="pill">map</a>
+    </div>
+</header>
+
+<main>
+    <div class="controls">
+        <div class="control-group">
+            <label>Airport</label>
+            <select id="airport">
+                <option value="CYHZ">CYHZ</option>
+                <option value="CYOW">CYOW</option>
+                <option value="CYUL">CYUL</option>
+                <option value="CYVR">CYVR</option>
+                <option value="CYWG">CYWG</option>
+                <option value="CYYC">CYYC</option>
+                <option value="CYYZ" selected>CYYZ</option>
+            </select>
+        </div>
+        <div class="control-group">
+            <label>Headwind (kt)</label>
+            <input type="number" id="headwind" value="10" min="-30" max="50" step="1" style="width:70px">
+        </div>
+        <div class="control-group">
+            <label>or fetch METAR</label>
+            <button class="compute" id="fetch-wind">Get Wind</button>
+        </div>
+        <div class="control-group" id="wind-info" style="font-size:0.8rem;color:var(--text-dim)"></div>
+    </div>
+
+    <div class="result-box" id="result">
+        <div class="aar-label">Press compute or adjust inputs</div>
+    </div>
+
+    <div class="mix-section" id="mix-section">
+        <h3>Fleet Mix</h3>
+        <div id="mix-sliders"></div>
+        <div class="mix-source" id="mix-source"></div>
+    </div>
+
+    <div class="sep-matrix" id="sep-matrix"></div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+
+let currentData = null;
+const catOrder = ['J', 'H', 'M', 'T', 'L'];
+const catLabels = { J: 'Super', H: 'Heavy', M: 'Medium', T: 'Turboprop', L: 'Light' };
+
+async function compute() {
+    const airport = $('airport').value;
+    const headwind = parseInt($('headwind').value) || 0;
+
+    // Build mix from sliders
+    const mixParams = {};
+    let hasManual = false;
+    for (const cat of catOrder) {
+        const slider = $(`mix-${cat}`);
+        if (slider) {
+            mixParams[cat] = parseInt(slider.value);
+            hasManual = true;
+        }
+    }
+
+    let url = `/api/v1/aar/calculate?airport=${airport}&headwind=${headwind}`;
+    if (hasManual) {
+        for (const [cat, pct] of Object.entries(mixParams)) {
+            url += `&mix[${cat}]=${pct}`;
+        }
+    }
+
+    try {
+        const res = await fetch(url);
+        const d = await res.json();
+        currentData = d;
+        renderResult(d);
+        renderMix(d);
+        renderMatrix(d);
+    } catch (err) {
+        $('result').innerHTML = `<div class="aar-label" style="color:var(--alert)">Error: ${err.message}</div>`;
+    }
+}
+
+function renderResult(d) {
+    const windDelta = d.aar_calm - d.aar;
+    $('result').innerHTML = `
+        <div class="aar-value">${d.aar}/hr</div>
+        <div class="aar-label">Achievable Arrival Rate — ${d.airport}</div>
+        <div class="aar-sub">
+            <span class="calm">Calm wind: ${d.aar_calm}/hr</span>
+            ${windDelta > 0 ? `<span class="wind-effect"> | Wind effect: -${windDelta}/hr (${d.headwind_kt}kt headwind)</span>` : ''}
+        </div>
+        <div class="aar-sub">Avg gap: ${d.avg_gap_sec}s | Mix: ${d.mix_source}</div>
+    `;
+}
+
+function renderMix(d) {
+    const container = $('mix-sliders');
+    container.innerHTML = '';
+    for (const cat of d.categories) {
+        const row = document.createElement('div');
+        row.className = 'mix-row';
+        row.innerHTML = `
+            <span class="cat-label">${cat.cat} ${cat.label}</span>
+            <input type="range" id="mix-${cat.cat}" min="0" max="100" value="${Math.round(cat.mix_pct)}" oninput="onMixChange('${cat.cat}', this.value)">
+            <span class="cat-pct" id="pct-${cat.cat}">${Math.round(cat.mix_pct)}%</span>
+            <span class="cat-gs">GS ${cat.gs_kt}kt</span>
+        `;
+        container.appendChild(row);
+    }
+    // Add any missing categories with 0
+    for (const cat of catOrder) {
+        if (!d.categories.find(c => c.cat === cat)) {
+            const row = document.createElement('div');
+            row.className = 'mix-row';
+            const info = catLabels[cat] || cat;
+            row.innerHTML = `
+                <span class="cat-label">${cat} ${info}</span>
+                <input type="range" id="mix-${cat}" min="0" max="100" value="0" oninput="onMixChange('${cat}', this.value)">
+                <span class="cat-pct" id="pct-${cat}">0%</span>
+                <span class="cat-gs"></span>
+            `;
+            container.appendChild(row);
+        }
+    }
+    $('mix-source').textContent = `Source: ${d.mix_source}`;
+}
+
+function onMixChange(cat, val) {
+    $(`pct-${cat}`).textContent = val + '%';
+    // Auto-recompute after a brief delay
+    clearTimeout(window._mixTimer);
+    window._mixTimer = setTimeout(compute, 300);
+}
+
+function renderMatrix(d) {
+    const sep = d.separation_nm;
+    const activeCats = d.categories.map(c => c.cat);
+    if (activeCats.length === 0) return;
+
+    let html = '<h3>Wake Separation Matrix (nm)</h3><table><thead><tr><th>L\\F</th>';
+    for (const f of activeCats) html += `<th>${f}</th>`;
+    html += '</tr></thead><tbody>';
+    for (const l of activeCats) {
+        html += `<tr><th>${l}</th>`;
+        for (const f of activeCats) {
+            const val = sep[l]?.[f] ?? '?';
+            html += `<td>${val}</td>`;
+        }
+        html += '</tr>';
+    }
+    html += '</tbody></table>';
+    $('sep-matrix').innerHTML = html;
+}
+
+// Fetch wind from AVWX METAR
+$('fetch-wind').addEventListener('click', async () => {
+    const icao = $('airport').value;
+    try {
+        const res = await fetch(`https://avwx.rest/api/metar/${icao}?token=vmtkb1D8Tuva2Jw2tXihWcKE3m2sfDJkySBZygVx82I`);
+        const data = await res.json();
+        const windDir = parseInt(data.wind_direction?.value || 0);
+        const windSpd = parseInt(data.wind_speed?.value || 0);
+        const gustSpd = parseInt(data.wind_gust?.value || windSpd);
+        const effectiveWind = Math.max(windSpd, gustSpd);
+
+        // Get active runway heading — use first threshold for this airport
+        const thRes = await fetch(`/api/v1/airports/${icao}/detail`);
+        const thData = await thRes.json();
+        const thresholds = thData.thresholds || [];
+
+        // Find best runway (most headwind)
+        let bestHw = -999, bestRwy = '?', bestHdg = 0;
+        for (const t of thresholds) {
+            const angle = ((windDir - t.heading_deg + 360) % 360) * Math.PI / 180;
+            const hw = Math.round(effectiveWind * Math.cos(angle));
+            if (hw > bestHw) { bestHw = hw; bestRwy = t.runway_ident; bestHdg = t.heading_deg; }
+        }
+
+        $('headwind').value = bestHw;
+        $('wind-info').textContent = `METAR: ${windDir}/${effectiveWind}kt → Rwy ${bestRwy} (${bestHdg}°) HW ${bestHw}kt`;
+        compute();
+    } catch (err) {
+        $('wind-info').textContent = `METAR error: ${err.message}`;
+    }
+});
+
+// Recompute on any input change
+$('airport').addEventListener('change', compute);
+$('headwind').addEventListener('change', compute);
+
+// Initial load
+compute();
+</script>
+</body>
+</html>
