@@ -1247,18 +1247,24 @@ final class Kernel
             $params = $req->getQueryParams();
             $icao = strtoupper($params['airport'] ?? '');
             $headwindKt = (int) ($params['headwind'] ?? 0);
-            $runwayIdent = $params['runway'] ?? null;
 
-            // Load wake separation data
+            // Load approach category + wake separation data
             $wakeData = json_decode(
                 file_get_contents(__DIR__ . '/../../data/wake-separation.json'),
                 true
             );
-            $cats = $wakeData['categories'];
+            $appCats = $wakeData['approach_categories'];
             $sepMatrix = $wakeData['separation_nm'];
 
-            // Build the mix: either from query params or from historical data
-            // Query params: mix[H]=30&mix[M]=60&mix[T]=10 (percentages)
+            // Build type → approach category mapping
+            $typeToAppCat = [];
+            foreach ($appCats as $cat => $info) {
+                foreach ($info['examples'] as $type) {
+                    $typeToAppCat[$type] = $cat;
+                }
+            }
+
+            // Build the mix from query params: mix[A]=5&mix[C]=60&mix[D]=30
             $mixParam = $params['mix'] ?? null;
             $mix = [];
             $mixSource = 'default';
@@ -1273,7 +1279,7 @@ final class Kernel
                 }
             }
 
-            // If no manual mix, compute from recent arrivals at this airport
+            // If no manual mix, compute from recent arrivals
             if (empty($mix) && $icao) {
                 $since = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify('-7 days');
                 $typeCounts = Flight::where('ades', $icao)
@@ -1285,20 +1291,11 @@ final class Kernel
                     ->pluck('cnt', 'aircraft_type')
                     ->toArray();
 
-                // Map aircraft types to wake categories
-                $typeToWake = [];
-                foreach ($cats as $cat => $info) {
-                    foreach ($info['examples'] as $type) {
-                        $typeToWake[$type] = $cat;
-                    }
-                }
-
                 $catCounts = [];
                 foreach ($typeCounts as $type => $count) {
-                    $cat = $typeToWake[$type] ?? 'M'; // default to Medium
+                    $cat = $typeToAppCat[$type] ?? 'C';
                     $catCounts[$cat] = ($catCounts[$cat] ?? 0) + $count;
                 }
-
                 $total = array_sum($catCounts);
                 if ($total > 0) {
                     foreach ($catCounts as $cat => $count) {
@@ -1308,21 +1305,20 @@ final class Kernel
                 }
             }
 
-            // Fallback: generic domestic mix
+            // Fallback
             if (empty($mix)) {
-                $mix = ['H' => 0.15, 'M' => 0.70, 'T' => 0.15];
+                $mix = ['B' => 0.10, 'C' => 0.65, 'D' => 0.25];
                 $mixSource = 'generic';
             }
 
-            // Compute approach GS for each category (Vat - headwind)
+            // GS on final for each approach cat (Vat - headwind)
             $gs = [];
-            foreach ($cats as $cat => $info) {
-                $gs[$cat] = max($info['vat_kt'] - $headwindKt, 80); // floor 80kt
+            foreach ($appCats as $cat => $info) {
+                $gs[$cat] = max($info['vat_kt'] - $headwindKt, 70);
             }
 
-            // Compute weighted average inter-arrival gap in MINUTES.
-            // gap_min = separation_nm / follower_GS_kt * 60
-            // (distance / speed = hours, * 60 = minutes)
+            // Weighted average inter-arrival gap in minutes.
+            // Separation comes from WAKE category (looked up via approach cat).
             $activeCats = array_keys(array_filter($mix, fn($p) => $p > 0));
 
             $avgGapMin = 0;
@@ -1330,7 +1326,9 @@ final class Kernel
                 foreach ($activeCats as $follower) {
                     $pairProb = ($mix[$leader] ?? 0) * ($mix[$follower] ?? 0);
                     if ($pairProb <= 0) continue;
-                    $sepNm = $sepMatrix[$leader][$follower] ?? $sepMatrix['M']['M'] ?? 3;
+                    $leaderWake = $appCats[$leader]['wake'] ?? 'M';
+                    $followerWake = $appCats[$follower]['wake'] ?? 'M';
+                    $sepNm = $sepMatrix[$leaderWake][$followerWake] ?? 3;
                     $gapMin = ($sepNm / $gs[$follower]) * 60;
                     $avgGapMin += $pairProb * $gapMin;
                 }
@@ -1338,39 +1336,36 @@ final class Kernel
             if ($avgGapMin <= 0) $avgGapMin = 2;
             $aar = (int) round(60 / $avgGapMin);
 
-            // Also compute AAR with no wind for comparison
-            $gsCalm = [];
-            foreach ($cats as $cat => $info) {
-                $gsCalm[$cat] = $info['vat_kt'];
-            }
+            // Calm wind AAR for comparison
             $calmGapMin = 0;
             foreach ($activeCats as $leader) {
                 foreach ($activeCats as $follower) {
                     $pairProb = ($mix[$leader] ?? 0) * ($mix[$follower] ?? 0);
                     if ($pairProb <= 0) continue;
-                    $sepNm = $sepMatrix[$leader][$follower] ?? 3;
-                    $calmGapMin += $pairProb * ($sepNm / $gsCalm[$follower]) * 60;
+                    $leaderWake = $appCats[$leader]['wake'] ?? 'M';
+                    $followerWake = $appCats[$follower]['wake'] ?? 'M';
+                    $sepNm = $sepMatrix[$leaderWake][$followerWake] ?? 3;
+                    $calmGapMin += $pairProb * ($sepNm / $appCats[$follower]['vat_kt']) * 60;
                 }
             }
             $aarCalm = $calmGapMin > 0 ? (int) round(60 / $calmGapMin) : $aar;
 
             // Per-category detail
             $catDetail = [];
-            foreach ($cats as $cat => $info) {
-                if (!isset($mix[$cat]) || $mix[$cat] <= 0) continue;
+            foreach ($appCats as $cat => $info) {
                 $catDetail[] = [
                     'cat'       => $cat,
                     'label'     => $info['label'],
                     'vat_kt'    => $info['vat_kt'],
                     'gs_kt'     => $gs[$cat],
+                    'wake'      => $info['wake'],
                     'mix_pct'   => round(($mix[$cat] ?? 0) * 100, 1),
-                    'examples'  => array_slice($info['examples'], 0, 5),
+                    'examples'  => array_slice($info['examples'], 0, 4),
                 ];
             }
 
             return self::json($res, [
                 'airport'        => $icao,
-                'runway'         => $runwayIdent,
                 'headwind_kt'    => $headwindKt,
                 'aar'            => $aar,
                 'aar_calm'       => $aarCalm,

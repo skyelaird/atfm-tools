@@ -116,8 +116,8 @@
 const $ = id => document.getElementById(id);
 
 let currentData = null;
-const catOrder = ['J', 'H', 'M', 'T', 'L'];
-const catLabels = { J: 'Super', H: 'Heavy', M: 'Medium', T: 'Turboprop', L: 'Light' };
+const catOrder = ['A', 'B', 'C', 'D', 'E'];
+const catLabels = { A: 'Cat A (<91kt)', B: 'Cat B (91-120)', C: 'Cat C (121-140)', D: 'Cat D (141-165)', E: 'Cat E (166+)' };
 
 async function compute() {
     const airport = $('airport').value;

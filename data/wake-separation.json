@@ -1,18 +1,23 @@
 {
-  "_doc": "ICAO wake turbulence separation matrix. Distance in nm by leader/follower wake category. Source: ICAO Doc 4444 §5.4.1.2 + RECAT-EU simplified.",
-  "categories": {
-    "J": { "label": "Super", "vat_kt": 155, "examples": ["A388"] },
-    "H": { "label": "Heavy", "vat_kt": 145, "examples": ["B77W", "B789", "A359", "B744", "A333", "A343", "A35K", "B772", "B77L", "A306", "A310", "MD11", "B763"] },
-    "M": { "label": "Medium", "vat_kt": 135, "examples": ["B738", "B38M", "A320", "A321", "A20N", "A21N", "B737", "B739", "B752", "B753", "E190", "E195", "CRJ9", "E75L", "E75S", "MD82", "MD83", "B736"] },
-    "L": { "label": "Light", "vat_kt": 100, "examples": ["C172", "C182", "DA40", "DA42", "SR22", "PA28", "BE36"] },
-    "T": { "label": "Turboprop", "vat_kt": 115, "examples": ["DH8D", "DH8A", "AT76", "AT72", "DHC6", "BCS1", "BCS3", "CRJ2", "E145"] }
+  "_doc": "ICAO approach categories (A-E by Vat) with wake turbulence separation. Separation is wake-based (ICAO Doc 4444 §5.4.1.2) but the fleet mix input uses approach categories which is how FMPs think.",
+  "approach_categories": {
+    "A": { "label": "Cat A", "vat_kt": 85,  "wake": "L", "examples": ["C172", "C182", "DA40", "PA28", "SR22"] },
+    "B": { "label": "Cat B", "vat_kt": 110, "wake": "M", "examples": ["DH8D", "DH8A", "AT76", "AT72", "DHC6", "BCS1", "BCS3"] },
+    "C": { "label": "Cat C", "vat_kt": 135, "wake": "M", "examples": ["B738", "B38M", "A320", "A321", "A20N", "A21N", "B737", "CRJ9", "E190", "E75L", "B752"] },
+    "D": { "label": "Cat D", "vat_kt": 150, "wake": "H", "examples": ["B77W", "B77L", "B789", "A359", "A35K", "A333", "A343", "B772", "B763", "MD11"] },
+    "E": { "label": "Cat E", "vat_kt": 170, "wake": "H", "examples": ["B744", "B748", "A388", "AN24"] }
+  },
+  "wake_categories": {
+    "L": "Light",
+    "M": "Medium",
+    "H": "Heavy",
+    "J": "Super"
   },
   "separation_nm": {
-    "_doc": "separation_nm[leader][follower] = required distance in nm",
-    "J": { "J": 4, "H": 6, "M": 7, "T": 7, "L": 8 },
-    "H": { "J": 3, "H": 4, "M": 5, "T": 5, "L": 6 },
-    "M": { "J": 3, "H": 3, "M": 3, "T": 3, "L": 5 },
-    "T": { "J": 3, "H": 3, "M": 3, "T": 3, "L": 5 },
-    "L": { "J": 3, "H": 3, "M": 3, "T": 3, "L": 3 }
+    "_doc": "separation_nm[leader_wake][follower_wake] = required distance in nm. ICAO Doc 4444.",
+    "J": { "J": 4, "H": 6, "M": 7, "L": 8 },
+    "H": { "J": 3, "H": 4, "M": 5, "L": 6 },
+    "M": { "J": 3, "H": 3, "M": 3, "L": 5 },
+    "L": { "J": 3, "H": 3, "M": 3, "L": 3 }
   }
 }
