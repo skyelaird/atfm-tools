@@ -1216,17 +1216,22 @@ final class Kernel
                 ];
             }
 
-            // TMI check — any GDP/GS/EDCT on our airports
+            // TMI check — only flights with actual EDCT/CTD/CTA assigned.
+            // gs_flag in PERTI means "on the ground", NOT "ground stop" —
+            // don't use it as a TMI indicator.
             $tmis = [];
             foreach ($adl['flights'] as $pf) {
                 $dest = $pf['fp_dest_icao'] ?? '';
-                if (in_array($dest, $airports, true) && (!empty($pf['edct_utc']) || ($pf['gs_flag'] ?? 0))) {
+                if (in_array($dest, $airports, true)
+                    && (!empty($pf['edct_utc']) || !empty($pf['ctd_utc']) || !empty($pf['cta_utc']))
+                ) {
                     $tmis[] = [
                         'callsign' => $pf['callsign'] ?? '?',
                         'adep'     => $pf['fp_dept_icao'] ?? '?',
                         'ades'     => $dest,
-                        'gs_flag'  => (bool) ($pf['gs_flag'] ?? false),
                         'edct'     => $pf['edct_utc'] ?? null,
+                        'ctd'      => $pf['ctd_utc'] ?? null,
+                        'cta'      => $pf['cta_utc'] ?? null,
                     ];
                 }
             }

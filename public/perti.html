@@ -141,15 +141,16 @@ function render(d) {
 
     // TMI section
     if (d.active_tmis.length > 0) {
-        html += `<section><h2>Active TMIs (GDP / Ground Stop / EDCT)</h2><div class="table-wrap"><table>
-            <thead><tr><th>Callsign</th><th>From</th><th>To</th><th>GS</th><th>EDCT</th></tr></thead><tbody>`;
+        html += `<section><h2>Active TMIs (EDCT / CTD / CTA)</h2><div class="table-wrap"><table>
+            <thead><tr><th>Callsign</th><th>From</th><th>To</th><th>EDCT</th><th>CTD</th><th>CTA</th></tr></thead><tbody>`;
         for (const t of d.active_tmis) {
             html += `<tr>
                 <td class="mono">${t.callsign}</td>
                 <td class="mono">${t.adep}</td>
                 <td class="mono">${t.ades}</td>
-                <td>${t.gs_flag ? '<span class="tag tag-gs">GS</span>' : '—'}</td>
                 <td class="mono">${t.edct ? hhmmz(t.edct) : '—'}</td>
+                <td class="mono">${t.ctd ? hhmmz(t.ctd) : '—'}</td>
+                <td class="mono">${t.cta ? hhmmz(t.cta) : '—'}</td>
             </tr>`;
         }
         html += '</tbody></table></div></section>';
