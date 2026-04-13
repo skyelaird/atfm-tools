@@ -174,6 +174,42 @@
            slot allocation — not just a live prediction anymore." Matches
            MAESTRO's frozen-flight colour convention. */
         .frozen-eldt { color: var(--accent); }
+
+        /* Flight detail popup */
+        .flight-popup-backdrop {
+            display: none; position: fixed; inset: 0; z-index: 2000;
+            background: rgba(0,0,0,0.5); align-items: center; justify-content: center;
+        }
+        .flight-popup-backdrop.open { display: flex; }
+        .flight-popup {
+            background: var(--bg-elev-hi); border: 1px solid var(--border);
+            border-radius: 8px; padding: 1.2rem; min-width: 420px; max-width: 600px;
+            max-height: 80vh; overflow-y: auto; color: var(--text);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+        }
+        .flight-popup h2 { margin: 0 0 0.2rem; font-size: 1.1rem; color: var(--text-bright); }
+        .flight-popup .subtitle { color: var(--text-dim); font-size: 0.8rem; margin-bottom: 0.8rem; }
+        .flight-popup .fp-route {
+            font-family: var(--mono); font-size: 0.75rem; color: var(--text-dim);
+            background: var(--bg-elev); padding: 0.5rem; border-radius: 4px;
+            word-break: break-all; margin-bottom: 0.8rem;
+        }
+        .flight-popup .milestones { display: grid; grid-template-columns: 1fr 1fr; gap: 0.3rem 1.5rem; margin-bottom: 0.8rem; }
+        .flight-popup .ms-label { color: var(--text-dim); font-size: 0.7rem; }
+        .flight-popup .ms-value { font-family: var(--mono); font-size: 0.85rem; color: var(--text-bright); }
+        .flight-popup .ms-value.frozen { color: var(--accent); }
+        .flight-popup .ms-value.simbrief { color: #e8a020; }
+        .flight-popup .position { display: flex; gap: 1.5rem; margin-bottom: 0.8rem; font-size: 0.8rem; }
+        .flight-popup .position .lbl { color: var(--text-dim); }
+        .flight-popup .position .val { font-family: var(--mono); color: var(--text-bright); }
+        .flight-popup .tags { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+        .flight-popup .tag { font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 3px; background: var(--bg-elev); color: var(--text-dim); }
+        .flight-popup .tag.simbrief { background: #3a3018; color: #e8a020; }
+        .flight-popup .close-btn {
+            float: right; background: none; border: none; color: var(--text-dim);
+            font-size: 1.2rem; cursor: pointer; padding: 0; line-height: 1;
+        }
+        .flight-popup .close-btn:hover { color: var(--text-bright); }
         .table-wrap {
             background: var(--bg-elev);
             border: 1px solid var(--border);
@@ -570,6 +606,10 @@
     </div>
 </aside>
 
+<div class="flight-popup-backdrop" id="flight-popup-backdrop">
+    <div class="flight-popup" id="flight-popup"></div>
+</div>
+
 <footer>
     <div>
         <a class="badge" href="https://whc.ca/hosted-in-canada/?aff=3153&gbid=6en"
@@ -902,10 +942,11 @@ function renderAirportDetail(d) {
     //   TLDT  = what the allocator decided the slot should be
     //   CTOT  = how we enforce TLDT for ground-bound flights
     //           (= TTOT + delay required to hit the slot)
+    const inboundFlights = d.inbound;
     body.appendChild(flightTable(
-        `Inbound (${d.inbound.length})`,
+        `Inbound (${inboundFlights.length})`,
         ['Callsign', 'Type', 'From', 'Phase', 'EOBT', 'AOBT', 'ATOT', 'ELDT', 'src', 'TLDT', 'CTOT'],
-        d.inbound.map(f => [
+        inboundFlights.map(f => [
             { cls: 'mono', text: f.callsign, sortKey: f.callsign },
             { cls: 'mono muted', text: f.aircraft_type || '—', sortKey: f.aircraft_type || '' },
             { cls: 'mono', text: f.adep || '—', sortKey: f.adep || '' },
@@ -917,8 +958,10 @@ function renderAirportDetail(d) {
             { cls: 'muted', text: f.eldt_source ? eldtSrcShort(f.eldt_source) : '—', sortKey: f.eldt_source || '' },
             { cls: 'mono', text: hhmmz(f.tldt), sortKey: f.tldt || '' },
             { cls: 'mono', text: hhmmz(f.ctot), sortKey: f.ctot || '' },
-        ])
-    ), 'inbound');
+        ]),
+        'inbound',
+        (idx) => showFlightPopup(inboundFlights[idx])
+    ));
 
     // Outbound flights — drops once ATOT is set (airborne = no longer
     // actionable from this airport). Only shows pre-departure + taxi.
@@ -1003,7 +1046,7 @@ function phaseChip(phase, delayStatus) {
 // Key = state key passed by caller; value = { col: index, dir: 'asc'|'desc' }.
 const drawerSortStates = {};
 
-function flightTable(title, headers, rows, stateKey) {
+function flightTable(title, headers, rows, stateKey, onRowClick) {
     const section = el('section', {}, el('h3', {}, title));
     if (rows.length === 0) {
         section.appendChild(el('div', { class: 'muted', style: 'padding: 0.5rem 0;' }, 'None.'));
@@ -1051,8 +1094,13 @@ function flightTable(title, headers, rows, stateKey) {
     })));
     table.appendChild(thead);
     const tbody = el('tbody');
-    for (const row of sortedRows) {
+    for (let ri = 0; ri < sortedRows.length; ri++) {
+        const row = sortedRows[ri];
         const tr = el('tr');
+        if (onRowClick) {
+            tr.style.cursor = 'pointer';
+            tr.addEventListener('click', () => onRowClick(ri));
+        }
         for (const cell of row) {
             const td = el('td', cell.cls ? { class: cell.cls } : {});
             if (cell.html) td.appendChild(cell.html);
@@ -1081,6 +1129,82 @@ function eldtSrcShort(src) {
         default:                  return src.toLowerCase();
     }
 }
+
+// ---------- Flight detail popup ----------
+
+function showFlightPopup(f) {
+    const popup = $('flight-popup');
+    const backdrop = $('flight-popup-backdrop');
+
+    const ms = (label, val, cls) => {
+        const v = val ? hhmmz(val) : '—';
+        return `<div><span class="ms-label">${label}</span><br><span class="ms-value${cls ? ' ' + cls : ''}">${v}</span></div>`;
+    };
+
+    const altStr = f.fp_alt ? ('FL' + Math.round(f.fp_alt / 100)) : '—';
+    const tasStr = f.fp_tas ? (f.fp_tas + ' kt') : '—';
+    const eteStr = f.fp_ete_min ? (Math.floor(f.fp_ete_min / 60) + 'h' + String(f.fp_ete_min % 60).padStart(2, '0')) : '—';
+    const posLat = f.last_lat != null ? f.last_lat.toFixed(2) : '—';
+    const posLon = f.last_lon != null ? f.last_lon.toFixed(2) : '—';
+    const hdgStr = f.last_hdg != null ? (f.last_hdg + '°') : '—';
+    const altCur = f.last_alt != null ? (f.last_alt >= 18000 ? 'FL' + Math.round(f.last_alt / 100) : f.last_alt + ' ft') : '—';
+    const gsStr = f.last_gs != null ? (f.last_gs + ' kt') : '—';
+
+    const tags = [];
+    if (f.is_simbrief) tags.push('<span class="tag simbrief">SimBrief</span>');
+    if (f.delay_status === 'FLS_NRA') tags.push('<span class="tag" style="background:#3a2018;color:#e06040;">FLS-NRA</span>');
+    if (f.eldt_locked) tags.push('<span class="tag" style="background:#183a3a;color:var(--accent);">ELDT Frozen</span>');
+    const dp = f.display_phase || f.phase || '';
+    tags.push('<span class="tag">' + dp + '</span>');
+
+    popup.innerHTML = `
+        <button class="close-btn" id="flight-popup-close">&times;</button>
+        <h2>${f.callsign} &middot; ${f.aircraft_type || '?'}</h2>
+        <div class="subtitle">${f.adep || '?'} &rarr; ${currentDrawerIcao || '?'}${f.alt_icao ? ' / ALT ' + f.alt_icao : ''} &middot; CID ${f.cid} &middot; ${altStr} &middot; TAS ${tasStr} &middot; ETE ${eteStr}</div>
+        <div class="tags">${tags.join('')}</div>
+        ${f.fp_route ? '<div class="fp-route">' + f.fp_route + '</div>' : '<div class="fp-route muted">No route filed</div>'}
+        <div class="milestones">
+            ${ms('EOBT', f.eobt)}
+            ${ms('ELDT', f.eldt, f.eldt_locked ? 'frozen' : (f.eldt_source === 'SIMBRIEF' ? 'simbrief' : ''))}
+            ${ms('AOBT', f.aobt)}
+            ${ms('ELDT Frozen', f.eldt_locked, 'frozen')}
+            ${ms('ATOT', f.atot)}
+            ${ms('TLDT', f.tldt)}
+            ${ms('ALDT', f.aldt)}
+            ${ms('CTOT', f.ctot)}
+            ${ms('AIBT', f.aibt)}
+            ${ms('src', null)}
+        </div>
+        <div class="position">
+            <div><span class="lbl">POS</span> <span class="val">${posLat} / ${posLon}</span></div>
+            <div><span class="lbl">ALT</span> <span class="val">${altCur}</span></div>
+            <div><span class="lbl">GS</span> <span class="val">${gsStr}</span></div>
+            <div><span class="lbl">HDG</span> <span class="val">${hdgStr}</span></div>
+        </div>
+    `;
+
+    // Replace the static "src" cell with the actual source label
+    const srcCell = popup.querySelectorAll('.milestones > div');
+    if (srcCell.length >= 10) {
+        srcCell[9].innerHTML = '<span class="ms-label">ELDT src</span><br><span class="ms-value">' + (f.eldt_source || '—') + '</span>';
+    }
+
+    backdrop.classList.add('open');
+    $('flight-popup-close').addEventListener('click', closeFlightPopup);
+    backdrop.addEventListener('click', (e) => { if (e.target === backdrop) closeFlightPopup(); });
+}
+
+function closeFlightPopup() {
+    $('flight-popup-backdrop').classList.remove('open');
+}
+
+// Escape key closes flight popup (priority over drawer close)
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && $('flight-popup-backdrop').classList.contains('open')) {
+        closeFlightPopup();
+        e.stopImmediatePropagation();
+    }
+}, true);
 
 function renderCtots(flights) {
     wireSortableTable('ctots-table');

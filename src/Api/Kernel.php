@@ -600,6 +600,17 @@ final class Kernel
                         'delay_status'    => $f->delay_status,
                         'last_gs'         => $f->last_groundspeed_kts,
                         'last_alt'        => $f->last_altitude_ft,
+                        'last_hdg'        => $f->last_heading_deg,
+                        'last_lat'        => $f->last_lat ? round((float) $f->last_lat, 4) : null,
+                        'last_lon'        => $f->last_lon ? round((float) $f->last_lon, 4) : null,
+                        'fp_route'        => $f->fp_route,
+                        'fp_alt'          => $f->fp_altitude_ft,
+                        'fp_tas'          => $f->fp_cruise_tas,
+                        'fp_ete_min'      => $f->fp_enroute_time_min,
+                        'alt_icao'        => $f->alt_icao,
+                        'first_seen_at'   => $f->first_seen_at?->format('c'),
+                        'aldt'            => $f->aldt?->format('c'),
+                        'aibt'            => $f->aibt?->format('c'),
                     ];
                 })->values()->all();
 
