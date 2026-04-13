@@ -625,8 +625,14 @@ final class Kernel
             // cluttering the view with stale data.
             $recentSince = $now->modify('-60 minutes');
             $recentArrivals = Flight::where('ades', $icao)
-                ->where('phase', Flight::PHASE_ARRIVED)
-                ->where('aldt', '>=', $recentSince->format('Y-m-d H:i:s'))
+                ->whereIn('phase', [
+                    Flight::PHASE_ON_RUNWAY, Flight::PHASE_VACATED,
+                    Flight::PHASE_TAXI_IN, Flight::PHASE_ARRIVED,
+                ])
+                ->where(function ($q) use ($recentSince) {
+                    $q->where('aldt', '>=', $recentSince->format('Y-m-d H:i:s'))
+                      ->orWhere('phase_updated_at', '>=', $recentSince->format('Y-m-d H:i:s'));
+                })
                 ->orderBy('aldt', 'desc')
                 ->limit(30)
                 ->get()
