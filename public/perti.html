@@ -213,6 +213,20 @@ function render(d) {
         html += '</tbody></table></div></section>';
     }
 
+    // Tags legend
+    html += `<section><h2>Legend</h2>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.8rem;">
+            <span><span class="tag tag-simbrief">SB</span> SimBrief flight plan</span>
+            <span><span class="tag tag-frozen">FRZ</span> ELDT frozen (T-2h)</span>
+            <span><span class="tag tag-keymatch">key</span> Matched by flight_key</span>
+            <span><span class="tag tag-csmatch">cs</span> Matched by callsign fallback</span>
+            <span><span class="tag tag-edct">EDCT</span> PERTI departure clearance time</span>
+            <span class="${deltaClass(3)}">green</span> |delta| &le; 5 min
+            <span class="${deltaClass(8)}">yellow</span> |delta| &le; 15 min
+            <span class="${deltaClass(20)}">red</span> |delta| &gt; 15 min
+        </div>
+    </section>`;
+
     $('content').innerHTML = html;
 }
 
