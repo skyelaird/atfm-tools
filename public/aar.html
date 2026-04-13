@@ -145,7 +145,7 @@ function rwyAvailable(headwind, xwAbs, wet) {
     return true;
 }
 
-function selectConfig(icao, windDir, windSpd, wet) {
+function selectConfig(icao, windDir, windSpd, wet, rules) {
     const aptCfg = configsByApt[icao];
     if (!aptCfg || !aptCfg.configs) return null;
 
@@ -155,17 +155,38 @@ function selectConfig(icao, windDir, windSpd, wet) {
         if (calm) return { ...calm, _reason: 'calm wind' };
     }
 
+    // Determine VMC from flight rules
+    const vmc = (rules === 'VFR' || rules === 'MVFR');
+
     // Score each config by headwind on primary arrival runway
-    let best = null, bestHw = -999;
+    // Prefer LAHSO configs when conditions allow (higher capacity)
+    let best = null, bestHw = -999, bestRate = 0;
     for (const cfg of aptCfg.configs) {
+        // Check LAHSO requirements
+        if (cfg.requires) {
+            if (cfg.requires.dry && wet) continue;
+            if (cfg.requires.vmc && !vmc) continue;
+        }
         const arrRwy = cfg.runways[cfg.primary_arr];
         if (!arrRwy) continue;
         const wc = windComponents(windDir, windSpd, arrRwy.hdg);
         const avail = rwyAvailable(wc.headwind, Math.abs(wc.crosswind), wet);
         if (!avail) continue;
-        if (wc.headwind > bestHw) {
+        // Also check departure runway if different
+        if (cfg.primary_dep !== cfg.primary_arr) {
+            const depRwy = cfg.runways[cfg.primary_dep];
+            if (depRwy) {
+                const dwc = windComponents(windDir, windSpd, depRwy.hdg);
+                if (!rwyAvailable(dwc.headwind, Math.abs(dwc.crosswind), wet)) continue;
+            }
+        }
+        // Prefer higher declared rate, then better headwind
+        const rate = cfg.declared_arr_rate || 0;
+        if (rate > bestRate || (rate === bestRate && wc.headwind > bestHw)) {
             bestHw = wc.headwind;
-            best = { ...cfg, _hw: wc.headwind, _reason: 'best headwind' };
+            bestRate = rate;
+            const mode = cfg.mode === 'lahso' ? 'LAHSO' : cfg.mode === 'single_interleaved' ? 'single' : 'segregated';
+            best = { ...cfg, _hw: wc.headwind, _reason: `${mode}, best headwind` };
         }
     }
     return best;
@@ -200,7 +221,7 @@ async function renderAirport(icao) {
         rwys.sort((a, b) => b.headwind - a.headwind);
 
         // Select config
-        const cfg = selectConfig(icao, windDir, effectiveWind, wet);
+        const cfg = selectConfig(icao, windDir, effectiveWind, wet, rules);
 
         // Config display
         let configHtml = '';
@@ -213,8 +234,12 @@ async function renderAirport(icao) {
             }).join('');
             const arrRwy = rwys.find(r => r.ident === cfg.primary_arr);
             arrHw = arrRwy ? arrRwy.headwind : 0;
+            const lahsoAvail = !wet && (rules === 'VFR' || rules === 'MVFR');
+            const lahsoBadge = lahsoAvail
+                ? '<span class="badge" style="background:var(--ok-dim);color:var(--ok)">LAHSO avail</span>'
+                : '<span class="badge" style="background:var(--bg);border:1px solid var(--border);color:var(--text-dim)">no LAHSO</span>';
             configHtml = `<div class="config-section">
-                <div class="config-label">Config: <span class="badge badge-config">${cfg.label}</span> (${cfg._reason})</div>
+                <div class="config-label">Config: <span class="badge badge-config">${cfg.label}</span> ${lahsoBadge} (${cfg._reason})</div>
                 <div class="rwy-roles">${roles}</div>
             </div>`;
         }

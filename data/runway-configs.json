@@ -1,5 +1,86 @@
 {
   "_doc": "Per-airport runway configurations. Each config is a direction grouping with arrival/departure runway roles and declared rates. Wind auto-selects the best config.",
+  "CYHZ": {
+    "calm_wind_config": "05",
+    "configs": [
+      {
+        "name": "05",
+        "label": "05 Single",
+        "mode": "single_interleaved",
+        "runways": {
+          "05": { "role": "A/D", "hdg": 53 }
+        },
+        "primary_arr": "05",
+        "primary_dep": "05",
+        "declared_arr_rate": 24,
+        "declared_dep_rate": 12
+      },
+      {
+        "name": "05-LAHSO-14",
+        "label": "05 Arr / 14 Dep (LAHSO)",
+        "mode": "lahso",
+        "requires": { "dry": true, "vmc": true },
+        "runways": {
+          "05": { "role": "A", "hdg": 53 },
+          "14": { "role": "D", "hdg": 143 }
+        },
+        "primary_arr": "05",
+        "primary_dep": "14",
+        "declared_arr_rate": 30,
+        "declared_dep_rate": 16
+      },
+      {
+        "name": "05-LAHSO-32",
+        "label": "05 Arr / 32 Dep (LAHSO)",
+        "mode": "lahso",
+        "requires": { "dry": true, "vmc": true },
+        "runways": {
+          "05": { "role": "A", "hdg": 53 },
+          "32": { "role": "D", "hdg": 323 }
+        },
+        "primary_arr": "05",
+        "primary_dep": "32",
+        "declared_arr_rate": 30,
+        "declared_dep_rate": 16
+      },
+      {
+        "name": "23",
+        "label": "23 Single",
+        "mode": "single_interleaved",
+        "runways": {
+          "23": { "role": "A/D", "hdg": 233 }
+        },
+        "primary_arr": "23",
+        "primary_dep": "23",
+        "declared_arr_rate": 24,
+        "declared_dep_rate": 12
+      },
+      {
+        "name": "14",
+        "label": "14 Single",
+        "mode": "single_interleaved",
+        "runways": {
+          "14": { "role": "A/D", "hdg": 143 }
+        },
+        "primary_arr": "14",
+        "primary_dep": "14",
+        "declared_arr_rate": 20,
+        "declared_dep_rate": 10
+      },
+      {
+        "name": "32",
+        "label": "32 Single",
+        "mode": "single_interleaved",
+        "runways": {
+          "32": { "role": "A/D", "hdg": 323 }
+        },
+        "primary_arr": "32",
+        "primary_dep": "32",
+        "declared_arr_rate": 20,
+        "declared_dep_rate": 10
+      }
+    ]
+  },
   "CYYZ": {
     "calm_wind_config": "15",
     "configs": [
