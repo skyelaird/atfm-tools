@@ -62,7 +62,7 @@ calculated (regulation), `A*` actual.
 | TTOT | Target Take-Off = **TOBT + EXOT** | computed in ingestor |
 | CTOT | Calculated Take-Off — slot allocation | what our allocator emits |
 | **ASAT** | Actual Start-Up Approval | **never stamped** by ingest — controller event, no VATSIM signal. *"Can be in advance of TSAT"* per the manual. |
-| **AOBT** | Actual Off-Block — *"pushes back / vacates parking position"* | first ingest cycle in TAXI_OUT, only if previousPhase ∈ {null, PREFILE, FILED, TAXI_OUT} |
+| **AOBT** | Actual Off-Block — *"pushes back / vacates parking position"* | first ingest cycle with GS > 0 at ADEP geofence (pushback detection), only if previousPhase ∈ {null, PREFILE, FILED, TAXI_OUT} |
 | ATOT | Actual Take-Off | first ingest cycle in DEPARTED or later |
 | ELDT | Estimated Landing | from EtaEstimator (5-tier cascade) |
 | ALDT | Actual Landing | first ingest cycle in ON_RUNWAY/VACATED/TAXI_IN/ARRIVED |
@@ -92,6 +92,10 @@ who reposition aircraft) produce 100+ min outliers that skew reports.
 4. **CALC_TYPE_TAS** — descent-aware from `AircraftTas::typicalTas()`, conf 55
 5. **CALC_DEFAULT** — descent-aware from 430 kt, conf 40
 
+**ELDT eligibility**: only computed for flights at cruise altitude
+(alt >= filed altitude − 2000 ft) or in ARRIVING phase. Flights in
+FILED, CLIMBOUT, or FLS-NRA phases show no ELDT.
+
 **Descent model** (`Geo::etaMinutesWithDescent()`): standard 3° glidepath
 with published speed constraints — 250 kt below FL100, 220 kt within
 20nm, type-specific IAS above FL100 (310 kt for B77W, 280 for B738,
@@ -100,8 +104,9 @@ etc. from PMDG/iniBuilds profiles). TOD at altitude/318 nm.
 **Taxi time**: zone-based from `data/taxizones.txt` (apron polygon ×
 runway → minutes). Falls back to airport default.
 
-**ELDT freeze**: snapshots at T-2h (or ENROUTE+5min, whichever is later)
-for validation against eventual ALDT. Target: ±3 min.
+**ELDT freeze**: snapshots at T-2h / 120 min (freeze window 116..120 min
+before predicted landing, or ENROUTE+5min, whichever is later) for
+validation against eventual ALDT. Target: ±3 min.
 
 ## OpLevel taxonomy (PERTI-compatible)
 

@@ -284,7 +284,7 @@ flights
 ├── ttot                       datetime null     -- target take-off (tsat + exot)
 ├── ctot                       datetime null     -- calculated take-off (allocator output)
 ├── asat                       datetime null     -- actual start-up approval (CDM/PERTI feed only — NEVER stamped from VATSIM ingest, no signal for it)
-├── aobt                       datetime null     -- actual off-block (observed: first ingest cycle in TAXI_OUT, only if previous phase was pre-departure)
+├── aobt                       datetime null     -- actual off-block (observed: first ingest cycle with GS > 0 at ADEP geofence, only if previous phase was pre-departure)
 ├── atot                       datetime null     -- actual take-off (threshold crossing)
 ├── eldt                       datetime null     -- estimated landing (computed)
 ├── cta                        datetime null     -- calculated arrival (allocator output)
@@ -534,7 +534,7 @@ our 7 configured airports.
 2. UPSERT into `flights` table keyed by `flight_key`.
 3. Update A-CDM milestone fields as they become observable:
    - `eobt`: from `flight_plan.deptime` (once on first FILED observation)
-   - `aobt`: first ingest cycle classified as TAXI_OUT, **only if** previous phase was PREFILE/FILED/TAXI_OUT (never backfilled from mid-cruise sightings, which would produce garbage EXOT). `asat` is never stamped from VATSIM ingest — no signal for it.
+   - `aobt`: first ingest cycle with GS > 0 at ADEP geofence (pushback detection), **only if** previous phase was PREFILE/FILED/TAXI_OUT (never backfilled from mid-cruise sightings, which would produce garbage EXOT). `asat` is never stamped from VATSIM ingest — no signal for it.
    - `atot`: first time altitude > 200ft AGL near ADEP
    - `aldt`: first time altitude descends through 200ft AGL near ADES
    - `aibt`: first stationary observation near ADES
@@ -774,7 +774,8 @@ matches the aircraft position.
 ### 7.1.3 ELDT freeze for validation
 
 The ingestor snapshots the current ELDT once per flight when it first
-enters the validation horizon (default: T-2h before predicted landing
+enters the validation horizon (T-2h / 120 min before predicted landing,
+freeze window 116..120 min,
 AND at least 5 min in ENROUTE phase for GS stabilisation). Stored as
 `eldt_locked` + `eldt_locked_at` + `eldt_locked_source`. After ALDT
 is observed, `ALDT - eldt_locked` is the prediction-quality KPI
