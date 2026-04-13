@@ -130,6 +130,8 @@
 </main>
 <script>
 const AIRPORTS = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
+// Magnetic variation: positive = East (add to true), negative = West (subtract)
+const MAG_VAR = { CYVR: 17, CYYC: 15, CYWG: 3, CYYZ: -10, CYOW: -10, CYUL: -15, CYHZ: -18 };
 const AVWX_TOKEN = 'vmtkb1D8Tuva2Jw2tXihWcKE3m2sfDJkySBZygVx82I';
 const PRECIP_CODES = ['RA','SN','DZ','TS','SH','FZ','GR','GS','PL','IC','UP'];
 const MAX_TAILWIND = 5;
@@ -302,7 +304,8 @@ async function loadAll() {
     }));
     for (const { icao, data: m } of metars) {
         if (!m) { aptState[icao] = null; continue; }
-        const windDir = parseInt(m.wind_direction?.value || 0), windSpd = parseInt(m.wind_speed?.value || 0);
+        const windDirTrue = parseInt(m.wind_direction?.value || 0), windSpd = parseInt(m.wind_speed?.value || 0);
+        const windDir = (windDirTrue + (MAG_VAR[icao] || 0) + 360) % 360;
         const gustSpd = parseInt(m.wind_gust?.value || windSpd), effectiveWind = Math.max(windSpd, gustSpd);
         const wet = isWet(m), rules = m.flight_rules || '?';
         const vfrOnly = new Set(configsByApt[icao]?._vfr_only || []);
