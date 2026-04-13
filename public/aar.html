@@ -14,8 +14,6 @@
             --alert: #f87171; --alert-dim: #5e1f1f;
             --ok: #4ade80; --ok-dim: #1e4a2e;
             --info: #60a5fa;
-            --arr: #60a5fa; --arr-dim: #1e3a5f;
-            --dep: #c084fc; --dep-dim: #3b1f5e;
             --mono: "SF Mono", Consolas, Monaco, monospace;
         }
         * { box-sizing: border-box; }
@@ -28,24 +26,20 @@
         header .nav-pills { display: flex; gap: 0.5rem; margin-left: auto; }
         .pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px; background: var(--bg-elev-hi); border: 1px solid var(--border); font-size: 0.75rem; color: var(--text-dim); text-decoration: none; }
 
-        main { max-width: 2000px; margin: 0 auto; padding: 1.5rem; }
+        main { max-width: 2000px; margin: 0 auto; padding: 1rem; }
         .controls { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; align-items: center; }
         button.refresh { background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); border-radius: 4px; padding: 0.4rem 1rem; cursor: pointer; font-weight: 600; }
         button.refresh:hover { background: var(--accent); color: var(--bg); }
         .last-update { font-size: 0.75rem; color: var(--text-dim); }
 
         .airport-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
-        @media (max-width: 640px) {
-            .airport-grid { grid-template-columns: 1fr; }
-            main { padding: 0.75rem; }
-        }
-        @media (min-width: 1400px) {
-            .airport-grid { grid-template-columns: repeat(4, 1fr); }
-        }
-        .apt-card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; }
-        .apt-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
-        .apt-icao { font-size: 1.2rem; font-weight: 700; color: var(--text-bright); font-family: var(--mono); }
-        .badge { font-size: 0.65rem; padding: 0.15rem 0.5rem; border-radius: 3px; font-weight: 600; }
+        @media (max-width: 640px) { .airport-grid { grid-template-columns: 1fr; } main { padding: 0.5rem; } }
+        @media (min-width: 1400px) { .airport-grid { grid-template-columns: repeat(4, 1fr); } }
+
+        .apt-card { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem; }
+        .apt-header { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+        .apt-icao { font-size: 1.3rem; font-weight: 700; color: var(--text-bright); font-family: var(--mono); }
+        .badge { font-size: 0.7rem; padding: 0.2rem 0.6rem; border-radius: 4px; font-weight: 600; }
         .wx-vfr { background: var(--ok-dim); color: var(--ok); }
         .wx-mvfr { background: #1e3a5f; color: var(--info); }
         .wx-ifr { background: var(--alert-dim); color: var(--alert); }
@@ -55,51 +49,67 @@
         .badge-lahso { background: var(--ok-dim); color: var(--ok); }
         .badge-nolahso { background: var(--bg); border: 1px solid var(--border); color: var(--text-dim); }
 
-        .wind-line { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.6rem; }
-        .wind-line .val { color: var(--text-bright); font-family: var(--mono); }
+        .wind-line { font-size: 0.8rem; color: var(--text-dim); margin-bottom: 0.3rem; }
+        .wind-line .val { color: var(--text-bright); font-family: var(--mono); font-weight: 600; }
 
-        /* Runway selector grid — single row, scroll if needed */
-        .rwy-grid { display: flex; flex-wrap: nowrap; gap: 0.4rem; margin-bottom: 0.6rem; overflow-x: auto; }
-        .rwy-chip {
-            display: flex; flex-direction: column; align-items: center;
-            padding: 0.3rem 0.6rem; border-radius: 6px; cursor: pointer;
-            border: 2px solid var(--border); background: var(--bg);
-            min-width: 52px; transition: all 0.15s;
-            user-select: none;
+        .wx-extra { font-size: 0.7rem; margin-bottom: 0.5rem; }
+        .wx-extra .cig-warn { color: var(--warn); }
+        .wx-extra .vis-warn { color: var(--alert); }
+
+        /* Runway cards — large, clickable */
+        .rwy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 0.5rem; margin-bottom: 0.6rem; }
+        .rwy-card {
+            background: var(--bg); border: 2px solid var(--border); border-radius: 8px;
+            padding: 0.5rem; cursor: pointer; user-select: none; transition: all 0.15s;
         }
-        .rwy-chip:hover { border-color: var(--text-dim); }
-        .rwy-chip.unavail { opacity: 0.25; cursor: not-allowed; border-style: dashed; }
-        .rwy-chip .rwy-id { font-family: var(--mono); font-size: 0.85rem; font-weight: 700; color: var(--text-bright); }
-        .rwy-chip .rwy-role { font-size: 0.6rem; font-weight: 600; margin-top: 0.1rem; }
-        .rwy-chip .rwy-wind { font-size: 0.6rem; color: var(--text-dim); margin-top: 0.1rem; }
-        .rwy-chip.role-A { border-color: var(--arr); background: var(--arr-dim); }
-        .rwy-chip.role-A .rwy-role { color: var(--arr); }
-        .rwy-chip.role-D { border-color: var(--dep); background: var(--dep-dim); }
-        .rwy-chip.role-D .rwy-role { color: var(--dep); }
-        .rwy-chip.role-AD { border-color: var(--accent); background: var(--accent-dim); }
-        .rwy-chip.role-AD .rwy-role { color: var(--accent); }
-        .rwy-chip.role-off { border-color: var(--border); background: var(--bg); }
-        .rwy-chip.role-off .rwy-role { color: var(--text-dim); }
-        .rwy-chip.role-off .rwy-id { color: var(--text-dim); }
+        .rwy-card:hover { border-color: var(--text-dim); }
+        .rwy-card.unavail { opacity: 0.3; cursor: not-allowed; border-style: dashed; }
+        .rwy-card .rwy-id { font-family: var(--mono); font-size: 1.1rem; font-weight: 700; color: var(--text-bright); }
+        .rwy-card .rwy-role-badge {
+            display: inline-block; font-size: 0.65rem; font-weight: 700; padding: 0.1rem 0.4rem;
+            border-radius: 3px; margin-left: 0.3rem; vertical-align: middle;
+        }
+        .role-badge-A { background: #1e3a5f; color: var(--info); }
+        .role-badge-D { background: #3b1f5e; color: #c084fc; }
+        .role-badge-AD { background: var(--accent-dim); color: var(--accent); }
+        .role-badge-off { background: var(--bg-elev-hi); color: var(--text-dim); }
 
-        .rate-box { display: flex; align-items: center; padding: 0.6rem 0; border-top: 1px solid var(--border); margin-top: 0.4rem; gap: 0.8rem; }
-        .rate-stack { display: flex; flex-direction: column; gap: 0.15rem; }
+        .rwy-card .wind-comps { display: flex; gap: 0.4rem; margin-top: 0.4rem; }
+        .wind-comp {
+            flex: 1; display: flex; align-items: center; gap: 0.2rem;
+            padding: 0.25rem 0.4rem; border-radius: 4px; font-family: var(--mono);
+            font-size: 0.8rem; font-weight: 600;
+        }
+        .wind-comp .arrow { font-size: 0.9rem; }
+        /* Headwind */
+        .hw-good { background: var(--ok-dim); color: var(--ok); }
+        .hw-light { background: #1e3a2e; color: var(--ok); }
+        .hw-tail-mild { background: var(--warn-dim); color: var(--warn); }
+        .hw-tail-strong { background: var(--alert-dim); color: var(--alert); }
+        /* Crosswind */
+        .xw-light { background: var(--ok-dim); color: var(--ok); }
+        .xw-mod { background: var(--warn-dim); color: var(--warn); }
+        .xw-strong { background: var(--alert-dim); color: var(--alert); }
+
+        .propose-btn { font-size: 0.7rem; background: none; border: 1px solid var(--accent-dim); color: var(--accent); border-radius: 3px; padding: 0.15rem 0.5rem; cursor: pointer; margin-left: auto; }
+        .propose-btn:hover { background: var(--accent-dim); }
+
+        /* Rate display */
+        .rate-box { display: flex; align-items: center; padding: 0.5rem 0; border-top: 1px solid var(--border); margin-top: 0.3rem; gap: 0.8rem; }
+        .rate-stack { display: flex; flex-direction: column; gap: 0.1rem; }
         .rate-row { display: flex; align-items: baseline; gap: 0.4rem; }
-        .rate-num { font-size: 1.1rem; font-weight: 700; font-family: var(--mono); }
-        .rate-label { font-size: 0.6rem; color: var(--text-dim); text-transform: uppercase; width: 28px; }
+        .rate-num { font-size: 1.2rem; font-weight: 700; font-family: var(--mono); }
+        .rate-label { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; width: 30px; }
         .rate-arr .rate-num { color: var(--ok); }
         .rate-dep .rate-num { color: var(--info); }
         .rate-total { margin-left: auto; text-align: center; }
-        .rate-total .rate-num { font-size: 1.8rem; color: #c084fc; }
-        .rate-total .rate-label { width: auto; }
-        .rate-declared { font-size: 0.7rem; color: var(--text-dim); }
-        .rate-declared .val { font-family: var(--mono); }
-        .rate-sub { font-size: 0.65rem; color: var(--text-dim); width: 100%; }
+        .rate-total .rate-num { font-size: 2rem; color: #c084fc; }
+        .rate-total .rate-label { width: auto; font-size: 0.6rem; }
+        .rate-sub { font-size: 0.6rem; color: var(--text-dim); margin-top: 0.2rem; }
 
-        .metar-raw { font-size: 0.6rem; color: var(--text-dim); margin-top: 0.4rem; word-break: break-all; }
-
-        .propose-btn { font-size: 0.65rem; background: none; border: 1px solid var(--accent-dim); color: var(--accent); border-radius: 3px; padding: 0.15rem 0.4rem; cursor: pointer; margin-left: auto; }
-        .propose-btn:hover { background: var(--accent-dim); }
+        .metar-raw { font-size: 0.6rem; color: var(--text-dim); margin-top: 0.3rem; word-break: break-all; cursor: pointer; max-height: 1.2em; overflow: hidden; transition: max-height 0.3s; }
+        .metar-raw.expanded { max-height: 5em; }
+        .metar-toggle { font-size: 0.55rem; color: var(--text-dim); cursor: pointer; }
     </style>
 </head>
 <body>
@@ -129,7 +139,6 @@ const ROLE_CYCLE = ['off', 'A', 'D', 'A/D'];
 
 let thresholdsByApt = {};
 let configsByApt = {};
-// Per-airport state: { icao: { runways: { ident: { role, hdg, hw, xw, avail } }, metar, wet, rules } }
 let aptState = {};
 
 async function loadData() {
@@ -162,101 +171,78 @@ function rwyAvailable(hw, xwAbs, wet) {
 }
 
 function autoPropose(icao) {
-    const st = aptState[icao];
-    if (!st) return;
+    const st = aptState[icao]; if (!st) return;
     const aptCfg = configsByApt[icao];
     const vmc = (st.rules === 'VFR' || st.rules === 'MVFR');
-
-    // Reset all to off
     for (const r of Object.values(st.runways)) r.role = 'off';
-
     if (aptCfg && aptCfg.configs) {
-        // Find best config
         let best = null, bestRate = 0, bestHw = -999;
         for (const cfg of aptCfg.configs) {
-            if (cfg.requires) {
-                if (cfg.requires.dry && st.wet) continue;
-                if (cfg.requires.vmc && !vmc) continue;
-            }
-            const arrRwy = st.runways[cfg.primary_arr];
-            if (!arrRwy || !arrRwy.avail) continue;
-            if (cfg.primary_dep !== cfg.primary_arr) {
-                const depRwy = st.runways[cfg.primary_dep];
-                if (!depRwy || !depRwy.avail) continue;
-            }
-            const rate = cfg.declared_arr_rate || 0;
-            const hw = arrRwy.hw;
-            if (rate > bestRate || (rate === bestRate && hw > bestHw)) {
-                bestRate = rate; bestHw = hw; best = cfg;
-            }
+            if (cfg.requires) { if (cfg.requires.dry && st.wet) continue; if (cfg.requires.vmc && !vmc) continue; }
+            const arrRwy = st.runways[cfg.primary_arr]; if (!arrRwy || !arrRwy.avail) continue;
+            if (cfg.primary_dep !== cfg.primary_arr) { const d = st.runways[cfg.primary_dep]; if (!d || !d.avail) continue; }
+            const rate = cfg.declared_arr_rate || 0, hw = arrRwy.hw;
+            if (rate > bestRate || (rate === bestRate && hw > bestHw)) { bestRate = rate; bestHw = hw; best = cfg; }
         }
-        if (best) {
-            for (const [ident, info] of Object.entries(best.runways)) {
-                if (st.runways[ident]) st.runways[ident].role = info.role;
-            }
-            st.configName = best.label;
-            return;
-        }
+        if (best) { for (const [id, info] of Object.entries(best.runways)) { if (st.runways[id]) st.runways[id].role = info.role; } st.configName = best.label; return; }
     }
-
-    // Fallback: best headwind runway as A/D
     let bestRwy = null, bestHw2 = -999;
-    for (const [ident, r] of Object.entries(st.runways)) {
-        if (r.avail && r.hw > bestHw2) { bestHw2 = r.hw; bestRwy = ident; }
-    }
-    if (bestRwy) {
-        st.runways[bestRwy].role = 'A/D';
-        st.configName = `${bestRwy} (auto)`;
-    }
+    for (const [id, r] of Object.entries(st.runways)) { if (r.avail && r.hw > bestHw2) { bestHw2 = r.hw; bestRwy = id; } }
+    if (bestRwy) { st.runways[bestRwy].role = 'A/D'; st.configName = bestRwy + ' (auto)'; }
+}
+
+function hwClass(hw) {
+    if (hw >= 5) return 'hw-good';
+    if (hw >= 0) return 'hw-light';
+    if (hw > -5) return 'hw-tail-mild';
+    return 'hw-tail-strong';
+}
+
+function xwClass(xwAbs) {
+    if (xwAbs <= 12) return 'xw-light';
+    if (xwAbs <= 20) return 'xw-mod';
+    return 'xw-strong';
+}
+
+function roleBadge(role) {
+    if (role === 'A') return '<span class="rwy-role-badge role-badge-A">ARR</span>';
+    if (role === 'D') return '<span class="rwy-role-badge role-badge-D">DEP</span>';
+    if (role === 'A/D') return '<span class="rwy-role-badge role-badge-AD">A/D</span>';
+    return '<span class="rwy-role-badge role-badge-off">OFF</span>';
 }
 
 function renderCard(icao) {
     const st = aptState[icao];
-    if (!st) return '<div class="apt-card"><span class="apt-icao">' + icao + '</span> No data</div>';
-
-    const wxClass = { VFR: 'wx-vfr', MVFR: 'wx-mvfr', IFR: 'wx-ifr', LIFR: 'wx-lifr' }[st.rules] || '';
-    const wxCond = (st.rules === 'VFR' || st.rules === 'MVFR') ? 'VMC' : 'IMC';
+    if (!st) return `<span class="apt-icao">${icao}</span> No data`;
+    const wxCls = { VFR: 'wx-vfr', MVFR: 'wx-mvfr', IFR: 'wx-ifr', LIFR: 'wx-lifr' }[st.rules] || '';
     const lahso = !st.wet && (st.rules === 'VFR' || st.rules === 'MVFR');
-    const xwLimit = st.wet ? MAX_XW_WET : MAX_XW_DRY;
 
-    // Runway chips
     const rwySorted = Object.entries(st.runways).sort((a, b) => a[1].hdg - b[1].hdg);
-    const chips = rwySorted.map(([ident, r]) => {
-        const roleClass = r.role === 'A' ? 'role-A' : r.role === 'D' ? 'role-D' : r.role === 'A/D' ? 'role-AD' : 'role-off';
+    const cards = rwySorted.map(([ident, r]) => {
         const unavail = !r.avail ? 'unavail' : '';
         const hwArrow = r.hw >= 0 ? '↓' : '↑';
         const hwAbs = Math.abs(r.hw);
-        const roleLabel = r.role === 'off' ? '—' : r.role;
-        const tooltip = r.avail
-            ? `${ident} ${r.hdg}° | ${r.hw >= 0 ? 'HW' : 'TW'} ${hwAbs}kt XW ${r.xwAbs}kt | Click to toggle`
-            : `${ident} UNAVAILABLE: ${r.unavailReason}`;
-        return `<div class="rwy-chip ${roleClass} ${unavail}" title="${tooltip}" data-icao="${icao}" data-rwy="${ident}" onclick="toggleRwy('${icao}','${ident}')">
-            <span class="rwy-id">${ident}</span>
-            <span class="rwy-role">${roleLabel}</span>
-            <span class="rwy-wind">${hwArrow}${hwAbs}</span>
-            <span class="rwy-wind">↔${r.xwAbs}</span>
+        const tooltip = r.avail ? `${ident} ${r.hdg}° | Click to toggle` : `UNAVAILABLE: ${r.unavailReason}`;
+        return `<div class="rwy-card ${unavail}" title="${tooltip}" onclick="toggleRwy('${icao}','${ident}')">
+            <span class="rwy-id">${ident}</span>${roleBadge(r.role)}
+            <div class="wind-comps">
+                <div class="wind-comp ${hwClass(r.hw)}"><span class="arrow">${hwArrow}</span>${hwAbs}</div>
+                <div class="wind-comp ${xwClass(r.xwAbs)}"><span class="arrow">↔</span>${r.xwAbs}</div>
+            </div>
         </div>`;
     }).join('');
-
-    // Count active arr/dep runways
-    const arrRwys = rwySorted.filter(([, r]) => r.role === 'A' || r.role === 'A/D');
-    const depRwys = rwySorted.filter(([, r]) => r.role === 'D' || r.role === 'A/D');
-
-    // Get best headwind from active arrival runways for AAR calc
-    const bestArrHw = arrRwys.length > 0 ? Math.max(...arrRwys.map(([, r]) => r.hw)) : 0;
 
     return `
         <div class="apt-header">
             <span class="apt-icao">${icao}</span>
-            <span class="badge ${wxClass}">${st.rules}</span>
-            <span class="badge" style="background:var(--bg);border:1px solid var(--border);color:var(--text-dim)">${wxCond}</span>
+            <span class="badge ${wxCls}">${st.rules}</span>
             <span class="badge ${st.wet ? 'badge-wet' : 'badge-dry'}">${st.wet ? 'WET' : 'DRY'}</span>
             ${lahso ? '<span class="badge badge-lahso">LAHSO</span>' : '<span class="badge badge-nolahso">no LAHSO</span>'}
             <button class="propose-btn" onclick="propose('${icao}')">Auto</button>
         </div>
-        <div class="wind-line">Wind <span class="val">${st.windDir}°/${st.windSpd}kt</span>${st.gustSpd > st.windSpd ? ` G${st.gustSpd}` : ''} | XW lim ${xwLimit}kt | ${st.configName || ''}</div>
-        <div class="rwy-grid">${chips}</div>
-        <div class="rate-box" id="rates-${icao}">
+        <div class="wind-line"><span class="val">${st.windDir}°M/${st.effectiveWind}kt</span>${st.gustSpd > st.windSpd ? ` G${st.gustSpd}` : ''} ${st.configName ? '| ' + st.configName : ''}</div>
+        <div class="rwy-grid">${cards}</div>
+        <div class="rate-box">
             <div class="rate-stack">
                 <div class="rate-row rate-arr"><span class="rate-label">AAR</span><span class="rate-num" id="aar-${icao}">—</span></div>
                 <div class="rate-row rate-dep"><span class="rate-label">ADR</span><span class="rate-num" id="adr-${icao}">—</span></div>
@@ -264,165 +250,79 @@ function renderCard(icao) {
             <div class="rate-total"><div class="rate-num" id="total-${icao}">—</div><div class="rate-label">movements</div></div>
         </div>
         <div class="rate-sub" id="rate-detail-${icao}"></div>
-        <div class="metar-raw">${st.metar || ''}</div>
+        <div class="metar-raw" onclick="this.classList.toggle('expanded')">${st.metar || ''}</div>
     `;
 }
 
 function toggleRwy(icao, ident) {
-    const st = aptState[icao];
-    if (!st || !st.runways[ident]) return;
+    const st = aptState[icao]; if (!st || !st.runways[ident] || !st.runways[ident].avail) return;
     const r = st.runways[ident];
-    if (!r.avail) return; // can't activate unavailable runway
-
-    const idx = ROLE_CYCLE.indexOf(r.role);
-    r.role = ROLE_CYCLE[(idx + 1) % ROLE_CYCLE.length];
+    r.role = ROLE_CYCLE[(ROLE_CYCLE.indexOf(r.role) + 1) % ROLE_CYCLE.length];
     st.configName = 'Manual';
-
     refreshCard(icao);
 }
 
-function propose(icao) {
-    autoPropose(icao);
-    refreshCard(icao);
-}
+function propose(icao) { autoPropose(icao); refreshCard(icao); }
 
 function refreshCard(icao) {
     const card = document.querySelector(`[data-card="${icao}"]`);
-    if (card) {
-        card.innerHTML = renderCard(icao);
-        computeRates(icao);
-    }
+    if (card) { card.innerHTML = renderCard(icao); computeRates(icao); }
 }
 
 async function computeRates(icao) {
-    const st = aptState[icao];
-    if (!st) return;
-
+    const st = aptState[icao]; if (!st) return;
     const arrRwys = Object.entries(st.runways).filter(([, r]) => r.role === 'A' || r.role === 'A/D');
     const depRwys = Object.entries(st.runways).filter(([, r]) => r.role === 'D' || r.role === 'A/D');
-
-    if (arrRwys.length === 0 && depRwys.length === 0) {
-        document.getElementById(`aar-${icao}`).textContent = '—';
-        document.getElementById(`adr-${icao}`).textContent = '—';
-        document.getElementById(`total-${icao}`).textContent = '—';
-        document.getElementById(`rate-detail-${icao}`).textContent = 'No active runways';
-        return;
-    }
-
-    // For each arrival runway, compute AAR from fleet mix + headwind
-    let totalArr = 0;
-    let arrDetails = [];
+    const el = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
+    if (!arrRwys.length && !depRwys.length) { el(`aar-${icao}`, '—'); el(`adr-${icao}`, '—'); el(`total-${icao}`, '—'); el(`rate-detail-${icao}`, 'No active runways'); return; }
+    let totalArr = 0, totalDep = 0, details = [];
     for (const [ident, r] of arrRwys) {
         try {
             const res = await fetch(`/api/v1/aar/calculate?airport=${icao}&headwind=${r.hw}`);
             const d = await res.json();
-            // If this runway is also A/D (shared), halve the arrival rate
-            const shared = r.role === 'A/D';
-            const rate = shared ? Math.round(d.aar * 0.6) : d.aar; // ~60% arrivals on shared
-            totalArr += rate;
-            arrDetails.push(`${ident}: ${rate}`);
-        } catch (e) {
-            arrDetails.push(`${ident}: err`);
-        }
+            const rate = r.role === 'A/D' ? Math.round(d.aar * 0.6) : d.aar;
+            totalArr += rate; details.push(`${ident}:${rate}A`);
+        } catch (e) {}
     }
-
-    // Departure rate: dedicated dep runways get full rate estimate,
-    // shared A/D runways get remainder
-    let totalDep = 0;
-    let depDetails = [];
     for (const [ident, r] of depRwys) {
-        if (r.role === 'D') {
-            // Dedicated departure runway — estimate ~20/hr (typ single runway dep rate)
-            totalDep += 20;
-            depDetails.push(`${ident}: 20`);
-        } else {
-            // A/D shared — remainder after arrivals
-            const shared = Math.round(totalArr * 0.4 / 0.6); // inverse of the 60/40 split
-            totalDep += Math.min(shared, 12);
-            depDetails.push(`${ident}: ${Math.min(shared, 12)}`);
-        }
+        const rate = r.role === 'D' ? 20 : Math.min(Math.round(totalArr * 0.4 / 0.6), 12);
+        totalDep += rate; details.push(`${ident}:${rate}D`);
     }
-
-    const el = (id, txt) => { const e = document.getElementById(id); if (e) e.textContent = txt; };
-    el(`aar-${icao}`, `${totalArr}/hr`);
-    el(`adr-${icao}`, `${totalDep}/hr`);
-    el(`total-${icao}`, `${totalArr + totalDep}/hr`);
-    el(`rate-detail-${icao}`, `ARR: ${arrDetails.join(', ')} | DEP: ${depDetails.join(', ')}`);
+    el(`aar-${icao}`, `${totalArr}/hr`); el(`adr-${icao}`, `${totalDep}/hr`); el(`total-${icao}`, `${totalArr + totalDep}`);
+    el(`rate-detail-${icao}`, details.join(' | '));
 }
 
 async function loadAll() {
     const grid = document.getElementById('grid');
     grid.innerHTML = '<div style="color:var(--text-dim);padding:1rem;">Loading...</div>';
     await loadData();
-
-    // Fetch all METARs
-    const metarPromises = AIRPORTS.map(async (icao) => {
-        try {
-            const res = await fetch(`https://avwx.rest/api/metar/${icao}?token=${AVWX_TOKEN}`);
-            if (!res.ok) throw new Error('fail');
-            return { icao, data: await res.json() };
-        } catch (e) {
-            return { icao, data: null };
-        }
-    });
-    const metars = await Promise.all(metarPromises);
-
-    // Build state
+    const metars = await Promise.all(AIRPORTS.map(async icao => {
+        try { const r = await fetch(`https://avwx.rest/api/metar/${icao}?token=${AVWX_TOKEN}`); return { icao, data: await r.json() }; }
+        catch (e) { return { icao, data: null }; }
+    }));
     for (const { icao, data: m } of metars) {
         if (!m) { aptState[icao] = null; continue; }
-
-        const windDir = parseInt(m.wind_direction?.value || 0);
-        const windSpd = parseInt(m.wind_speed?.value || 0);
-        const gustSpd = parseInt(m.wind_gust?.value || windSpd);
-        const effectiveWind = Math.max(windSpd, gustSpd);
-        const wet = isWet(m);
-        const rules = m.flight_rules || '?';
-
-        // Filter out VFR-only runways
-        const aptCfgData = configsByApt[icao];
-        const vfrOnly = new Set(aptCfgData?._vfr_only || []);
-
+        const windDir = parseInt(m.wind_direction?.value || 0), windSpd = parseInt(m.wind_speed?.value || 0);
+        const gustSpd = parseInt(m.wind_gust?.value || windSpd), effectiveWind = Math.max(windSpd, gustSpd);
+        const wet = isWet(m), rules = m.flight_rules || '?';
+        const vfrOnly = new Set(configsByApt[icao]?._vfr_only || []);
         const rwys = {};
         for (const t of (thresholdsByApt[icao] || [])) {
             if (vfrOnly.has(t.ident)) continue;
-            const wc = windComponents(windDir, effectiveWind, t.hdg);
-            const xwAbs = Math.abs(wc.crosswind);
-            const xwLimit = wet ? MAX_XW_WET : MAX_XW_DRY;
-            const avail = rwyAvailable(wc.headwind, xwAbs, wet);
-            // Build reason for unavailability
+            const wc = windComponents(windDir, effectiveWind, t.hdg), xwAbs = Math.abs(wc.crosswind);
+            const xwLimit = wet ? MAX_XW_WET : MAX_XW_DRY, avail = rwyAvailable(wc.headwind, xwAbs, wet);
             let unavailReason = '';
-            if (!avail) {
-                const reasons = [];
-                if (wc.headwind < -MAX_TAILWIND) reasons.push(`Tailwind ${Math.abs(wc.headwind)}kt (max ${MAX_TAILWIND}kt)`);
-                if (xwAbs > xwLimit) reasons.push(`Crosswind ${xwAbs}kt (max ${xwLimit}kt${wet ? ' wet' : ''})`);
-                unavailReason = reasons.join(', ');
-            }
-            rwys[t.ident] = {
-                hdg: t.hdg,
-                hw: wc.headwind,
-                xw: wc.crosswind,
-                xwAbs,
-                avail,
-                unavailReason,
-                role: 'off'
-            };
+            if (!avail) { const rs = []; if (wc.headwind < -MAX_TAILWIND) rs.push(`TW ${Math.abs(wc.headwind)}kt (max ${MAX_TAILWIND})`); if (xwAbs > xwLimit) rs.push(`XW ${xwAbs}kt (max ${xwLimit}${wet?' wet':''})`); unavailReason = rs.join(', '); }
+            rwys[t.ident] = { hdg: t.hdg, hw: wc.headwind, xw: wc.crosswind, xwAbs, avail, unavailReason, role: 'off' };
         }
-
-        aptState[icao] = { windDir, windSpd, gustSpd, effectiveWind: effectiveWind, wet, rules, runways: rwys, metar: m.raw || '', configName: '' };
+        aptState[icao] = { windDir, windSpd, gustSpd, effectiveWind, wet, rules, runways: rwys, metar: m.raw || '', configName: '' };
         autoPropose(icao);
     }
-
-    // Render
     grid.innerHTML = '';
     for (const icao of AIRPORTS) {
-        const card = document.createElement('div');
-        card.className = 'apt-card';
-        card.setAttribute('data-card', icao);
-        card.innerHTML = renderCard(icao);
-        grid.appendChild(card);
-        computeRates(icao);
+        const card = document.createElement('div'); card.className = 'apt-card'; card.setAttribute('data-card', icao);
+        card.innerHTML = renderCard(icao); grid.appendChild(card); computeRates(icao);
     }
-
     document.getElementById('last-update').textContent = `Updated ${new Date().toISOString().substring(11, 16)}Z`;
 }
 
