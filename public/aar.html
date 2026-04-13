@@ -224,15 +224,17 @@ function renderCard(icao) {
     const chips = rwySorted.map(([ident, r]) => {
         const roleClass = r.role === 'A' ? 'role-A' : r.role === 'D' ? 'role-D' : r.role === 'A/D' ? 'role-AD' : 'role-off';
         const unavail = !r.avail ? 'unavail' : '';
-        const hwStr = r.hw >= 0 ? `+${r.hw}` : `${r.hw}`;
+        const hwArrow = r.hw >= 0 ? '↓' : '↑';
+        const hwAbs = Math.abs(r.hw);
         const roleLabel = r.role === 'off' ? '—' : r.role;
         const tooltip = r.avail
-            ? `${ident} ${r.hdg}° | HW ${hwStr}kt XW ${r.xwAbs}kt${r.xw > 0 ? 'R' : 'L'} | Click to toggle`
+            ? `${ident} ${r.hdg}° | ${r.hw >= 0 ? 'HW' : 'TW'} ${hwAbs}kt XW ${r.xwAbs}kt | Click to toggle`
             : `${ident} UNAVAILABLE: ${r.unavailReason}`;
         return `<div class="rwy-chip ${roleClass} ${unavail}" title="${tooltip}" data-icao="${icao}" data-rwy="${ident}" onclick="toggleRwy('${icao}','${ident}')">
             <span class="rwy-id">${ident}</span>
             <span class="rwy-role">${roleLabel}</span>
-            <span class="rwy-wind">${hwStr} | ${r.xwAbs}${r.xw > 0 ? 'R' : 'L'}</span>
+            <span class="rwy-wind">${hwArrow}${hwAbs}</span>
+            <span class="rwy-wind">↔${r.xwAbs}</span>
         </div>`;
     }).join('');
 
