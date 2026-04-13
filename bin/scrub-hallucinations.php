@@ -150,7 +150,35 @@ $apply(
     ['aibt' => null, 'actual_exit_min' => null]
 );
 
-// Rule 7: orphan delay annotations
+// Rule 7: AXOT from pre-GS>0 AOBT detection (v0.5.11 and earlier).
+// Before e76d364 (2026-04-13 ~01:20Z), AOBT stamped at GS>=5 (taxi
+// roll) instead of GS>0 (pushback), producing AXOT values 5-10 min
+// too short. Null AXOT for any flight whose AOBT was stamped before
+// the fix deployed. We use atot < '2026-04-13 01:30:00' as a proxy
+// (flights that took off before the fix could have caught their AOBT).
+$apply(
+    'axot pre-pushback-fix (before 2026-04-13)',
+    fn ($q) => $q->whereNotNull('actual_exot_min')
+                 ->whereNotNull('atot')
+                 ->where('atot', '<', '2026-04-13 01:30:00'),
+    ['actual_exot_min' => null]
+);
+
+// Rule 8: AXIT from synthetic ALDT (ELDT+30 cleanup).
+// When the position-freeze bug (e28e4dd) prevented landing detection,
+// the stale-inbound cleanup set ALDT = ELDT (best guess). Any AXIT
+// derived from a synthetic ALDT is garbage. Detect: ALDT = eldt to
+// the second (cleanup sets aldt = eldt exactly).
+$apply(
+    'axit from synthetic aldt (aldt = eldt)',
+    fn ($q) => $q->whereNotNull('actual_exit_min')
+                 ->whereNotNull('aldt')
+                 ->whereNotNull('eldt')
+                 ->whereColumn('aldt', '=', 'eldt'),
+    ['actual_exit_min' => null]
+);
+
+// Rule 9: orphan delay annotations
 $apply(
     'delay_minutes set without ctot',
     fn ($q) => $q->whereNull('ctot')
