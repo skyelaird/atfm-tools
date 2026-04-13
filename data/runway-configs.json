@@ -149,6 +149,80 @@
       }
     ]
   },
+  "CYYC": {
+    "calm_wind_config": "35",
+    "configs": [
+      {
+        "name": "35",
+        "label": "35 Direction",
+        "runways": {
+          "35L": { "role": "A/D", "hdg": 345 },
+          "35R": { "role": "A/D", "hdg": 345 }
+        },
+        "primary_arr": "35L",
+        "primary_dep": "35R",
+        "declared_arr_rate": 40,
+        "declared_dep_rate": 16
+      },
+      {
+        "name": "17",
+        "label": "17 Direction",
+        "runways": {
+          "17L": { "role": "A/D", "hdg": 165 },
+          "17R": { "role": "A/D", "hdg": 165 }
+        },
+        "primary_arr": "17R",
+        "primary_dep": "17L",
+        "declared_arr_rate": 40,
+        "declared_dep_rate": 16
+      },
+      {
+        "name": "29",
+        "label": "29 Single",
+        "mode": "single_interleaved",
+        "runways": { "29": { "role": "A/D", "hdg": 285 } },
+        "primary_arr": "29", "primary_dep": "29",
+        "declared_arr_rate": 24, "declared_dep_rate": 10
+      },
+      {
+        "name": "11",
+        "label": "11 Single",
+        "mode": "single_interleaved",
+        "runways": { "11": { "role": "A/D", "hdg": 105 } },
+        "primary_arr": "11", "primary_dep": "11",
+        "declared_arr_rate": 24, "declared_dep_rate": 10
+      }
+    ]
+  },
+  "CYUL": {
+    "calm_wind_config": "24",
+    "configs": [
+      {
+        "name": "24",
+        "label": "24 Direction",
+        "runways": {
+          "24L": { "role": "A", "hdg": 237 },
+          "24R": { "role": "D", "hdg": 237 }
+        },
+        "primary_arr": "24L",
+        "primary_dep": "24R",
+        "declared_arr_rate": 40,
+        "declared_dep_rate": 16
+      },
+      {
+        "name": "06",
+        "label": "06 Direction",
+        "runways": {
+          "06L": { "role": "D", "hdg": 57 },
+          "06R": { "role": "A", "hdg": 57 }
+        },
+        "primary_arr": "06R",
+        "primary_dep": "06L",
+        "declared_arr_rate": 40,
+        "declared_dep_rate": 16
+      }
+    ]
+  },
   "CYWG": {
     "calm_wind_config": "36",
     "configs": [
