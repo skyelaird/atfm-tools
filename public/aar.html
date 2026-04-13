@@ -216,7 +216,10 @@ function renderCard(icao) {
         const unavail = !r.avail ? 'unavail' : '';
         const hwStr = r.hw >= 0 ? `+${r.hw}` : `${r.hw}`;
         const roleLabel = r.role === 'off' ? '—' : r.role;
-        return `<div class="rwy-chip ${roleClass} ${unavail}" data-icao="${icao}" data-rwy="${ident}" onclick="toggleRwy('${icao}','${ident}')">
+        const tooltip = r.avail
+            ? `${ident} ${r.hdg}° | HW ${hwStr}kt XW ${r.xwAbs}kt${r.xw > 0 ? 'R' : 'L'} | Click to toggle`
+            : `${ident} UNAVAILABLE: ${r.unavailReason}`;
+        return `<div class="rwy-chip ${roleClass} ${unavail}" title="${tooltip}" data-icao="${icao}" data-rwy="${ident}" onclick="toggleRwy('${icao}','${ident}')">
             <span class="rwy-id">${ident}</span>
             <span class="rwy-role">${roleLabel}</span>
             <span class="rwy-wind">${hwStr} | ${r.xwAbs}${r.xw > 0 ? 'R' : 'L'}</span>
@@ -364,12 +367,24 @@ async function loadAll() {
         const rwys = {};
         for (const t of (thresholdsByApt[icao] || [])) {
             const wc = windComponents(windDir, effectiveWind, t.hdg);
+            const xwAbs = Math.abs(wc.crosswind);
+            const xwLimit = wet ? MAX_XW_WET : MAX_XW_DRY;
+            const avail = rwyAvailable(wc.headwind, xwAbs, wet);
+            // Build reason for unavailability
+            let unavailReason = '';
+            if (!avail) {
+                const reasons = [];
+                if (wc.headwind < -MAX_TAILWIND) reasons.push(`Tailwind ${Math.abs(wc.headwind)}kt (max ${MAX_TAILWIND}kt)`);
+                if (xwAbs > xwLimit) reasons.push(`Crosswind ${xwAbs}kt (max ${xwLimit}kt${wet ? ' wet' : ''})`);
+                unavailReason = reasons.join(', ');
+            }
             rwys[t.ident] = {
                 hdg: t.hdg,
                 hw: wc.headwind,
                 xw: wc.crosswind,
-                xwAbs: Math.abs(wc.crosswind),
-                avail: rwyAvailable(wc.headwind, Math.abs(wc.crosswind), wet),
+                xwAbs,
+                avail,
+                unavailReason,
                 role: 'off'
             };
         }
