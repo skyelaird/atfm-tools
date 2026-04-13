@@ -81,6 +81,81 @@
       }
     ]
   },
+  "CYOW": {
+    "_vfr_only": ["04", "22"],
+    "calm_wind_config": "25",
+    "configs": [
+      {
+        "name": "25",
+        "label": "25 Single",
+        "mode": "single_interleaved",
+        "runways": { "25": { "role": "A/D", "hdg": 251 } },
+        "primary_arr": "25", "primary_dep": "25",
+        "declared_arr_rate": 30, "declared_dep_rate": 12
+      },
+      {
+        "name": "07",
+        "label": "07 Single",
+        "mode": "single_interleaved",
+        "runways": { "07": { "role": "A/D", "hdg": 71 } },
+        "primary_arr": "07", "primary_dep": "07",
+        "declared_arr_rate": 30, "declared_dep_rate": 12
+      },
+      {
+        "name": "32",
+        "label": "32 Single",
+        "mode": "single_interleaved",
+        "runways": { "32": { "role": "A/D", "hdg": 320 } },
+        "primary_arr": "32", "primary_dep": "32",
+        "declared_arr_rate": 28, "declared_dep_rate": 12
+      },
+      {
+        "name": "14",
+        "label": "14 Single",
+        "mode": "single_interleaved",
+        "runways": { "14": { "role": "A/D", "hdg": 140 } },
+        "primary_arr": "14", "primary_dep": "14",
+        "declared_arr_rate": 28, "declared_dep_rate": 12
+      }
+    ]
+  },
+  "CYWG": {
+    "calm_wind_config": "36",
+    "configs": [
+      {
+        "name": "36",
+        "label": "36 Single",
+        "mode": "single_interleaved",
+        "runways": { "36": { "role": "A/D", "hdg": 5 } },
+        "primary_arr": "36", "primary_dep": "36",
+        "declared_arr_rate": 36, "declared_dep_rate": 14
+      },
+      {
+        "name": "18",
+        "label": "18 Single",
+        "mode": "single_interleaved",
+        "runways": { "18": { "role": "A/D", "hdg": 185 } },
+        "primary_arr": "18", "primary_dep": "18",
+        "declared_arr_rate": 36, "declared_dep_rate": 14
+      },
+      {
+        "name": "13",
+        "label": "13 Single",
+        "mode": "single_interleaved",
+        "runways": { "13": { "role": "A/D", "hdg": 135 } },
+        "primary_arr": "13", "primary_dep": "13",
+        "declared_arr_rate": 30, "declared_dep_rate": 12
+      },
+      {
+        "name": "31",
+        "label": "31 Single",
+        "mode": "single_interleaved",
+        "runways": { "31": { "role": "A/D", "hdg": 315 } },
+        "primary_arr": "31", "primary_dep": "31",
+        "declared_arr_rate": 30, "declared_dep_rate": 12
+      }
+    ]
+  },
   "CYYZ": {
     "calm_wind_config": "15",
     "configs": [
