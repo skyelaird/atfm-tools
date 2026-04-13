@@ -488,6 +488,15 @@ final class VatsimIngestor
             if ($flight->eldt !== null && $flight->eldt_locked === null) {
                 $flight->eldt = null;
             }
+            // Guard: if a freeze was captured during climb (bad data from
+            // record reuse, key disruption, or pre-fix code), clear it so
+            // it can re-freeze properly at cruise with good GS/altitude.
+            if ($flight->eldt_locked !== null && $flight->aldt === null) {
+                $flight->eldt_locked        = null;
+                $flight->eldt_locked_at     = null;
+                $flight->eldt_locked_source = null;
+                $flight->eldt                = null;
+            }
         }
 
         if ($adesAirport !== null && ($atCruise || $inApproach)) {
