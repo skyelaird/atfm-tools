@@ -344,16 +344,23 @@ final class VatsimIngestor
         // ingest cycle in which the phase is TAXI_OUT or later. Same for ATOT
         // when phase is DEPARTED or later.
         //
-        // CRITICAL: only ratchet AOBT if the flight is genuinely transitioning
-        // from a pre-departure state (PREFILE/FILED/TAXI_OUT). If we first see
-        // a flight mid-cruise (ENROUTE/ARRIVING/etc), stamping AOBT to "now"
-        // would be a lie — the flight pushed back hours ago — and would later
-        // produce a garbage EXOT once ATOT is observed. Better to leave it null.
+        // AOBT (Actual Off-Block Time): the moment the aircraft vacates
+        // its parking position. On VATSIM this is the first observation
+        // with GS > 0 at the departure airport — i.e. pushback has begun.
+        // This is separate from TAXI_OUT phase (GS >= 5) because pushback
+        // typically happens at GS 1-3 kt. Without this distinction, AOBT
+        // stamps 5-10 minutes late and AXOT is systematically too short.
+        //
+        // CRITICAL: only stamp if transitioning from a pre-departure state.
+        // If we first see a flight mid-cruise, AOBT=now would be a lie.
         $sawAobtThisCycle = false;
-        if (in_array($phase, [
-            Flight::PHASE_TAXI_OUT,
-            Flight::PHASE_DEPARTED,
-        ], true)
+        $atAdep = $adepAirport !== null
+            && $lat !== null && $lon !== null
+            && \Atfm\Allocator\Geo::distanceNm($lat, $lon, $adepAirport['lat'], $adepAirport['lon'])
+               <= ($adepAirport['arrived_geofence_nm'] ?? 5);
+        if ($flight->aobt === null
+            && $atAdep
+            && $gs !== null && $gs > 0
             && in_array($previousPhase, [
                 null,
                 Flight::PHASE_PREFILE,
@@ -361,10 +368,8 @@ final class VatsimIngestor
                 Flight::PHASE_TAXI_OUT,
             ], true)
         ) {
-            if ($flight->aobt === null) {
-                $flight->aobt = $now;
-                $sawAobtThisCycle = true;
-            }
+            $flight->aobt = $now;
+            $sawAobtThisCycle = true;
         }
         if (in_array($phase, [
             Flight::PHASE_DEPARTED,
