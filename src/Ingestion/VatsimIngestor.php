@@ -648,19 +648,14 @@ final class VatsimIngestor
 
         // Stale inbound cleanup: if a flight has an ELDT that's 30+ min in
         // the past and it's still showing as inbound (ARRIVING/FINAL/ENROUTE),
-        // it either landed or disappeared. For ARRIVING/FINAL: likely landed
-        // and we missed the transition. For ENROUTE: likely disconnected
-        // during cruise and the feed-based disconnect didn't catch it.
-        // Either way, remove from the inbound list.
+        // we lost track of it. Don't fabricate milestones we didn't observe —
+        // mark DISCONNECTED and let the normal cleanup handle it.
         if (in_array($phase, [Flight::PHASE_ARRIVING, Flight::PHASE_FINAL, Flight::PHASE_ENROUTE], true)
             && $flight->eldt !== null
             && $now->getTimestamp() > $flight->eldt->getTimestamp() + (30 * 60)
         ) {
-            $flight->phase = Flight::PHASE_ARRIVED;
-            $phase = Flight::PHASE_ARRIVED;
-            if ($flight->aldt === null) {
-                $flight->aldt = $flight->eldt; // best guess: landed around ELDT
-            }
+            $flight->phase = Flight::PHASE_DISCONNECTED;
+            $phase = Flight::PHASE_DISCONNECTED;
             $flight->phase_updated_at = $now;
         }
 
