@@ -274,6 +274,45 @@ final class VatsimIngestor
                 $flight->first_disconnect_at = null;
                 $flight->reconnect_count     = ($flight->reconnect_count ?? 0) + 1;
             }
+
+            // Stale reconnection: same flight_key but the pilot disappeared
+            // for hours and is now back at the gate (same plan, new day or
+            // second attempt). Reset milestones so the record is clean.
+            // Trigger: flight was terminal (ARRIVED/WITHDRAWN/DISCONNECTED)
+            // or has been unseen for 4+ hours, AND is now on the ground at
+            // ADEP with low GS.
+            $wasTerminal = in_array($flight->phase, [
+                Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED,
+            ], true);
+            $staleHours = $flight->last_updated_at
+                ? ($now->getTimestamp() - $flight->last_updated_at->getTimestamp()) / 3600
+                : 999;
+            $atGate = $atAdep && ($gs === null || $gs < 5);
+
+            if (($wasTerminal || $staleHours >= 4) && $atGate) {
+                // Reset all observed milestones — this is a fresh attempt.
+                $flight->first_seen_at    = $now;
+                $flight->aobt             = null;
+                $flight->atot             = null;
+                $flight->aldt             = null;
+                $flight->aibt             = null;
+                $flight->actual_exot_min  = null;
+                $flight->actual_exit_min  = null;
+                $flight->eldt             = null;
+                $flight->eldt_locked      = null;
+                $flight->eldt_locked_at   = null;
+                $flight->eldt_locked_source = null;
+                $flight->eldt_simbrief    = null;
+                $flight->tldt             = null;
+                $flight->tldt_assigned_at = null;
+                $flight->ctot             = null;
+                $flight->delay_minutes    = null;
+                $flight->delay_status     = null;
+                $flight->phase            = $phase;
+                $flight->phase_updated_at = $now;
+                $flight->finalized_at     = null;
+                $flight->reconnect_count  = ($flight->reconnect_count ?? 0) + 1;
+            }
         }
 
         // EOBT: always refresh from current flight plan (the pilot may have
