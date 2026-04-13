@@ -126,6 +126,7 @@
             transition: border-color 0.1s, background 0.1s;
         }
         .airport-card:hover { border-color: var(--accent-dim); background: var(--bg-elev-hi); }
+        .airport-card.drawer-active { border-color: var(--accent); background: var(--bg-elev-hi); box-shadow: 0 0 0 1px var(--accent); }
         .airport-card.active-restriction { border-color: var(--alert-dim); }
         .airport-card .icao {
             font-size: 1.2rem; font-weight: 700; color: var(--text-bright);
@@ -729,6 +730,7 @@ function renderAirports(airports) {
         const hasRestriction = activeRestrictions.length > 0;
         const card = el('div', {
                 class: 'airport-card' + (hasRestriction ? ' active-restriction' : ''),
+                'data-icao': a.icao,
                 onclick: () => openAirportDetail(a.icao),
             },
             el('div', { class: 'icao' }, a.icao),
@@ -780,6 +782,11 @@ async function openAirportDetail(icao) {
         closeModal();
         return;
     }
+    // Highlight the active airport card
+    document.querySelectorAll('.airport-card.drawer-active').forEach(c => c.classList.remove('drawer-active'));
+    const activeCard = document.querySelector(`.airport-card[data-icao="${icao}"]`);
+    if (activeCard) activeCard.classList.add('drawer-active');
+
     currentDrawerIcao = icao;
     currentDrawerData = null;
     $('modal-icao').textContent = icao;
@@ -806,6 +813,7 @@ function refreshDrawerInPlace() {
 }
 
 function closeModal() {
+    document.querySelectorAll('.airport-card.drawer-active').forEach(c => c.classList.remove('drawer-active'));
     $('modal-backdrop').classList.remove('open');
     $('modal-backdrop').setAttribute('aria-hidden', 'true');
     document.body.classList.remove('drawer-open');
