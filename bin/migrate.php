@@ -424,4 +424,35 @@ if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'eldt_perti'
     echo "✓ added flights.eldt_perti (v0.5.15)\n";
 }
 
+// v0.5.20: Seed CYWG runway thresholds if missing.
+// These were in seed-airports.php but the seed was never re-run after
+// CYWG data was added. Insert via migration so they deploy automatically.
+if ($schema->hasTable('runway_thresholds')) {
+    $existing = Capsule::table('runway_thresholds')->where('airport_icao', 'CYWG')->count();
+    if ($existing === 0) {
+        $cywgRwys = [
+            ['CYWG', '18', 185, 49.924917, -97.234972, 49.895108, -97.241881],
+            ['CYWG', '36', 5,   49.895108, -97.241881, 49.924917, -97.234972],
+            ['CYWG', '13', 135, 49.913028, -97.252325, 49.895172, -97.227867],
+            ['CYWG', '31', 315, 49.895172, -97.227867, 49.913028, -97.252325],
+        ];
+        foreach ($cywgRwys as [$icao, $ident, $hdg, $lat1, $lon1, $lat2, $lon2]) {
+            Capsule::table('runway_thresholds')->insert([
+                'airport_icao' => $icao,
+                'runway_ident' => $ident,
+                'heading_deg' => $hdg,
+                'threshold_lat' => $lat1,
+                'threshold_lon' => $lon1,
+                'opposite_threshold_lat' => $lat2,
+                'opposite_threshold_lon' => $lon2,
+                'width_ft' => 200,
+                'displaced_threshold_ft' => 0,
+                'created_at' => gmdate('Y-m-d H:i:s'),
+                'updated_at' => gmdate('Y-m-d H:i:s'),
+            ]);
+        }
+        echo "✓ seeded CYWG runway thresholds (v0.5.20)\n";
+    }
+}
+
 echo "done.\n";
