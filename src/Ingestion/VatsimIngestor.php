@@ -360,7 +360,7 @@ final class VatsimIngestor
                <= ($adepAirport['arrived_geofence_nm'] ?? 5);
         if ($flight->aobt === null
             && $atAdep
-            && $gs !== null && $gs > 0
+            && $gs !== null && $gs >= 3
             && in_array($previousPhase, [
                 null,
                 Flight::PHASE_PREFILE,
