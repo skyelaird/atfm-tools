@@ -27,13 +27,29 @@ final class FlightKey
     public static function fromVatsimPilot(array $pilot): string
     {
         $fp = $pilot['flight_plan'] ?? [];
+        $deptime = (string) ($fp['deptime'] ?? '');
+        $remarks = (string) ($fp['remarks'] ?? '');
+
+        // Extract DOF from remarks (ICAO standard: DOF/YYMMDD).
+        // Without DOF, a pilot filing "1500" today produces the same key
+        // as the same pilot filing "1500" yesterday — causing stale record
+        // reuse. The DOF disambiguates.
+        $dof = '';
+        if (preg_match('/\bDOF\/(\d{6})\b/', $remarks, $m)) {
+            $dof = $m[1]; // YYMMDD
+        } else {
+            // Fallback: use today's date in YYMMDD. If the pilot doesn't
+            // file a DOF, we assume it's today's flight. A reconnection
+            // tomorrow with the same plan will get a new key.
+            $dof = gmdate('ymd');
+        }
 
         return implode('|', [
             (int) ($pilot['cid'] ?? 0),
             (string) ($pilot['callsign'] ?? ''),
             strtoupper((string) ($fp['departure'] ?? '')),
             strtoupper((string) ($fp['arrival'] ?? '')),
-            (string) ($fp['deptime'] ?? ''),
+            $deptime . '/' . $dof,
         ]);
     }
 
