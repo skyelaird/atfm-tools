@@ -188,8 +188,9 @@ function autoPropose(icao) {
         }
         if (best) { for (const [id, info] of Object.entries(best.runways)) { if (st.runways[id]) st.runways[id].role = info.role; } st.configName = best.label; return; }
     }
+    const supplementary = new Set(aptCfg?._supplementary || []);
     let bestRwy = null, bestHw2 = -999;
-    for (const [id, r] of Object.entries(st.runways)) { if (r.avail && r.hw > bestHw2) { bestHw2 = r.hw; bestRwy = id; } }
+    for (const [id, r] of Object.entries(st.runways)) { if (r.avail && r.hw > bestHw2 && !supplementary.has(id)) { bestHw2 = r.hw; bestRwy = id; } }
     if (bestRwy) { st.runways[bestRwy].role = 'A/D'; st.configName = bestRwy + ' (auto)'; }
 }
 

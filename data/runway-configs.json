@@ -1,5 +1,5 @@
 {
-  "_doc": "Per-airport runway configurations. Each config is a direction grouping with arrival/departure runway roles and declared rates. Wind auto-selects the best config.",
+  "_doc": "Per-airport runway configurations. Each config is a direction grouping with arrival/departure runway roles and declared rates. Wind auto-selects the best config. supplementary runways are not primary configs — they augment.",
   "CYHZ": {
     "calm_wind_config": "05",
     "configs": [
@@ -116,6 +116,36 @@
         "runways": { "14": { "role": "A/D", "hdg": 140 } },
         "primary_arr": "14", "primary_dep": "14",
         "declared_arr_rate": 28, "declared_dep_rate": 12
+      }
+    ]
+  },
+  "CYVR": {
+    "calm_wind_config": "08",
+    "_supplementary": ["13", "31"],
+    "configs": [
+      {
+        "name": "08",
+        "label": "08 Direction",
+        "runways": {
+          "08L": { "role": "D", "hdg": 83 },
+          "08R": { "role": "A", "hdg": 83 }
+        },
+        "primary_arr": "08R",
+        "primary_dep": "08L",
+        "declared_arr_rate": 40,
+        "declared_dep_rate": 16
+      },
+      {
+        "name": "26",
+        "label": "26 Direction",
+        "runways": {
+          "26L": { "role": "A", "hdg": 263 },
+          "26R": { "role": "D", "hdg": 263 }
+        },
+        "primary_arr": "26L",
+        "primary_dep": "26R",
+        "declared_arr_rate": 40,
+        "declared_dep_rate": 16
       }
     ]
   },
