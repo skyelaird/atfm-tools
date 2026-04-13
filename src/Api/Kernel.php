@@ -1145,6 +1145,14 @@ final class Kernel
             return self::json($res, RunwayThreshold::orderBy('airport_icao')->orderBy('runway_ident')->get()->toArray());
         });
 
+        $app->get('/api/v1/runway-configs', function ($req, $res) {
+            $data = json_decode(
+                file_get_contents(__DIR__ . '/../../data/runway-configs.json'),
+                true
+            );
+            return self::json($res, $data ?? []);
+        });
+
         // ------------------------------------------------------------------
         //  Observed wind from recent final approach speeds
         // ------------------------------------------------------------------

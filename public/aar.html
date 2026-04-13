@@ -111,7 +111,7 @@ let configsByApt = {};
 async function loadData() {
     const [thRes, cfgRes] = await Promise.all([
         fetch('/api/v1/debug/runway-thresholds'),
-        fetch('/data/runway-configs.json')
+        fetch('/api/v1/runway-configs')
     ]);
     const thData = await thRes.json();
     for (const t of thData) {
