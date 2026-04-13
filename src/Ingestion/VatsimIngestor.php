@@ -356,7 +356,7 @@ final class VatsimIngestor
         $sawAobtThisCycle = false;
         $atAdep = $adepAirport !== null
             && $lat !== null && $lon !== null
-            && \Atfm\Allocator\Geo::distanceNm($lat, $lon, $adepAirport['lat'], $adepAirport['lon'])
+            && \Atfm\Allocator\Geo::distanceNm($lat, $lon, $adepAirport['latitude'], $adepAirport['longitude'])
                <= ($adepAirport['arrived_geofence_nm'] ?? 5);
         if ($flight->aobt === null
             && $atAdep
