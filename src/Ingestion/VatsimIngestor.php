@@ -304,6 +304,24 @@ final class VatsimIngestor
         // FILED tier ETA can be trusted more than a manually filed ETE.
         $remarks = (string) ($fp['remarks'] ?? '');
         $flight->is_simbrief = stripos($remarks, 'SIMBRIEF') !== false;
+
+        // Snapshot SimBrief ELDT once — the FILED tier ETE from SimBrief
+        // is wind-corrected. Store it for triple comparison vs frozen vs ALDT.
+        if ($flight->is_simbrief
+            && $flight->eldt_simbrief === null
+            && $flight->fp_enroute_time_min !== null
+            && $flight->fp_enroute_time_min > 0
+            && $flight->eobt !== null
+            && $adesAirport !== null
+        ) {
+            $taxiMin = $flight->planned_exot_min ?? $adesAirport['default_exit_min'] ?? 12;
+            $sbEpoch = $flight->eobt->getTimestamp()
+                     + ($taxiMin * 60)
+                     + ($flight->fp_enroute_time_min * 60);
+            $flight->eldt_simbrief = (new \DateTimeImmutable('@' . $sbEpoch))
+                ->setTimezone(new \DateTimeZone('UTC'));
+        }
+
         if ($flight->airline_icao === null) {
             $flight->airline_icao = $this->airlineFromCallsign($callsign);
         }
@@ -525,11 +543,11 @@ final class VatsimIngestor
         $flight->last_updated_at = $now;
 
         // Belt-and-suspenders: clear FLS-NRA / WITHDRAWN for any flight
-        // that already has ATOT (airborne). Catches flights whose ATOT
-        // was stamped before the clear-on-departure fix, or that were
-        // WITHDRAWN by the 60-min timeout then actually departed.
+        // that is actively moving (AOBT set) or already airborne (ATOT set).
+        // Catches false positives from the EOBT-derived TTOT check, and
+        // flights whose ATOT was stamped before the clear fix deployed.
         if (in_array($flight->delay_status, ['FLS_NRA', Flight::DELAY_WITHDRAWN], true)
-            && $flight->atot !== null
+            && ($flight->atot !== null || ($flight->aobt !== null && $phase === Flight::PHASE_TAXI_OUT))
         ) {
             $flight->delay_status = null;
             // Also un-withdraw the phase if it was set to WITHDRAWN
@@ -540,13 +558,13 @@ final class VatsimIngestor
             }
         }
 
-        // Stale TAXI_OUT detection: if a flight has been in TAXI_OUT phase
-        // for more than 30 min past its TTOT, something is wrong — pilot
-        // is AFK, holding indefinitely, or the sim froze. Flag as FLS-NRA
-        // so the FMP knows this slot is unreliable.
+        // Stale TAXI_OUT detection: if a flight has been taxiing for more
+        // than 30 min since pushback (AOBT), something is wrong — pilot
+        // is AFK, holding indefinitely, or the sim froze. Flag as FLS-NRA.
+        // Use AOBT (observed pushback) not TTOT (derived from garbage EOBT).
         if ($phase === Flight::PHASE_TAXI_OUT
-            && $flight->ttot !== null
-            && $now->getTimestamp() > $flight->ttot->getTimestamp() + (30 * 60)
+            && $flight->aobt !== null
+            && $now->getTimestamp() > $flight->aobt->getTimestamp() + (30 * 60)
             && $flight->atot === null
         ) {
             $flight->delay_status = 'FLS_NRA';

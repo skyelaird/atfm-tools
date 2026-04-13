@@ -558,6 +558,13 @@ final class Kernel
                         $eldtIso = null;
                         $eldtSource = null;
                     }
+                    // SimBrief ELDT fallback: for pre-cruise flights with
+                    // no computed ELDT, show the SimBrief-derived estimate.
+                    // Displayed in a distinct colour (orange) as advisory only.
+                    if ($eldtIso === null && $f->eldt_simbrief !== null) {
+                        $eldtIso = $f->eldt_simbrief->format('c');
+                        $eldtSource = 'SIMBRIEF';
+                    }
                     // For ARRIVING flights, always recompute live — the
                     // controller needs "how far out is this aircraft now",
                     // not a stale frozen value from hours ago.
