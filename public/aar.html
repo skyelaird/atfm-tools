@@ -223,18 +223,7 @@ function renderCard(icao) {
     const lahso = !st.wet && (st.rules === 'VFR' || st.rules === 'MVFR');
 
     // Group into reciprocal pairs for 2-row display.
-    // Same physical strip: 08L↔26R, 08R↔26L, 13↔31, 15L↔33R.
-    // Rule: reciprocal number = ±18, swap L↔R suffix.
-    function reciprocalIdent(id) {
-        const m = id.match(/^(\d+)(L|R|C)?$/);
-        if (!m) return null;
-        let num = parseInt(m[1]);
-        let sfx = m[2] || '';
-        let rNum = num <= 18 ? num + 18 : num - 18;
-        let rSfx = sfx === 'L' ? 'R' : sfx === 'R' ? 'L' : sfx;
-        return String(rNum).padStart(2, '0') + rSfx;
-    }
-
+    // Uses global reciprocalIdent() — same physical strip.
     const allRwys = Object.entries(st.runways);
     // Take runways with heading < 180 as row 1 (or lower number)
     const row1ids = [], row2ids = [];
@@ -303,10 +292,29 @@ function renderCard(icao) {
     `;
 }
 
+// Reciprocal ident: 08L↔26R, 05↔23, same physical strip
+function reciprocalIdent(id) {
+    const m = id.match(/^(\d+)(L|R|C)?$/);
+    if (!m) return null;
+    let num = parseInt(m[1]), sfx = m[2] || '';
+    let rNum = num <= 18 ? num + 18 : num - 18;
+    let rSfx = sfx === 'L' ? 'R' : sfx === 'R' ? 'L' : sfx;
+    return String(rNum).padStart(2, '0') + rSfx;
+}
+
 function toggleRwy(icao, ident) {
     const st = aptState[icao]; if (!st || !st.runways[ident] || !st.runways[ident].avail) return;
     const r = st.runways[ident];
     r.role = ROLE_CYCLE[(ROLE_CYCLE.indexOf(r.role) + 1) % ROLE_CYCLE.length];
+
+    // Activating one end turns off the opposite end (same physical strip)
+    if (r.role !== 'off') {
+        const rid = reciprocalIdent(ident);
+        if (rid && st.runways[rid] && st.runways[rid].role !== 'off') {
+            st.runways[rid].role = 'off';
+        }
+    }
+
     st.configName = 'Manual';
     refreshCard(icao);
 }
