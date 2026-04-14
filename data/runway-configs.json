@@ -1,7 +1,7 @@
 {
   "_doc": "Per-airport runway configurations. Each config is a direction grouping with arrival/departure runway roles and declared rates. Wind auto-selects the best config. supplementary runways are not primary configs — they augment.",
   "CYHZ": {
-    "calm_wind_config": "05",
+    "calm_wind_config": "23",
     "configs": [
       {
         "name": "05",
