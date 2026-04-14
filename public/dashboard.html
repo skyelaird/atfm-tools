@@ -766,6 +766,8 @@ function renderAirports(airports) {
     $('airports-count').textContent = airports.length;
     const select = $('restriction-icao-select');
     select.innerHTML = '';
+    // Sort west to east by longitude
+    airports.sort((a, b) => a.longitude - b.longitude);
     for (const a of airports) {
         const activeRestrictions = (a.restrictions || []).filter(r => !r.deleted_at);
         const hasRestriction = activeRestrictions.length > 0;
