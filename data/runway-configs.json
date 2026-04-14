@@ -225,6 +225,8 @@
   },
   "CYWG": {
     "calm_wind_config": "36",
+    "_dependent_pairs": [["18", "36"], ["13", "31"]],
+    "_note": "Crossing runways — both pairs intersect. Opening both is dependent ops, not independent.",
     "configs": [
       {
         "name": "36",
@@ -232,7 +234,31 @@
         "mode": "single_interleaved",
         "runways": { "36": { "role": "A/D", "hdg": 5 } },
         "primary_arr": "36", "primary_dep": "36",
-        "declared_arr_rate": 36, "declared_dep_rate": 14
+        "declared_arr_rate": 24, "declared_dep_rate": 12
+      },
+      {
+        "name": "36-13dep",
+        "label": "36 Arr / 13 Dep (dependent)",
+        "mode": "dependent",
+        "requires": { "dry": true, "vmc": true },
+        "runways": {
+          "36": { "role": "A", "hdg": 5 },
+          "13": { "role": "D", "hdg": 135 }
+        },
+        "primary_arr": "36", "primary_dep": "13",
+        "declared_arr_rate": 28, "declared_dep_rate": 16
+      },
+      {
+        "name": "36-31dep",
+        "label": "36 Arr / 31 Dep (dependent)",
+        "mode": "dependent",
+        "requires": { "dry": true, "vmc": true },
+        "runways": {
+          "36": { "role": "A", "hdg": 5 },
+          "31": { "role": "D", "hdg": 315 }
+        },
+        "primary_arr": "36", "primary_dep": "31",
+        "declared_arr_rate": 28, "declared_dep_rate": 16
       },
       {
         "name": "18",
@@ -240,7 +266,31 @@
         "mode": "single_interleaved",
         "runways": { "18": { "role": "A/D", "hdg": 185 } },
         "primary_arr": "18", "primary_dep": "18",
-        "declared_arr_rate": 36, "declared_dep_rate": 14
+        "declared_arr_rate": 24, "declared_dep_rate": 12
+      },
+      {
+        "name": "18-13dep",
+        "label": "18 Arr / 13 Dep (dependent)",
+        "mode": "dependent",
+        "requires": { "dry": true, "vmc": true },
+        "runways": {
+          "18": { "role": "A", "hdg": 185 },
+          "13": { "role": "D", "hdg": 135 }
+        },
+        "primary_arr": "18", "primary_dep": "13",
+        "declared_arr_rate": 28, "declared_dep_rate": 16
+      },
+      {
+        "name": "18-31dep",
+        "label": "18 Arr / 31 Dep (dependent)",
+        "mode": "dependent",
+        "requires": { "dry": true, "vmc": true },
+        "runways": {
+          "18": { "role": "A", "hdg": 185 },
+          "31": { "role": "D", "hdg": 315 }
+        },
+        "primary_arr": "18", "primary_dep": "31",
+        "declared_arr_rate": 28, "declared_dep_rate": 16
       },
       {
         "name": "13",
@@ -248,7 +298,7 @@
         "mode": "single_interleaved",
         "runways": { "13": { "role": "A/D", "hdg": 135 } },
         "primary_arr": "13", "primary_dep": "13",
-        "declared_arr_rate": 30, "declared_dep_rate": 12
+        "declared_arr_rate": 20, "declared_dep_rate": 10
       },
       {
         "name": "31",
@@ -256,7 +306,7 @@
         "mode": "single_interleaved",
         "runways": { "31": { "role": "A/D", "hdg": 315 } },
         "primary_arr": "31", "primary_dep": "31",
-        "declared_arr_rate": 30, "declared_dep_rate": 12
+        "declared_arr_rate": 20, "declared_dep_rate": 10
       }
     ]
   },
