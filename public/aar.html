@@ -220,7 +220,10 @@ function renderCard(icao) {
     const st = aptState[icao];
     if (!st) return `<span class="apt-icao">${icao}</span> No data`;
     const wxCls = { VFR: 'wx-vfr', MVFR: 'wx-mvfr', IFR: 'wx-ifr', LIFR: 'wx-lifr' }[st.rules] || '';
-    const lahso = !st.wet && (st.rules === 'VFR' || st.rules === 'MVFR');
+    // LAHSO only available if the airport has LAHSO configs defined
+    const aptCfgData = configsByApt[icao];
+    const hasLahsoConfigs = (aptCfgData?.configs || []).some(c => c.mode === 'lahso');
+    const lahso = hasLahsoConfigs && !st.wet && (st.rules === 'VFR' || st.rules === 'MVFR');
 
     // Group into reciprocal pairs for 2-row display.
     // Uses global reciprocalIdent() — same physical strip.
@@ -275,7 +278,7 @@ function renderCard(icao) {
             <span class="apt-icao">${icao}</span>
             <span class="badge ${wxCls}">${st.rules}</span>
             <span class="badge ${st.wet ? 'badge-wet' : 'badge-dry'}">${st.wet ? 'WET' : 'DRY'}</span>
-            ${lahso ? '<span class="badge badge-lahso">LAHSO</span>' : '<span class="badge badge-nolahso">no LAHSO</span>'}
+            ${hasLahsoConfigs ? (lahso ? '<span class="badge badge-lahso">LAHSO</span>' : '<span class="badge badge-nolahso">no LAHSO</span>') : ''}
             <button class="propose-btn" onclick="propose('${icao}')">Auto</button>
         </div>
         <div class="wind-line"><span class="val">${st.windDir}°M/${st.effectiveWind}kt</span>${st.gustSpd > st.windSpd ? ` G${st.gustSpd}` : ''} ${st.configName ? '| ' + st.configName : ''}</div>
