@@ -479,6 +479,37 @@ final class Kernel
 
         // Airports
         $app->get('/api/v1/airports', function ($req, $res) {
+            // Auto-expire restrictions whose daily time window has passed.
+            // end_utc is HHMM format (e.g. "0300"). If current UTC time is
+            // past end_utc (and past start_utc, so we're not in the window),
+            // soft-delete the restriction.
+            $nowHhmm = $now->format('Hi');
+            AirportRestriction::whereNull('deleted_at')
+                ->whereNotNull('end_utc')
+                ->get()
+                ->each(function (AirportRestriction $r) use ($now, $nowHhmm) {
+                    $start = $r->start_utc ?? '0000';
+                    $end = $r->end_utc;
+                    // Handle overnight window (e.g. 2300-0300)
+                    $overnight = $end < $start;
+                    $inWindow = $overnight
+                        ? ($nowHhmm >= $start || $nowHhmm < $end)
+                        : ($nowHhmm >= $start && $nowHhmm < $end);
+                    if (!$inWindow) {
+                        // Check if it's been at least 30 min past end to avoid
+                        // deleting right at the boundary
+                        $endMin = intval(substr($end, 0, 2)) * 60 + intval(substr($end, 2, 2));
+                        $nowMin = intval($now->format('G')) * 60 + intval($now->format('i'));
+                        $pastEnd = $overnight
+                            ? ($nowMin > $endMin + 30 && $nowMin < intval(substr($start, 0, 2)) * 60 + intval(substr($start, 2, 2)))
+                            : ($nowMin > $endMin + 30);
+                        if ($pastEnd) {
+                            $r->deleted_at = $now->format('Y-m-d H:i:s');
+                            $r->save();
+                        }
+                    }
+                });
+
             $airports = Airport::with(['thresholds', 'restrictions' => function ($q) {
                 $q->whereNull('deleted_at');
             }])->orderBy('icao')->get();
