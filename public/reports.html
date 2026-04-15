@@ -328,7 +328,8 @@ function rerender() {
     addTotal('non-compliant',       t.non_compliant);
     addTotal('compliance rate',     t.compliance_rate != null ? (t.compliance_rate * 100).toFixed(0) + '%' : '\u2014');
 
-    // Airports
+    // Airports — default sort west to east by longitude
+    d.airports.sort((a, b) => (a.longitude || 0) - (b.longitude || 0));
     wireSortableTable('airports-table');
     const aTbody = $('airports-tbody');
     aTbody.innerHTML = '';

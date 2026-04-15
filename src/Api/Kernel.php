@@ -1012,6 +1012,7 @@ final class Kernel
                 $rows[] = [
                     'icao'                 => $a->icao,
                     'name'                 => $a->name,
+                    'longitude'            => (float) $a->longitude,
                     'base_arrival_rate'    => (int) $a->base_arrival_rate,
                     'arrivals'             => $arrivals->count(),
                     'departures'           => $departures->count(),
