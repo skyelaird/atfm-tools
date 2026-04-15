@@ -502,7 +502,11 @@ final class VatsimIngestor
             // Guard: if a freeze was captured during climb (bad data from
             // record reuse, key disruption, or pre-fix code), clear it so
             // it can re-freeze properly at cruise with good GS/altitude.
-            if ($flight->eldt_locked !== null && $flight->aldt === null) {
+            // BUT: don't clear during descent! A flight that was frozen at
+            // cruise and is now descending (below filedAlt - 2000 but
+            // altitude decreasing) should keep its lock.
+            $isClimbing = $vertRateFpm > 500 && $curAlt < (($flight->fp_altitude_ft ?? 35000) - 2000);
+            if ($flight->eldt_locked !== null && $flight->aldt === null && $isClimbing) {
                 $flight->eldt_locked        = null;
                 $flight->eldt_locked_at     = null;
                 $flight->eldt_locked_source = null;

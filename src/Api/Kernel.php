@@ -974,18 +974,11 @@ final class Kernel
                 // from predicted landing), compute (ALDT − eldt_locked) in
                 // minutes. Bias is the signed mean (negative = we predicted
                 // late). Spread is the p90 of absolute values.
-                // Quality cutoff: only include predictions from after the
-                // critical fixes deployed (v0.5.12+). Earlier data is
-                // contaminated by position freeze, climb-phase locks, etc.
-                $qualityCutoff = strtotime('2026-04-13 13:00:00');
-
                 $eldtErrors = [];
                 $eldtAbsErrors = [];
                 $eldtWithinTolerance = 0;
                 foreach ($arrivals as $f) {
                     if ($f->aldt && $f->eldt_locked
-                        && $f->eldt_locked_at
-                        && $f->eldt_locked_at->getTimestamp() >= $qualityCutoff
                         && $f->aldt->getTimestamp() !== $f->eldt_locked->getTimestamp() // exclude synthetic
                     ) {
                         $err = ($f->aldt->getTimestamp() - $f->eldt_locked->getTimestamp()) / 60;
@@ -1188,14 +1181,9 @@ final class Kernel
             $days = min((int) ($params['days'] ?? 7), 30);
             $since = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify("-{$days} days");
 
-            // Only include data from after critical fixes deployed (v0.5.12+,
-            // 2026-04-13 01:30Z). Earlier data is contaminated by the position
-            // freeze bug, climb-phase locks, and synthetic ALDTs.
-            $qualityCutoff = '2026-04-13 13:00:00';
             $flights = Flight::whereNotNull('eldt_locked')
                 ->whereNotNull('aldt')
                 ->where('aldt', '>=', $since->format('Y-m-d H:i:s'))
-                ->where('eldt_locked_at', '>=', $qualityCutoff)
                 ->orderBy('aldt', 'desc')
                 ->limit(500)
                 ->get();
