@@ -1021,14 +1021,14 @@ final class Kernel
                     'p90_exit_min'         => self::percentile($exitValues, 90),
                     'avg_eobt_delay_min'   => self::avg($eobtDelays),
                     // ELDT prediction quality
-                    'eldt_bias_min'            => self::avg($eldtErrors),
+                    'eldt_err_min'            => self::avg($eldtErrors),
                     'eldt_p90_abs_min'         => self::percentile($eldtAbsErrors, 90),
                     'eldt_within_tolerance_pct'=> count($eldtErrors) > 0
                                                   ? round(100 * $eldtWithinTolerance / count($eldtErrors), 1)
                                                   : null,
                     'eldt_sample_n'            => count($eldtErrors),
                     // TLDT slot fidelity
-                    'tldt_bias_min'            => self::avg($tldtErrors),
+                    'tldt_err_min'            => self::avg($tldtErrors),
                     'tldt_p90_abs_min'         => self::percentile($tldtAbsErrors, 90),
                     'tldt_within_tolerance_pct'=> count($tldtErrors) > 0
                                                   ? round(100 * $tldtWithinTolerance / count($tldtErrors), 1)

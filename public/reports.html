@@ -163,10 +163,10 @@
                         <th data-sort="avg_exit_min" class="num grp-tint" title="Average AXIT (AIBT minus ALDT) in min">AXIT</th>
                         <th data-sort="avg_eobt_delay_min" class="num grp-tint" title="Average (AOBT minus EOBT) in min">&Delta;OBT</th>
                         <th data-sort="eldt_sample_n" class="num grp-start" title="ELDT sample size">n</th>
-                        <th data-sort="eldt_bias_min" class="num" title="Mean (ALDT minus ELDT_locked) in min. Snapshot at T-60min.">bias</th>
+                        <th data-sort="eldt_err_min" class="num" title="Mean (ALDT minus ELDT_locked) in min. Frozen at T-2h.">err</th>
                         <th data-sort="eldt_within_tolerance_pct" class="num" title="% within plus/minus 3 min">&plusmn;3</th>
                         <th data-sort="tldt_sample_n" class="num grp-start grp-tint" title="TLDT sample size">n</th>
-                        <th data-sort="tldt_bias_min" class="num grp-tint" title="Mean (ALDT minus TLDT) in min">bias</th>
+                        <th data-sort="tldt_err_min" class="num grp-tint" title="Mean (ALDT minus TLDT) in min">err</th>
                         <th data-sort="tldt_within_tolerance_pct" class="num grp-tint" title="% within plus/minus 3 min">&plusmn;3</th>
                     </tr>
                 </thead>
@@ -199,8 +199,8 @@
 
     <footer>
         Data window auto-refreshes every 60 s. AXOT = ATOT minus AOBT, AXIT = AIBT minus ALDT
-        per EUROCONTROL Airport CDM Manual. ELDT bias is measured against
-        a snapshot taken at T-60min before predicted landing; TLDT bias
+        per EUROCONTROL Airport CDM Manual. ELDT err is measured against
+        a snapshot taken at T-60min before predicted landing; TLDT err
         measures whether the allocator's slot decision was honoured in
         practice. Both &plusmn;3% columns show the fraction of samples
         within the user's trust gate (&plusmn;3 min).
@@ -338,10 +338,10 @@ function rerender() {
         avg_exit_min: r => r.avg_exit_min,
         avg_eobt_delay_min: r => r.avg_eobt_delay_min,
         eldt_sample_n: r => r.eldt_sample_n,
-        eldt_bias_min: r => r.eldt_bias_min,
+        eldt_err_min: r => r.eldt_err_min,
         eldt_within_tolerance_pct: r => r.eldt_within_tolerance_pct,
         tldt_sample_n: r => r.tldt_sample_n,
-        tldt_bias_min: r => r.tldt_bias_min,
+        tldt_err_min: r => r.tldt_err_min,
         tldt_within_tolerance_pct: r => r.tldt_within_tolerance_pct,
     };
     const aRows = sortRowsFor('airports-table', d.airports, aAcc);
@@ -362,10 +362,10 @@ function rerender() {
             el('td', { class: 'num grp-tint' }, fmt(r.avg_exit_min)),
             el('td', { class: 'num grp-tint' }, fmt(r.avg_eobt_delay_min)),
             el('td', { class: 'num muted grp-start' }, String(r.eldt_sample_n || 0)),
-            el('td', { class: 'num' }, fmt(r.eldt_bias_min)),
+            el('td', { class: 'num' }, fmt(r.eldt_err_min)),
             el('td', { class: 'num ' + eldtPctCls }, fmtPct(r.eldt_within_tolerance_pct)),
             el('td', { class: 'num muted grp-start grp-tint' }, String(r.tldt_sample_n || 0)),
-            el('td', { class: 'num grp-tint' }, fmt(r.tldt_bias_min)),
+            el('td', { class: 'num grp-tint' }, fmt(r.tldt_err_min)),
             el('td', { class: 'num grp-tint ' + tldtPctCls }, fmtPct(r.tldt_within_tolerance_pct))
         ));
     }
