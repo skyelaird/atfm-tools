@@ -1178,9 +1178,14 @@ final class Kernel
             $days = min((int) ($params['days'] ?? 7), 30);
             $since = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify("-{$days} days");
 
+            // Only include data from after critical fixes deployed (v0.5.12+,
+            // 2026-04-13 01:30Z). Earlier data is contaminated by the position
+            // freeze bug, climb-phase locks, and synthetic ALDTs.
+            $qualityCutoff = '2026-04-13 13:00:00';
             $flights = Flight::whereNotNull('eldt_locked')
                 ->whereNotNull('aldt')
                 ->where('aldt', '>=', $since->format('Y-m-d H:i:s'))
+                ->where('eldt_locked_at', '>=', $qualityCutoff)
                 ->orderBy('aldt', 'desc')
                 ->limit(500)
                 ->get();
