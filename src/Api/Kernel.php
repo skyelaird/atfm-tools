@@ -974,12 +974,22 @@ final class Kernel
                 // from predicted landing), compute (ALDT − eldt_locked) in
                 // minutes. Bias is the signed mean (negative = we predicted
                 // late). Spread is the p90 of absolute values.
+                // Quality cutoff: only include predictions from after the
+                // critical fixes deployed (v0.5.12+). Earlier data is
+                // contaminated by position freeze, climb-phase locks, etc.
+                $qualityCutoff = strtotime('2026-04-13 13:00:00');
+
                 $eldtErrors = [];
                 $eldtAbsErrors = [];
                 $eldtWithinTolerance = 0;
                 foreach ($arrivals as $f) {
-                    if ($f->aldt && $f->eldt_locked) {
+                    if ($f->aldt && $f->eldt_locked
+                        && $f->eldt_locked_at
+                        && $f->eldt_locked_at->getTimestamp() >= $qualityCutoff
+                        && $f->aldt->getTimestamp() !== $f->eldt_locked->getTimestamp() // exclude synthetic
+                    ) {
                         $err = ($f->aldt->getTimestamp() - $f->eldt_locked->getTimestamp()) / 60;
+                        if (abs($err) > 120) continue; // outlier cap — beyond 2h is bad data
                         $eldtErrors[]    = $err;
                         $eldtAbsErrors[] = abs($err);
                         if (abs($err) <= $toleranceMin) {
@@ -1218,8 +1228,8 @@ final class Kernel
                 ];
             })->values()->all();
 
-            // Stats excluding synthetic
-            $real = array_filter($rows, fn($r) => !$r['synthetic']);
+            // Stats excluding synthetic and extreme outliers (>2h error = bad data)
+            $real = array_filter($rows, fn($r) => !$r['synthetic'] && abs($r['our_err_min']) <= 120);
             $ourErrs = array_map(fn($r) => $r['our_err_min'], $real);
             $pertiErrs = array_values(array_filter(array_map(fn($r) => $r['perti_err_min'], $real), fn($v) => $v !== null));
 
