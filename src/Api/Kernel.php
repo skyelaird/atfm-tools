@@ -479,6 +479,7 @@ final class Kernel
 
         // Airports
         $app->get('/api/v1/airports', function ($req, $res) {
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
             // Auto-expire restrictions whose daily time window has passed.
             // end_utc is HHMM format (e.g. "0300"). If current UTC time is
             // past end_utc (and past start_utc, so we're not in the window),
