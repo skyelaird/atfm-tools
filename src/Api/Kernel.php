@@ -1172,6 +1172,65 @@ final class Kernel
             return self::json($res, $rows->toArray());
         });
 
+        // ELDT accuracy report — all flights with both eldt_locked and aldt
+        $app->get('/api/v1/accuracy', function ($req, $res) {
+            $params = $req->getQueryParams();
+            $days = min((int) ($params['days'] ?? 7), 30);
+            $since = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify("-{$days} days");
+
+            $flights = Flight::whereNotNull('eldt_locked')
+                ->whereNotNull('aldt')
+                ->where('aldt', '>=', $since->format('Y-m-d H:i:s'))
+                ->orderBy('aldt', 'desc')
+                ->limit(500)
+                ->get();
+
+            $rows = $flights->map(function (Flight $f) {
+                $aldt = $f->aldt->getTimestamp();
+                $ourErr = round(($aldt - $f->eldt_locked->getTimestamp()) / 60);
+                $pertiErr = $f->eldt_perti
+                    ? round(($aldt - $f->eldt_perti->getTimestamp()) / 60)
+                    : null;
+                $sbErr = $f->eldt_simbrief
+                    ? round(($aldt - $f->eldt_simbrief->getTimestamp()) / 60)
+                    : null;
+                $synthetic = $f->aldt->getTimestamp() === $f->eldt_locked->getTimestamp();
+                return [
+                    'callsign'      => $f->callsign,
+                    'aircraft_type' => $f->aircraft_type,
+                    'adep'          => $f->adep,
+                    'ades'          => $f->ades,
+                    'aldt'          => $f->aldt->format('c'),
+                    'eldt_locked'   => $f->eldt_locked->format('c'),
+                    'eldt_perti'    => $f->eldt_perti?->format('c'),
+                    'eldt_simbrief' => $f->eldt_simbrief?->format('c'),
+                    'our_err_min'   => $ourErr,
+                    'perti_err_min' => $pertiErr,
+                    'sb_err_min'    => $sbErr,
+                    'is_simbrief'   => (bool) $f->is_simbrief,
+                    'synthetic'     => $synthetic,
+                    'locked_source' => $f->eldt_locked_source,
+                ];
+            })->values()->all();
+
+            // Stats excluding synthetic
+            $real = array_filter($rows, fn($r) => !$r['synthetic']);
+            $ourErrs = array_map(fn($r) => $r['our_err_min'], $real);
+            $pertiErrs = array_values(array_filter(array_map(fn($r) => $r['perti_err_min'], $real), fn($v) => $v !== null));
+
+            return self::json($res, [
+                'days'          => $days,
+                'total'         => count($rows),
+                'synthetic'     => count($rows) - count($real),
+                'real'          => count($real),
+                'our_mean_err'  => count($ourErrs) > 0 ? round(array_sum($ourErrs) / count($ourErrs), 1) : null,
+                'our_mean_abs'  => count($ourErrs) > 0 ? round(array_sum(array_map('abs', $ourErrs)) / count($ourErrs), 1) : null,
+                'perti_mean_err'=> count($pertiErrs) > 0 ? round(array_sum($pertiErrs) / count($pertiErrs), 1) : null,
+                'perti_mean_abs'=> count($pertiErrs) > 0 ? round(array_sum(array_map('abs', $pertiErrs)) / count($pertiErrs), 1) : null,
+                'flights'       => $rows,
+            ]);
+        });
+
         $app->get('/api/v1/debug/runway-thresholds', function ($req, $res) {
             return self::json($res, RunwayThreshold::orderBy('airport_icao')->orderBy('runway_ident')->get()->toArray());
         });
