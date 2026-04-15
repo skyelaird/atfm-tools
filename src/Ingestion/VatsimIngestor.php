@@ -510,7 +510,10 @@ final class VatsimIngestor
                 $flight->eldt_locked        = null;
                 $flight->eldt_locked_at     = null;
                 $flight->eldt_locked_source = null;
-                $flight->eldt                = null;
+                $flight->eldt               = null;
+                $flight->tldt               = null;
+                $flight->tldt_assigned_at   = null;
+                $flight->eldt_perti         = null;
             }
         }
 
