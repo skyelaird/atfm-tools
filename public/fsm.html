@@ -1,0 +1,965 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>FSM — atfm-tools</title>
+    <style>
+        :root {
+            --bg: #0f1419; --bg-elev: #1a2028; --bg-elev-hi: #242c38;
+            --border: #2a3340;
+            --text: #d7dee8; --text-dim: #8a94a3; --text-bright: #f0f4fa;
+            --accent: #5eead4; --accent-dim: #2a6b5f;
+            --warn: #facc15; --warn-dim: #5e4a0f;
+            --alert: #f87171; --alert-dim: #5e1f1f;
+            --ok: #4ade80; --ok-dim: #1e4a2e;
+            --info: #60a5fa; --info-dim: #1e3a5f;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; padding: 0;
+            background: var(--bg); color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+            font-size: 14px; line-height: 1.45;
+        }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .mono { font-family: "SF Mono", Consolas, Monaco, "Courier New", monospace; font-variant-numeric: tabular-nums; }
+
+        /* ---------- Header ---------- */
+        header {
+            position: sticky; top: 0; z-index: 100;
+            background: var(--bg-elev);
+            border-bottom: 1px solid var(--border);
+            padding: 0.65rem 1rem;
+            display: flex; align-items: center; gap: 1rem;
+            flex-wrap: wrap;
+        }
+        header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+        .clock {
+            font-family: "SF Mono", Consolas, monospace;
+            font-size: 1.1rem; color: var(--accent);
+            font-variant-numeric: tabular-nums;
+            padding: 0 0.75rem;
+            border-left: 1px solid var(--border);
+        }
+        .header-controls {
+            display: flex; align-items: center; gap: 0.6rem;
+        }
+        .header-controls select {
+            background: var(--bg); color: var(--text);
+            border: 1px solid var(--border); border-radius: 3px;
+            padding: 0.3rem 0.5rem; font-size: 0.85rem; font-family: inherit;
+        }
+        .header-controls select:focus { border-color: var(--accent); outline: none; }
+        .btn {
+            background: var(--bg-elev-hi); color: var(--text-dim);
+            border: 1px solid var(--border); border-radius: 3px;
+            padding: 0.3rem 0.7rem; font-size: 0.8rem; cursor: pointer;
+            font-family: inherit;
+        }
+        .btn:hover { color: var(--text-bright); border-color: var(--accent-dim); }
+        .auto-indicator {
+            font-size: 0.7rem; color: var(--text-dim);
+        }
+        .auto-indicator .dot {
+            display: inline-block; width: 6px; height: 6px;
+            border-radius: 50%; background: var(--ok); margin-right: 4px;
+            vertical-align: middle;
+        }
+        .nav-pills { display: flex; gap: 0.5rem; margin-left: auto; align-items: center; }
+        .pill {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.25rem 0.7rem; border-radius: 3px;
+            background: var(--bg-elev-hi); border: 1px solid var(--border);
+            font-size: 0.8rem; color: var(--text-dim);
+        }
+        a.pill { text-decoration: none; }
+        a.pill:hover { color: var(--text-bright); }
+
+        /* ---------- Layout ---------- */
+        main { padding: 1rem; max-width: 1800px; margin: 0 auto; }
+        .split {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            align-items: start;
+        }
+        @media (max-width: 1100px) {
+            .split { grid-template-columns: 1fr; }
+        }
+        .card {
+            background: var(--bg-elev); border: 1px solid var(--border);
+            border-radius: 8px; overflow: hidden;
+        }
+        .card-header {
+            padding: 0.6rem 0.85rem; border-bottom: 1px solid var(--border);
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em;
+            color: var(--text-dim); font-weight: 600;
+            display: flex; align-items: center; gap: 0.5rem;
+        }
+        .card-header .count {
+            color: var(--text-bright); background: var(--bg-elev-hi);
+            padding: 0.05rem 0.4rem; border-radius: 3px;
+            font-weight: 600; text-transform: none; letter-spacing: 0;
+        }
+        .card-body { padding: 0.85rem; }
+
+        /* ---------- Summary stats ---------- */
+        .stats-row {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.5rem; margin-top: 0.75rem;
+        }
+        .stat {
+            background: var(--bg); border: 1px solid var(--border); border-radius: 4px;
+            padding: 0.5rem 0.65rem;
+        }
+        .stat .lbl { font-size: 0.65rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; }
+        .stat .val {
+            font-size: 1.3rem; font-weight: 700; color: var(--text-bright);
+            font-family: Consolas, monospace; margin-top: 0.1rem;
+        }
+        .stat .val .unit { font-size: 0.75rem; color: var(--text-dim); font-weight: 400; margin-left: 0.2rem; }
+        .stat .val.alert { color: var(--alert); }
+        .stat .val.warn { color: var(--warn); }
+        .stat .val.ok { color: var(--ok); }
+        .restriction-info {
+            margin-top: 0.5rem; padding: 0.4rem 0.6rem;
+            background: rgba(248,113,113,0.08); border: 1px solid var(--alert-dim);
+            border-radius: 4px; font-size: 0.78rem; color: var(--alert);
+        }
+        .restriction-info.none {
+            background: rgba(74,222,128,0.06); border-color: var(--ok-dim);
+            color: var(--ok);
+        }
+
+        /* ---------- Chart ---------- */
+        .chart-container { position: relative; width: 100%; }
+        .chart-container canvas { width: 100%; height: 260px; display: block; }
+
+        /* ---------- Multi-airport mode ---------- */
+        .multi-grid {
+            display: grid; grid-template-columns: 1fr;
+            gap: 0.75rem;
+        }
+        .mini-card {
+            background: var(--bg-elev); border: 1px solid var(--border);
+            border-radius: 6px; padding: 0.6rem 0.85rem;
+        }
+        .mini-card .mini-header {
+            display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.4rem;
+        }
+        .mini-card .icao {
+            font-family: Consolas, monospace; font-size: 1rem;
+            font-weight: 700; color: var(--text-bright);
+        }
+        .mini-card .mini-stats {
+            font-size: 0.75rem; color: var(--text-dim);
+            display: flex; gap: 0.8rem;
+        }
+        .mini-card .mini-stats .val { color: var(--text-bright); font-weight: 600; }
+        .mini-card .mini-stats .over { color: var(--alert); }
+        .mini-card canvas { width: 100%; height: 80px; display: block; margin-top: 0.3rem; }
+        .mini-card.has-restriction { border-color: var(--alert-dim); }
+
+        /* ---------- Table ---------- */
+        .table-wrap { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        thead th {
+            text-align: left; padding: 0.4rem 0.5rem;
+            background: var(--bg-elev); color: var(--text-dim);
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap; position: sticky; top: 0; z-index: 2;
+        }
+        thead th.sortable {
+            cursor: pointer; user-select: none;
+        }
+        thead th.sortable:hover { color: var(--text-bright); background: var(--bg-elev-hi); }
+        thead th.sortable::after { content: '\2195'; opacity: 0.25; margin-left: 0.3rem; font-size: 0.75rem; }
+        thead th.sortable.sort-asc::after  { content: '\2191'; opacity: 1; color: var(--accent); }
+        thead th.sortable.sort-desc::after { content: '\2193'; opacity: 1; color: var(--accent); }
+        tbody td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); }
+        tbody tr:nth-child(even) { background: var(--bg); }
+        tbody tr:nth-child(odd) { background: var(--bg-elev); }
+        tbody tr:hover { background: var(--bg-elev-hi); }
+        .empty-row { text-align: center; color: var(--text-dim); padding: 1.5rem; }
+        .frozen-eldt { color: var(--accent); }
+
+        /* ---------- Phase badges ---------- */
+        .phase { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.72rem; font-weight: 600; }
+        .phase.FILED      { background: rgba(139,148,158,0.15); color: var(--text); }
+        .phase.TAXI_OUT   { background: rgba(250,204,21,0.15);  color: var(--warn); }
+        .phase.DEPARTED   { background: rgba(96,165,250,0.15);  color: var(--info); }
+        .phase.ENROUTE    { background: rgba(94,234,212,0.15);  color: var(--accent); }
+        .phase.ARRIVING   { background: rgba(94,234,212,0.2);   color: var(--accent); }
+        .phase.FINAL      { background: rgba(74,222,128,0.15);  color: var(--ok); }
+        .phase.ON_RUNWAY  { background: rgba(74,222,128,0.2);   color: var(--ok); }
+        .phase.TAXI_IN    { background: rgba(250,204,21,0.15);  color: var(--warn); }
+        .phase.ARRIVED    { background: rgba(139,148,158,0.12); color: var(--text-dim); }
+        .phase.DISCONNECTED { background: rgba(248,113,113,0.15); color: var(--alert); }
+        .phase.WITHDRAWN  { background: rgba(139,148,158,0.12); color: var(--text-dim); }
+
+        .delay { font-family: Consolas, monospace; text-align: right; font-weight: 600; }
+        .delay.none  { color: var(--text-dim); }
+        .delay.zero  { color: var(--ok); }
+        .delay.small { color: var(--warn); }
+        .delay.big   { color: var(--alert); }
+
+        .status-badge {
+            font-size: 0.7rem; padding: 0.1rem 0.35rem; border-radius: 3px;
+            background: var(--bg-elev-hi); color: var(--text-dim);
+        }
+        .status-badge.REGULATED { background: rgba(248,113,113,0.12); color: var(--alert); }
+        .status-badge.EXEMPT    { background: rgba(74,222,128,0.1);   color: var(--ok); }
+        .status-badge.FLS_NRA   { background: rgba(139,148,158,0.12); color: var(--text-dim); }
+
+        /* ---------- Loading / Error ---------- */
+        .loading { text-align: center; padding: 2rem; color: var(--text-dim); }
+        .error-msg {
+            padding: 0.6rem 0.85rem; margin-bottom: 0.75rem;
+            background: rgba(248,113,113,0.1); border: 1px solid var(--alert-dim);
+            border-radius: 4px; color: var(--alert); font-size: 0.85rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>atfm-tools &mdash; Flight Schedule Monitor</h1>
+    <span class="clock mono" id="clock">--:--:--Z</span>
+    <div class="header-controls">
+        <select id="airport-select">
+            <option value="ALL">All airports</option>
+            <option value="CYHZ">CYHZ</option>
+            <option value="CYOW">CYOW</option>
+            <option value="CYUL">CYUL</option>
+            <option value="CYVR">CYVR</option>
+            <option value="CYWG">CYWG</option>
+            <option value="CYYC">CYYC</option>
+            <option value="CYYZ">CYYZ</option>
+        </select>
+        <button class="btn" id="refresh-btn" title="Refresh now">Refresh</button>
+        <span class="auto-indicator"><span class="dot"></span>60s</span>
+    </div>
+    <div class="nav-pills">
+        <a href="/dashboard.html" class="pill">dashboard</a>
+        <a href="/reports.html" class="pill">reports</a>
+        <a href="/aar.html" class="pill">AAR</a>
+    </div>
+</header>
+<main>
+    <div class="error-msg" id="error-msg"></div>
+    <div id="content-single" style="display:none;">
+        <div class="split">
+            <div class="card" id="chart-card">
+                <div class="card-header">Demand / Capacity Timeline <span class="count" id="chart-airport-label">--</span></div>
+                <div class="card-body">
+                    <div class="chart-container">
+                        <canvas id="demand-chart"></canvas>
+                    </div>
+                    <div class="stats-row" id="stats-row"></div>
+                    <div id="restriction-info"></div>
+                </div>
+            </div>
+            <div class="card" id="table-card">
+                <div class="card-header">Inbound Flights <span class="count" id="flight-count">0</span></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead id="table-head"></thead>
+                        <tbody id="table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div id="content-all" style="display:none;">
+        <div class="split">
+            <div class="card">
+                <div class="card-header">Demand / Capacity Overview</div>
+                <div class="card-body">
+                    <div class="multi-grid" id="multi-charts"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header">All Inbound Flights <span class="count" id="flight-count-all">0</span></div>
+                <div class="table-wrap">
+                    <table>
+                        <thead id="table-head-all"></thead>
+                        <tbody id="table-body-all"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+<script>
+(function () {
+    'use strict';
+
+    // ---- Constants ----
+    const AIRPORTS = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
+    const BIN_MINUTES = 15;
+    const BINS_COUNT = 12; // 3 hours
+    const REFRESH_MS = 60000;
+
+    // ---- DOM refs ----
+    const $clock = document.getElementById('clock');
+    const $select = document.getElementById('airport-select');
+    const $refreshBtn = document.getElementById('refresh-btn');
+    const $errorMsg = document.getElementById('error-msg');
+    const $single = document.getElementById('content-single');
+    const $all = document.getElementById('content-all');
+
+    // ---- State ----
+    let airportsData = {};   // icao -> airport object
+    let currentFlights = []; // flights for current selection
+    let allFlights = {};     // icao -> flights[] for "All" mode
+    let sortCol = 'eldt';
+    let sortDir = 'asc';
+    let refreshTimer = null;
+
+    // ---- Clock ----
+    function tickClock() {
+        const now = new Date();
+        $clock.textContent = now.toISOString().slice(11, 19) + 'Z';
+    }
+    setInterval(tickClock, 1000);
+    tickClock();
+
+    // ---- Helpers ----
+    function hhmm(isoStr) {
+        if (!isoStr) return '--:--';
+        const d = new Date(isoStr);
+        if (isNaN(d.getTime())) return '--:--';
+        return String(d.getUTCHours()).padStart(2, '0') + ':' + String(d.getUTCMinutes()).padStart(2, '0');
+    }
+
+    function floorToBin(date) {
+        const d = new Date(date);
+        d.setUTCSeconds(0, 0);
+        d.setUTCMinutes(Math.floor(d.getUTCMinutes() / BIN_MINUTES) * BIN_MINUTES);
+        return d;
+    }
+
+    function binKey(date) {
+        return date.toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
+    }
+
+    function binLabel(date) {
+        return String(date.getUTCHours()).padStart(2, '0') + ':' +
+               String(date.getUTCMinutes()).padStart(2, '0');
+    }
+
+    function getEffectiveEldt(f) {
+        return f.eldt_locked || f.eldt || null;
+    }
+
+    function getCapacity(airport) {
+        // If there's an active restriction, use its capacity; else base rate
+        const a = airportsData[airport];
+        if (!a) return 0;
+        const restrictions = a.restrictions || [];
+        if (restrictions.length > 0) {
+            // Use the lowest active restriction capacity
+            return Math.min(...restrictions.map(r => r.capacity || a.base_arrival_rate));
+        }
+        return a.base_arrival_rate || 0;
+    }
+
+    function getActiveRestriction(airport) {
+        const a = airportsData[airport];
+        if (!a) return null;
+        const restrictions = a.restrictions || [];
+        return restrictions.length > 0 ? restrictions[0] : null;
+    }
+
+    function getBaseRate(airport) {
+        const a = airportsData[airport];
+        return a ? (a.base_arrival_rate || 0) : 0;
+    }
+
+    // ---- Build time bins ----
+    function buildBins() {
+        const now = new Date();
+        const start = floorToBin(now);
+        const bins = [];
+        for (let i = 0; i < BINS_COUNT; i++) {
+            const t = new Date(start.getTime() + i * BIN_MINUTES * 60000);
+            bins.push({ time: t, key: binKey(t), label: binLabel(t), count: 0 });
+        }
+        return bins;
+    }
+
+    function populateBins(bins, flights) {
+        // Reset counts
+        bins.forEach(b => b.count = 0);
+        const first = bins[0].time.getTime();
+        const last = bins[bins.length - 1].time.getTime() + BIN_MINUTES * 60000;
+        flights.forEach(f => {
+            const eldt = getEffectiveEldt(f);
+            if (!eldt) return;
+            const d = new Date(eldt);
+            if (isNaN(d.getTime())) return;
+            const t = d.getTime();
+            if (t < first || t >= last) return;
+            const floored = floorToBin(d);
+            const key = binKey(floored);
+            const bin = bins.find(b => b.key === key);
+            if (bin) bin.count++;
+        });
+        return bins;
+    }
+
+    // ---- Fetch data ----
+    async function fetchJSON(url) {
+        const resp = await fetch(url);
+        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+        return resp.json();
+    }
+
+    async function loadAirports() {
+        const data = await fetchJSON('/api/v1/airports');
+        airportsData = {};
+        (Array.isArray(data) ? data : []).forEach(a => {
+            airportsData[a.icao] = a;
+        });
+    }
+
+    async function loadFlights(icao) {
+        const data = await fetchJSON(
+            '/api/v1/flights?airport=' + icao + '&direction=inbound&active=1&hours=6'
+        );
+        return data.flights || [];
+    }
+
+    // ---- Show error ----
+    function showError(msg) {
+        $errorMsg.textContent = msg;
+        $errorMsg.style.display = 'block';
+        setTimeout(() => { $errorMsg.style.display = 'none'; }, 8000);
+    }
+
+    // ---- Draw chart (single airport) ----
+    function drawChart(canvasId, bins, hourlyCapacity, baseRate, opts) {
+        const canvas = document.getElementById(canvasId);
+        if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+
+        // Size
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width;
+        const h = opts && opts.mini ? 80 : 260;
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+        canvas.style.height = h + 'px';
+        ctx.scale(dpr, dpr);
+
+        // Clear
+        ctx.clearRect(0, 0, w, h);
+
+        const capPerBin = hourlyCapacity / (60 / BIN_MINUTES);
+        const basePerBin = baseRate / (60 / BIN_MINUTES);
+        const maxCount = Math.max(
+            ...bins.map(b => b.count),
+            Math.ceil(capPerBin) + 2,
+            Math.ceil(basePerBin) + 2,
+            5
+        );
+
+        // Layout
+        const padL = opts && opts.mini ? 28 : 44;
+        const padR = 12;
+        const padT = opts && opts.mini ? 8 : 16;
+        const padB = opts && opts.mini ? 16 : 32;
+        const chartW = w - padL - padR;
+        const chartH = h - padT - padB;
+        const binW = chartW / bins.length;
+        const barW = binW * 0.75;
+
+        // Y scale
+        const yMax = maxCount;
+        function yPos(val) { return padT + chartH - (val / yMax) * chartH; }
+
+        // Gridlines
+        ctx.strokeStyle = 'rgba(42,51,64,0.6)';
+        ctx.lineWidth = 0.5;
+        const gridStep = opts && opts.mini ? 5 : 5;
+        for (let g = 0; g <= yMax; g += gridStep) {
+            if (g === 0) continue;
+            const gy = yPos(g);
+            ctx.beginPath();
+            ctx.moveTo(padL, gy);
+            ctx.lineTo(w - padR, gy);
+            ctx.stroke();
+            if (!(opts && opts.mini)) {
+                ctx.fillStyle = '#8a94a3';
+                ctx.font = '10px Consolas, monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText(String(g), padL - 6, gy + 3);
+            }
+        }
+
+        // Baseline
+        ctx.strokeStyle = 'rgba(42,51,64,0.8)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(padL, yPos(0));
+        ctx.lineTo(w - padR, yPos(0));
+        ctx.stroke();
+
+        // Bars
+        bins.forEach(function (bin, i) {
+            const x = padL + i * binW + (binW - barW) / 2;
+            const barH = (bin.count / yMax) * chartH;
+            const y = yPos(bin.count);
+
+            const over = bin.count > capPerBin;
+            if (over) {
+                // Red for over-capacity portion
+                const capH = (capPerBin / yMax) * chartH;
+                const capY = yPos(capPerBin);
+                // Green portion (up to cap)
+                if (capPerBin > 0) {
+                    ctx.fillStyle = 'rgba(74,222,128,0.55)';
+                    ctx.fillRect(x, capY, barW, padT + chartH - capY);
+                }
+                // Red portion (over cap)
+                ctx.fillStyle = 'rgba(248,113,113,0.65)';
+                ctx.fillRect(x, y, barW, capY - y);
+            } else {
+                ctx.fillStyle = bin.count > 0 ? 'rgba(74,222,128,0.55)' : 'rgba(74,222,128,0.15)';
+                ctx.fillRect(x, y, barW, padT + chartH - y);
+            }
+
+            // Count label on top of bar
+            if (bin.count > 0 && !(opts && opts.mini)) {
+                ctx.fillStyle = over ? '#f87171' : '#d7dee8';
+                ctx.font = 'bold 11px Consolas, monospace';
+                ctx.textAlign = 'center';
+                ctx.fillText(String(bin.count), x + barW / 2, y - 4);
+            }
+        });
+
+        // Capacity line (dashed)
+        if (capPerBin > 0) {
+            ctx.setLineDash([6, 3]);
+            ctx.strokeStyle = 'rgba(248,113,113,0.8)';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(padL, yPos(capPerBin));
+            ctx.lineTo(w - padR, yPos(capPerBin));
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Label
+            if (!(opts && opts.mini)) {
+                ctx.fillStyle = '#f87171';
+                ctx.font = '10px Consolas, monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('cap ' + capPerBin.toFixed(1) + '/15m', w - padR - 80, yPos(capPerBin) - 4);
+            }
+        }
+
+        // Base rate line (yellow dashed) if different from restriction capacity
+        if (basePerBin > 0 && Math.abs(basePerBin - capPerBin) > 0.01) {
+            ctx.setLineDash([4, 4]);
+            ctx.strokeStyle = 'rgba(250,204,21,0.6)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(padL, yPos(basePerBin));
+            ctx.lineTo(w - padR, yPos(basePerBin));
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            if (!(opts && opts.mini)) {
+                ctx.fillStyle = '#facc15';
+                ctx.font = '10px Consolas, monospace';
+                ctx.textAlign = 'left';
+                ctx.fillText('base ' + basePerBin.toFixed(1) + '/15m', w - padR - 80, yPos(basePerBin) - 4);
+            }
+        }
+
+        // Current-time marker
+        const now = new Date();
+        const first = bins[0].time.getTime();
+        const last = bins[bins.length - 1].time.getTime() + BIN_MINUTES * 60000;
+        if (now.getTime() >= first && now.getTime() < last) {
+            const frac = (now.getTime() - first) / (last - first);
+            const xNow = padL + frac * chartW;
+            ctx.setLineDash([2, 2]);
+            ctx.strokeStyle = 'rgba(94,234,212,0.6)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(xNow, padT);
+            ctx.lineTo(xNow, padT + chartH);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+
+        // X-axis labels (every 30 min to avoid clutter)
+        ctx.fillStyle = '#8a94a3';
+        ctx.font = '10px Consolas, monospace';
+        ctx.textAlign = 'center';
+        bins.forEach(function (bin, i) {
+            const min = bin.time.getUTCMinutes();
+            // Show label at :00 and :30 only (or always for mini)
+            if (opts && opts.mini) {
+                if (min === 0) {
+                    ctx.fillText(bin.label, padL + i * binW + binW / 2, h - 3);
+                }
+            } else {
+                if (min === 0 || min === 30) {
+                    ctx.fillText(bin.label, padL + i * binW + binW / 2, h - padB + 14);
+                }
+            }
+        });
+
+        // Y-axis label
+        if (!(opts && opts.mini)) {
+            ctx.save();
+            ctx.fillStyle = '#8a94a3';
+            ctx.font = '9px -apple-system, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.translate(10, padT + chartH / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText('flights', 0, 0);
+            ctx.restore();
+        }
+    }
+
+    // ---- Summary stats ----
+    function renderStats(flights, airport) {
+        const $stats = document.getElementById('stats-row');
+        const $restrict = document.getElementById('restriction-info');
+
+        const withEldt = flights.filter(f => getEffectiveEldt(f));
+        const withCtot = flights.filter(f => f.ctot);
+        const withDelay = flights.filter(f => (f.delay_minutes || 0) > 0);
+        const avgDelay = withDelay.length > 0
+            ? (withDelay.reduce((s, f) => s + f.delay_minutes, 0) / withDelay.length).toFixed(1)
+            : '0';
+        const maxDelay = withDelay.length > 0
+            ? Math.max(...withDelay.map(f => f.delay_minutes))
+            : 0;
+
+        $stats.innerHTML = [
+            { lbl: 'Inbound', val: flights.length, cls: '' },
+            { lbl: 'With CTOT', val: withCtot.length, cls: withCtot.length > 0 ? 'warn' : '' },
+            { lbl: 'Avg delay', val: avgDelay, unit: 'min', cls: parseFloat(avgDelay) > 10 ? 'alert' : parseFloat(avgDelay) > 0 ? 'warn' : '' },
+            { lbl: 'Max delay', val: maxDelay, unit: 'min', cls: maxDelay > 15 ? 'alert' : maxDelay > 0 ? 'warn' : '' },
+        ].map(function (s) {
+            return '<div class="stat"><div class="lbl">' + s.lbl + '</div><div class="val ' + s.cls + '">' +
+                   s.val + (s.unit ? '<span class="unit">' + s.unit + '</span>' : '') + '</div></div>';
+        }).join('');
+
+        const r = getActiveRestriction(airport);
+        if (r) {
+            $restrict.className = 'restriction-info';
+            $restrict.innerHTML = 'Active restriction: <strong>' + (r.reason || r.type || 'rate limit') +
+                '</strong> &mdash; capacity ' + r.capacity + '/hr' +
+                (r.start_utc ? ' (' + r.start_utc.slice(0,2) + ':' + r.start_utc.slice(2) + '-' +
+                 (r.end_utc ? r.end_utc.slice(0,2) + ':' + r.end_utc.slice(2) : 'open') + 'Z)' : '');
+        } else {
+            $restrict.className = 'restriction-info none';
+            $restrict.innerHTML = 'No active restriction &mdash; base rate ' + getBaseRate(airport) + '/hr';
+        }
+    }
+
+    // ---- Table ----
+    const COLUMNS = [
+        { key: 'callsign',      label: 'Callsign',  mono: true },
+        { key: 'departure',     label: 'ADEP',       mono: true },
+        { key: 'aircraft_short',label: 'Type',        mono: true },
+        { key: 'eldt',          label: 'ELDT',        mono: true },
+        { key: 'ctot',          label: 'CTOT',        mono: true },
+        { key: 'delay_minutes', label: 'Delay',       mono: true },
+        { key: 'phase',         label: 'Phase',       mono: false },
+        { key: 'delay_status',  label: 'Status',      mono: false },
+    ];
+
+    const COLUMNS_ALL = [
+        { key: 'callsign',      label: 'Callsign',  mono: true },
+        { key: 'departure',     label: 'ADEP',       mono: true },
+        { key: 'arrival',       label: 'ADES',       mono: true },
+        { key: 'aircraft_short',label: 'Type',        mono: true },
+        { key: 'eldt',          label: 'ELDT',        mono: true },
+        { key: 'ctot',          label: 'CTOT',        mono: true },
+        { key: 'delay_minutes', label: 'Delay',       mono: true },
+        { key: 'phase',         label: 'Phase',       mono: false },
+        { key: 'delay_status',  label: 'Status',      mono: false },
+    ];
+
+    function renderTableHead(headId, cols) {
+        const $head = document.getElementById(headId);
+        $head.innerHTML = '<tr>' + cols.map(function (c) {
+            const cls = 'sortable' +
+                (sortCol === c.key ? (sortDir === 'asc' ? ' sort-asc' : ' sort-desc') : '');
+            return '<th class="' + cls + '" data-col="' + c.key + '">' + c.label + '</th>';
+        }).join('') + '</tr>';
+        $head.querySelectorAll('th.sortable').forEach(function (th) {
+            th.addEventListener('click', function () {
+                const col = th.getAttribute('data-col');
+                if (sortCol === col) {
+                    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortCol = col;
+                    sortDir = 'asc';
+                }
+                render();
+            });
+        });
+    }
+
+    function sortFlights(flights) {
+        return flights.slice().sort(function (a, b) {
+            let va, vb;
+            if (sortCol === 'eldt') {
+                va = getEffectiveEldt(a) || '';
+                vb = getEffectiveEldt(b) || '';
+            } else if (sortCol === 'ctot') {
+                va = a.ctot || '';
+                vb = b.ctot || '';
+            } else if (sortCol === 'delay_minutes') {
+                va = a.delay_minutes || 0;
+                vb = b.delay_minutes || 0;
+            } else {
+                va = (a[sortCol] || '').toString().toLowerCase();
+                vb = (b[sortCol] || '').toString().toLowerCase();
+            }
+            if (va < vb) return sortDir === 'asc' ? -1 : 1;
+            if (va > vb) return sortDir === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+
+    function renderFlightRow(f, cols) {
+        return '<tr>' + cols.map(function (c) {
+            const mono = c.mono ? ' class="mono"' : '';
+            let val = '';
+            switch (c.key) {
+                case 'callsign':
+                    val = '<span class="mono">' + (f.callsign || '') + '</span>';
+                    break;
+                case 'departure':
+                    val = '<span class="mono">' + (f.departure || f.adep || '') + '</span>';
+                    break;
+                case 'arrival':
+                    val = '<span class="mono">' + (f.arrival || f.ades || '') + '</span>';
+                    break;
+                case 'aircraft_short':
+                    val = '<span class="mono">' + (f.aircraft_short || f.aircraft_type || '') + '</span>';
+                    break;
+                case 'eldt': {
+                    const locked = f.eldt_locked;
+                    const raw = f.eldt;
+                    const eff = locked || raw;
+                    if (eff) {
+                        const cls = locked ? 'mono frozen-eldt' : 'mono';
+                        val = '<span class="' + cls + '">' + hhmm(eff) + '</span>';
+                    } else {
+                        val = '<span class="mono" style="color:var(--text-dim)">--:--</span>';
+                    }
+                    break;
+                }
+                case 'ctot':
+                    if (f.ctot) {
+                        val = '<span class="mono" style="color:var(--accent)">' + hhmm(f.ctot) + '</span>';
+                    } else {
+                        val = '<span class="mono" style="color:var(--text-dim)">--:--</span>';
+                    }
+                    break;
+                case 'delay_minutes': {
+                    const d = f.delay_minutes || 0;
+                    let cls = 'delay none';
+                    if (d === 0) cls = 'delay zero';
+                    else if (d <= 15) cls = 'delay small';
+                    else cls = 'delay big';
+                    val = '<span class="' + cls + '">' + d + '</span>';
+                    break;
+                }
+                case 'phase':
+                    val = '<span class="phase ' + (f.phase || '') + '">' + (f.phase || '') + '</span>';
+                    break;
+                case 'delay_status': {
+                    const ds = f.delay_status || '';
+                    let scls = 'status-badge';
+                    if (ds === 'REGULATED') scls += ' REGULATED';
+                    else if (ds === 'EXEMPT') scls += ' EXEMPT';
+                    else if (ds === 'FLS_NRA') scls += ' FLS_NRA';
+                    val = ds ? '<span class="' + scls + '">' + ds + '</span>' : '';
+                    break;
+                }
+                default:
+                    val = f[c.key] || '';
+            }
+            return '<td>' + val + '</td>';
+        }).join('') + '</tr>';
+    }
+
+    function renderTable(bodyId, flights, cols) {
+        const $body = document.getElementById(bodyId);
+        const sorted = sortFlights(flights);
+        if (sorted.length === 0) {
+            $body.innerHTML = '<tr><td colspan="' + cols.length + '" class="empty-row">No inbound flights</td></tr>';
+            return;
+        }
+        $body.innerHTML = sorted.map(function (f) { return renderFlightRow(f, cols); }).join('');
+    }
+
+    // ---- Single airport render ----
+    function renderSingle(icao) {
+        $single.style.display = '';
+        $all.style.display = 'none';
+
+        document.getElementById('chart-airport-label').textContent = icao;
+
+        const flights = currentFlights;
+        const cap = getCapacity(icao);
+        const base = getBaseRate(icao);
+
+        // Chart
+        const bins = buildBins();
+        populateBins(bins, flights);
+        drawChart('demand-chart', bins, cap, base, null);
+
+        // Stats
+        renderStats(flights, icao);
+
+        // Table
+        document.getElementById('flight-count').textContent = flights.length;
+        renderTableHead('table-head', COLUMNS);
+        renderTable('table-body', flights, COLUMNS);
+    }
+
+    // ---- All airports render ----
+    function renderAll() {
+        $single.style.display = 'none';
+        $all.style.display = '';
+
+        const $multi = document.getElementById('multi-charts');
+        $multi.innerHTML = '';
+
+        // Collect all flights for table
+        let combined = [];
+
+        AIRPORTS.forEach(function (icao) {
+            const flights = allFlights[icao] || [];
+            combined = combined.concat(flights);
+
+            const cap = getCapacity(icao);
+            const base = getBaseRate(icao);
+            const restriction = getActiveRestriction(icao);
+            const bins = buildBins();
+            populateBins(bins, flights);
+
+            const withCtot = flights.filter(f => f.ctot).length;
+            const maxBin = Math.max(...bins.map(b => b.count), 0);
+            const capPerBin = cap / (60 / BIN_MINUTES);
+            const isOver = maxBin > capPerBin && capPerBin > 0;
+
+            const card = document.createElement('div');
+            card.className = 'mini-card' + (restriction ? ' has-restriction' : '');
+            card.innerHTML =
+                '<div class="mini-header">' +
+                    '<span class="icao">' + icao + '</span>' +
+                    '<div class="mini-stats">' +
+                        '<span>inbound <span class="val">' + flights.length + '</span></span>' +
+                        '<span>CTOTs <span class="val">' + withCtot + '</span></span>' +
+                        '<span>rate <span class="val">' + cap + '</span>/hr</span>' +
+                        (isOver ? '<span class="over">OVER CAPACITY</span>' : '') +
+                        (restriction ? '<span style="color:var(--alert);font-size:0.7rem;">' +
+                         (restriction.reason || 'restriction') + '</span>' : '') +
+                    '</div>' +
+                '</div>' +
+                '<canvas id="mini-chart-' + icao + '"></canvas>';
+            $multi.appendChild(card);
+
+            // Draw after DOM insert (needs layout)
+            requestAnimationFrame(function () {
+                drawChart('mini-chart-' + icao, bins, cap, base, { mini: true });
+            });
+        });
+
+        // Table
+        document.getElementById('flight-count-all').textContent = combined.length;
+        renderTableHead('table-head-all', COLUMNS_ALL);
+        renderTable('table-body-all', combined, COLUMNS_ALL);
+    }
+
+    // ---- Master render ----
+    function render() {
+        const icao = $select.value;
+        if (icao === 'ALL') {
+            renderAll();
+        } else {
+            renderSingle(icao);
+        }
+    }
+
+    // ---- Load + refresh ----
+    async function refresh() {
+        try {
+            await loadAirports();
+
+            const icao = $select.value;
+            if (icao === 'ALL') {
+                // Load all airports in parallel
+                const results = await Promise.all(
+                    AIRPORTS.map(function (a) {
+                        return loadFlights(a).then(function (f) { return { icao: a, flights: f }; });
+                    })
+                );
+                allFlights = {};
+                results.forEach(function (r) { allFlights[r.icao] = r.flights; });
+                currentFlights = [];
+            } else {
+                currentFlights = await loadFlights(icao);
+                allFlights = {};
+            }
+
+            render();
+        } catch (e) {
+            showError('Failed to load data: ' + e.message);
+            console.error(e);
+        }
+    }
+
+    // ---- Events ----
+    $select.addEventListener('change', function () {
+        refresh();
+    });
+    $refreshBtn.addEventListener('click', function () {
+        refresh();
+    });
+
+    // Resize redraw
+    window.addEventListener('resize', function () {
+        render();
+    });
+
+    // Auto-refresh
+    function startAutoRefresh() {
+        if (refreshTimer) clearInterval(refreshTimer);
+        refreshTimer = setInterval(refresh, REFRESH_MS);
+    }
+
+    // ---- Init ----
+    // Restore airport selection from URL hash
+    (function () {
+        const hash = window.location.hash.replace('#', '').toUpperCase();
+        if (hash && (hash === 'ALL' || AIRPORTS.indexOf(hash) !== -1)) {
+            $select.value = hash;
+        }
+    })();
+    $select.addEventListener('change', function () {
+        window.location.hash = $select.value;
+    });
+
+    refresh();
+    startAutoRefresh();
+})();
+</script>
+</body>
+</html>
