@@ -24,3 +24,11 @@ Thumbs.db
 # Local-only
 /local/
 /tmp/
+
+# Upstream reference sources (fetched on demand, not committed)
+/.cdm-ref/
+/.ecfmp-ref/
+/.faa-ref/
+
+# Claude local session state
+/.claude/

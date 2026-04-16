@@ -148,9 +148,13 @@ final class Kernel
 
     private static function registerCdmPluginProtocol(App $app): void
     {
-        // The ONE endpoint we actually serve real data on.
-        // CDM plugin polls every 5 min when customRestricted is set.
+        // The ONE endpoint we actually serve real data on in Mode A
+        // (customRestricted-only override). See docs/CDM-PLUGIN.md for the
+        // full contract. Plugin polls every ~15 s per active master (fixed
+        // gate in CDMSingle.cpp::main loop, NOT the RefreshTime XML setting).
         // Response: bare JSON array of {callsign, ctot, mostPenalizingAirspace}.
+        // CTOT must be EXACTLY 4 chars (HHMM, zero-padded) or plugin silently drops it.
+        // Omitting a callsign is authoritative — plugin clears that flight's CTOT.
         $app->get('/cdm/etfms/restricted', function ($req, $res) {
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 

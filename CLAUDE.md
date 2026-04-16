@@ -104,9 +104,11 @@ etc. from PMDG/iniBuilds profiles). TOD at altitude/318 nm.
 **Taxi time**: zone-based from `data/taxizones.txt` (apron polygon ×
 runway → minutes). Falls back to airport default.
 
-**ELDT freeze**: snapshots at T-2h / 120 min (freeze window 116..120 min
-before predicted landing, or ENROUTE+5min, whichever is later) for
-validation against eventual ALDT. Target: ±3 min.
+**ELDT freeze**: snapshots at **T-90m / 92 min** (freeze window ~88..92 min
+before predicted landing). Aligned with CTOT scope — candidates have
+ETE ≤ 1:30, so allocator lookahead and freeze horizon are the same clock.
+The frozen value becomes TLDT (committed slot). Target accuracy: ±3 min.
+See [docs/DESIGN.md](docs/DESIGN.md) §4 for rationale.
 
 ## OpLevel taxonomy (PERTI-compatible)
 

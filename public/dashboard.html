@@ -458,56 +458,9 @@
     </section>
 
     <section>
-        <details open>
-            <summary>Restrictions <span class="count" id="restrictions-inline-count">0</span></summary>
-            <div class="panel">
-                <form class="inline" id="restriction-form">
-                    <label>Airport
-                        <select name="icao" id="restriction-icao-select" required></select>
-                    </label>
-                    <label>Capacity (/hr)
-                        <input name="capacity" type="number" min="0" value="12" required>
-                    </label>
-                    <label>Reason
-                        <select name="reason">
-                            <option>ATC_CAPACITY</option>
-                            <option>WEATHER</option>
-                            <option>RUNWAY_CLOSED</option>
-                            <option>STAFFING</option>
-                            <option>EVENT</option>
-                            <option>OTHER</option>
-                        </select>
-                    </label>
-                    <label>OpLevel
-                        <select name="op_level">
-                            <option value="1">1 · Steady State</option>
-                            <option value="2" selected>2 · Localized</option>
-                            <option value="3">3 · Regional</option>
-                            <option value="4">4 · NAS-Wide</option>
-                        </select>
-                    </label>
-                    <label>Type
-                        <select name="type">
-                            <option>ARR</option>
-                            <option>DEP</option>
-                            <option>BOTH</option>
-                        </select>
-                    </label>
-                    <label>Start UTC
-                        <input name="start_utc" value="0000" placeholder="HHMM" pattern="[0-9]{4}" required>
-                    </label>
-                    <label>End UTC
-                        <input name="end_utc" value="2359" placeholder="HHMM" pattern="[0-9]{4}" required>
-                    </label>
-                    <label>Tier (min)
-                        <input name="tier_minutes" type="number" min="30" max="720" value="120" required>
-                    </label>
-                    <label>&nbsp;
-                        <button type="submit">Create</button>
-                    </label>
-                </form>
-            </div>
-            <div class="table-wrap" style="margin-top: 0.5rem;">
+        <details>
+            <summary>Restrictions <span class="count" id="restrictions-inline-count">0</span> <span class="muted" style="font-size:0.85em;font-weight:normal;">— read-only view of constraints the allocator is using (sourced from imports / vIFF)</span></summary>
+            <div class="table-wrap">
                 <table id="restrictions-table">
                     <thead>
                         <tr>
@@ -520,7 +473,7 @@
                             <th data-sort="start_utc">Window</th>
                             <th data-sort="tier_minutes">Tier</th>
                             <th>Compliance</th>
-                            <th></th>
+                            <th>Source</th>
                         </tr>
                     </thead>
                     <tbody id="restrictions-tbody">
@@ -764,8 +717,6 @@ function renderAirports(airports) {
     const grid = $('airports-grid');
     grid.innerHTML = '';
     $('airports-count').textContent = airports.length;
-    const select = $('restriction-icao-select');
-    select.innerHTML = '';
     // Sort west to east by longitude
     airports.sort((a, b) => a.longitude - b.longitude);
     for (const a of airports) {
@@ -1286,14 +1237,7 @@ function renderRestrictions(rows) {
             el('td', { class: 'mono' }, `${r.start_utc}–${r.end_utc}`),
             el('td', { class: 'mono' }, r.tier_minutes + 'm'),
             el('td', { class: 'mono muted' }, `±${r.compliance_window_early_min}/${r.compliance_window_late_min}`),
-            el('td', {}, el('button', {
-                class: 'small',
-                onclick: async () => {
-                    if (!confirm(`Delete restriction ${r.restriction_id}?`)) return;
-                    await fetchJson(`/api/v1/airport-restrictions/${r.restriction_id}`, { method: 'DELETE' });
-                    refresh();
-                }
-            }, 'delete'))
+            el('td', { class: 'mono muted' }, r.source_file || '—')
         ));
     }
 }
@@ -1348,26 +1292,8 @@ function renderAllocationRuns(runs) {
 }
 
 // ---------- Forms ----------
-$('restriction-form').addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.target);
-    const icao = fd.get('icao');
-    const body = Object.fromEntries(fd.entries());
-    delete body.icao;
-    body.capacity     = Number(body.capacity);
-    body.tier_minutes = Number(body.tier_minutes);
-    body.op_level     = Number(body.op_level);
-    try {
-        await fetchJson(`/api/v1/airports/${icao}/restrictions`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
-        });
-        refresh();
-    } catch (err) {
-        alert('Failed to create restriction: ' + err.message);
-    }
-});
+// Restriction authoring UI removed — dashboard shows restrictions as sourced
+// from vIFF / import cron. Create restrictions upstream in vIFF.
 
 $('event-form').addEventListener('submit', async (e) => {
     e.preventDefault();

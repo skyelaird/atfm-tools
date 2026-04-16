@@ -11,6 +11,11 @@ code, the document is right and the code is wrong — update the code, not the d
 For per-term definitions (EOBT vs TOBT vs TSAT vs TTOT vs CTOT, EDCT vs CTOT,
 TMI vs flow measure vs restriction, etc.), see [GLOSSARY.md](GLOSSARY.md).
 
+For the operational-SME view of the design (ELDT/TLDT/CTOT model, freeze
+horizon rationale, CTOT scope, slot allocation flow) see
+[DESIGN.md](DESIGN.md). This document is the engineering counterpart —
+same model, more plumbing.
+
 ---
 
 ## 1. Purpose
