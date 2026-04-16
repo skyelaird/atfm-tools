@@ -6,10 +6,9 @@ declare(strict_types=1);
 // Idempotent: safe to re-run; uses updateOrCreate.
 //
 // Values:
-//   - base_arrival_rate from vIFF (user's CY/CZ admin scope)
-//     except CYOW which is manual (28) pending observation calibration
+//   - base_arrival_rate from vIFF (user's CY/CZ admin scope), all 7 airports
 //   - coordinates from operator-supplied NAV CANADA AIP data
-//   - taxi defaults from ICAO 9971 Part III A-CDM guidance
+//   - default_exot_min mirrors vIFF's single TAXITIME field per airport
 
 require __DIR__ . '/../vendor/autoload.php';
 
@@ -26,7 +25,7 @@ $airports = [
     // Names are plain ASCII to avoid charset issues on shared MySQL hosts
     // where the column charset may not honor the Eloquent connection charset.
     ['CYHZ', 'Halifax Stanfield International',        44.8808,  -63.5086,  477, 24, 24, 10, 6, false],
-    ['CYOW', 'Ottawa Macdonald-Cartier International', 45.3225,  -75.6692,  374, 28, 28, 12, 8, false],
+    ['CYOW', 'Ottawa Macdonald-Cartier International', 45.3225,  -75.6692,  374, 24, 24,  5, 8, false],
     ['CYUL', 'Montreal Pierre Elliott Trudeau',        45.4706,  -73.7408,  118, 40, 40, 15, 10, false],
     ['CYVR', 'Vancouver International',                49.1939, -123.1844,   14, 50, 50, 10, 8, false],
     ['CYWG', 'Winnipeg James Armstrong Richardson',    49.9100,  -97.2399,  783, 36, 36,  8, 6, false],
@@ -135,7 +134,7 @@ $runwayLines = [
     // CYVR
     '13  31  125 305 N049.11.59.690 W123.12.03.229 N049.11.03.051 W123.10.55.340 CYVR',
     '08R 26L 083 263 N049.11.23.161 W123.12.17.740 N049.11.04.891 W123.09.37.530 CYVR',
-    '08L 26R 083 263 N049.12.18.759 W123.12.03.959 N049.12.01.951 W123.09.36.489 CYVR',
+    '08L 26R 083 263 N049.12.18.761 W123.12.03.948 N049.12.03.180 W123.09.47.242 CYVR',
 
     // CYWG (operator-supplied, v0.4)
     '18  36  185 005 N049.55.29.701 W097.14.05.899 N049.53.42.388 W097.14.30.771 CYWG',

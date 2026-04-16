@@ -455,4 +455,21 @@ if ($schema->hasTable('runway_thresholds')) {
     }
 }
 
+// v0.5.22: CYOW now in vIFF admin scope with base_arrival_rate=24, taxitime=5.
+// Previously 28/12 as a manual placeholder. Update the row if still at the
+// old values — idempotent, won't clobber a later manual override.
+if ($schema->hasTable('airports')) {
+    $updated = Capsule::table('airports')
+        ->where('icao', 'CYOW')
+        ->where('base_arrival_rate', 28)
+        ->update([
+            'base_arrival_rate'   => 24,
+            'base_departure_rate' => 24,
+            'default_exot_min'    => 5,
+        ]);
+    if ($updated > 0) {
+        echo "✓ updated CYOW rate 28->24 and exot 12->5 from vIFF (v0.5.22)\n";
+    }
+}
+
 echo "done.\n";
