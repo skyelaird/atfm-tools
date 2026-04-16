@@ -180,16 +180,27 @@ function autoPropose(icao) {
     const vmc = (st.rules === 'VFR' || st.rules === 'MVFR');
     for (const r of Object.values(st.runways)) r.role = 'off';
     if (aptCfg && aptCfg.configs) {
-        let best = null, bestRate = 0, bestHw = -999;
-        for (const cfg of aptCfg.configs) {
-            if (cfg.requires) { if (cfg.requires.dry && st.wet) continue; if (cfg.requires.vmc && !vmc) continue; }
-            const arrRwy = st.runways[cfg.primary_arr]; if (!arrRwy || !arrRwy.avail) continue;
-            if (cfg.primary_dep !== cfg.primary_arr) { const d = st.runways[cfg.primary_dep]; if (!d || !d.avail) continue; }
-            const rate = cfg.declared_arr_rate || 0, hw = arrRwy.hw;
-            if (rate > bestRate || (rate === bestRate && hw > bestHw)) { bestRate = rate; bestHw = hw; best = cfg; }
-        }
-        if (best) { for (const [id, info] of Object.entries(best.runways)) { if (st.runways[id]) st.runways[id].role = info.role; } st.configName = best.label; return; }
+        // Two-tier selection: try non-exceptional configs first. Exceptional
+        // configs (e.g. CYYZ 15/33) only get picked if every non-exceptional
+        // config is out of tolerance — they are not allowed to win on a
+        // headwind tiebreak against the preferred direction.
+        const pick = (pool) => {
+            let best = null, bestRate = 0, bestHw = -999;
+            for (const cfg of pool) {
+                if (cfg.requires) { if (cfg.requires.dry && st.wet) continue; if (cfg.requires.vmc && !vmc) continue; }
+                const arrRwy = st.runways[cfg.primary_arr]; if (!arrRwy || !arrRwy.avail) continue;
+                if (cfg.primary_dep !== cfg.primary_arr) { const d = st.runways[cfg.primary_dep]; if (!d || !d.avail) continue; }
+                const rate = cfg.declared_arr_rate || 0, hw = arrRwy.hw;
+                if (rate > bestRate || (rate === bestRate && hw > bestHw)) { bestRate = rate; bestHw = hw; best = cfg; }
+            }
+            return best;
+        };
+        const preferred = aptCfg.configs.filter(c => !c.exceptional);
+        const exceptional = aptCfg.configs.filter(c => c.exceptional);
+        const best = pick(preferred) || pick(exceptional);
+        if (best) { for (const [id, info] of Object.entries(best.runways)) { if (st.runways[id]) st.runways[id].role = info.role; } st.configName = best.label; st.selectedConfig = best; return; }
     }
+    st.selectedConfig = null;
     const supplementary = new Set(aptCfg?._supplementary || []);
     let bestRwy = null, bestHw2 = -999;
     for (const [id, r] of Object.entries(st.runways)) { if (r.avail && r.hw > bestHw2 && !supplementary.has(id)) { bestHw2 = r.hw; bestRwy = id; } }
@@ -335,21 +346,61 @@ async function computeRates(icao) {
     const depRwys = Object.entries(st.runways).filter(([, r]) => r.role === 'D' || r.role === 'A/D');
     const el = (id, t) => { const e = document.getElementById(id); if (e) e.textContent = t; };
     if (!arrRwys.length && !depRwys.length) { el(`aar-${icao}`, '—'); el(`adr-${icao}`, '—'); el(`total-${icao}`, '—'); el(`rate-detail-${icao}`, 'No active runways'); return; }
-    let totalArr = 0, totalDep = 0, details = [];
+
+    // Facility-declared rates from selected config. This mirrors the FAA FOA
+    // Ch.10 §7 / ASPM SAER model: AAR and ADR are facility-declared hourly
+    // values per (runway config × weather class), not computed per-flight.
+    // The wind-aware wake-separation calculator is a "what can physics
+    // support" check; the declared value is what the facility publishes.
+    // We show both and take the lower of (declared, achievable) as the
+    // rate the allocator should use — facility won't exceed its own declaration.
+    const cfg = st.selectedConfig;
+    const declaredArr = cfg?.declared_arr_rate || null;
+    const declaredDep = cfg?.declared_dep_rate || null;
+
+    let achievableArr = 0, details = [];
     for (const [ident, r] of arrRwys) {
         try {
             const res = await fetch(`/api/v1/aar/calculate?airport=${icao}&headwind=${r.hw}`);
             const d = await res.json();
+            // Interleaved A/D single-runway loses ~40% of slots to deps (FAA
+            // Ch.10 §7: mixed ops reduce arrival capacity to give dep windows).
             const rate = r.role === 'A/D' ? Math.round(d.aar * 0.6) : d.aar;
-            totalArr += rate; details.push(`${ident}:${rate}A`);
+            achievableArr += rate; details.push(`${ident}:${rate}A`);
         } catch (e) {}
     }
-    for (const [ident, r] of depRwys) {
-        const rate = r.role === 'D' ? 20 : Math.min(Math.round(totalArr * 0.4 / 0.6), 12);
-        totalDep += rate; details.push(`${ident}:${rate}D`);
+
+    // ADR: prefer declared. Fall back to legacy heuristic only if no config
+    // is selected (manual runway toggles with no matching config).
+    let totalDep = 0;
+    if (declaredDep !== null) {
+        totalDep = declaredDep;
+        for (const [ident, r] of depRwys) details.push(`${ident}:${r.role === 'A/D' ? 'mixed' : 'D'}`);
+    } else {
+        for (const [ident, r] of depRwys) {
+            const rate = r.role === 'D' ? 20 : Math.min(Math.round(achievableArr * 0.4 / 0.6), 12);
+            totalDep += rate; details.push(`${ident}:${rate}D`);
+        }
     }
-    el(`aar-${icao}`, `${totalArr}/hr`); el(`adr-${icao}`, `${totalDep}/hr`); el(`total-${icao}`, `${totalArr + totalDep}`);
-    el(`rate-detail-${icao}`, details.join(' | '));
+
+    // Operational AAR = min(declared, achievable). FAA facilities never
+    // publish above their declared rate even if wx supports more.
+    const opArr = (declaredArr !== null) ? Math.min(declaredArr, achievableArr) : achievableArr;
+    const aarCell = document.getElementById(`aar-${icao}`);
+    if (aarCell) {
+        if (declaredArr !== null && achievableArr < declaredArr) {
+            // Wind-constrained: show red/yellow based on gap
+            const gap = declaredArr - achievableArr;
+            aarCell.textContent = `${opArr}/${declaredArr}`;
+            aarCell.style.color = gap >= 8 ? 'var(--alert)' : gap >= 4 ? 'var(--warn)' : '';
+        } else {
+            aarCell.textContent = `${opArr}/hr`;
+            aarCell.style.color = '';
+        }
+    }
+    el(`adr-${icao}`, `${totalDep}/hr`);
+    el(`total-${icao}`, `${opArr + totalDep}`);
+    el(`rate-detail-${icao}`, details.join(' | ') + (declaredArr !== null ? ` | decl ${declaredArr}A/${declaredDep}D` : ''));
 }
 
 async function loadAll() {

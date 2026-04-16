@@ -12,8 +12,8 @@
         },
         "primary_arr": "05",
         "primary_dep": "05",
-        "declared_arr_rate": 24,
-        "declared_dep_rate": 12
+        "declared_arr_rate": 22,
+        "declared_dep_rate": 22
       },
       {
         "name": "05-LAHSO-14",
@@ -26,8 +26,8 @@
         },
         "primary_arr": "05",
         "primary_dep": "14",
-        "declared_arr_rate": 30,
-        "declared_dep_rate": 16
+        "declared_arr_rate": 26,
+        "declared_dep_rate": 22
       },
       {
         "name": "05-LAHSO-32",
@@ -40,8 +40,8 @@
         },
         "primary_arr": "05",
         "primary_dep": "32",
-        "declared_arr_rate": 30,
-        "declared_dep_rate": 16
+        "declared_arr_rate": 26,
+        "declared_dep_rate": 22
       },
       {
         "name": "23",
@@ -52,8 +52,8 @@
         },
         "primary_arr": "23",
         "primary_dep": "23",
-        "declared_arr_rate": 24,
-        "declared_dep_rate": 12
+        "declared_arr_rate": 22,
+        "declared_dep_rate": 22
       },
       {
         "name": "14",
@@ -64,8 +64,8 @@
         },
         "primary_arr": "14",
         "primary_dep": "14",
-        "declared_arr_rate": 20,
-        "declared_dep_rate": 10
+        "declared_arr_rate": 18,
+        "declared_dep_rate": 18
       },
       {
         "name": "32",
@@ -76,8 +76,8 @@
         },
         "primary_arr": "32",
         "primary_dep": "32",
-        "declared_arr_rate": 20,
-        "declared_dep_rate": 10
+        "declared_arr_rate": 18,
+        "declared_dep_rate": 18
       }
     ]
   },
@@ -91,7 +91,7 @@
         "mode": "single_interleaved",
         "runways": { "25": { "role": "A/D", "hdg": 251 } },
         "primary_arr": "25", "primary_dep": "25",
-        "declared_arr_rate": 30, "declared_dep_rate": 12
+        "declared_arr_rate": 22, "declared_dep_rate": 22
       },
       {
         "name": "07",
@@ -99,7 +99,7 @@
         "mode": "single_interleaved",
         "runways": { "07": { "role": "A/D", "hdg": 71 } },
         "primary_arr": "07", "primary_dep": "07",
-        "declared_arr_rate": 30, "declared_dep_rate": 12
+        "declared_arr_rate": 22, "declared_dep_rate": 22
       },
       {
         "name": "32",
@@ -107,7 +107,7 @@
         "mode": "single_interleaved",
         "runways": { "32": { "role": "A/D", "hdg": 320 } },
         "primary_arr": "32", "primary_dep": "32",
-        "declared_arr_rate": 28, "declared_dep_rate": 12
+        "declared_arr_rate": 20, "declared_dep_rate": 20
       },
       {
         "name": "14",
@@ -115,7 +115,7 @@
         "mode": "single_interleaved",
         "runways": { "14": { "role": "A/D", "hdg": 140 } },
         "primary_arr": "14", "primary_dep": "14",
-        "declared_arr_rate": 28, "declared_dep_rate": 12
+        "declared_arr_rate": 20, "declared_dep_rate": 20
       }
     ]
   },
@@ -132,8 +132,8 @@
         },
         "primary_arr": "08R",
         "primary_dep": "08L",
-        "declared_arr_rate": 40,
-        "declared_dep_rate": 16
+        "declared_arr_rate": 46,
+        "declared_dep_rate": 30
       },
       {
         "name": "26",
@@ -144,8 +144,8 @@
         },
         "primary_arr": "26L",
         "primary_dep": "26R",
-        "declared_arr_rate": 40,
-        "declared_dep_rate": 16
+        "declared_arr_rate": 46,
+        "declared_dep_rate": 30
       }
     ]
   },
@@ -156,25 +156,25 @@
         "name": "35",
         "label": "35 Direction",
         "runways": {
-          "35L": { "role": "A/D", "hdg": 345 },
-          "35R": { "role": "A/D", "hdg": 345 }
+          "35L": { "role": "A", "hdg": 345 },
+          "35R": { "role": "D", "hdg": 345 }
         },
         "primary_arr": "35L",
         "primary_dep": "35R",
-        "declared_arr_rate": 40,
-        "declared_dep_rate": 16
+        "declared_arr_rate": 42,
+        "declared_dep_rate": 30
       },
       {
         "name": "17",
         "label": "17 Direction",
         "runways": {
-          "17L": { "role": "A/D", "hdg": 165 },
-          "17R": { "role": "A/D", "hdg": 165 }
+          "17L": { "role": "D", "hdg": 165 },
+          "17R": { "role": "A", "hdg": 165 }
         },
         "primary_arr": "17R",
         "primary_dep": "17L",
-        "declared_arr_rate": 40,
-        "declared_dep_rate": 16
+        "declared_arr_rate": 42,
+        "declared_dep_rate": 30
       },
       {
         "name": "29",
@@ -182,7 +182,7 @@
         "mode": "single_interleaved",
         "runways": { "29": { "role": "A/D", "hdg": 285 } },
         "primary_arr": "29", "primary_dep": "29",
-        "declared_arr_rate": 24, "declared_dep_rate": 10
+        "declared_arr_rate": 20, "declared_dep_rate": 20
       },
       {
         "name": "11",
@@ -190,7 +190,7 @@
         "mode": "single_interleaved",
         "runways": { "11": { "role": "A/D", "hdg": 105 } },
         "primary_arr": "11", "primary_dep": "11",
-        "declared_arr_rate": 24, "declared_dep_rate": 10
+        "declared_arr_rate": 20, "declared_dep_rate": 20
       }
     ]
   },
@@ -206,8 +206,8 @@
         },
         "primary_arr": "24L",
         "primary_dep": "24R",
-        "declared_arr_rate": 40,
-        "declared_dep_rate": 16
+        "declared_arr_rate": 42,
+        "declared_dep_rate": 30
       },
       {
         "name": "06",
@@ -218,8 +218,8 @@
         },
         "primary_arr": "06R",
         "primary_dep": "06L",
-        "declared_arr_rate": 40,
-        "declared_dep_rate": 16
+        "declared_arr_rate": 42,
+        "declared_dep_rate": 30
       }
     ]
   },
@@ -234,7 +234,7 @@
         "mode": "single_interleaved",
         "runways": { "36": { "role": "A/D", "hdg": 5 } },
         "primary_arr": "36", "primary_dep": "36",
-        "declared_arr_rate": 24, "declared_dep_rate": 12
+        "declared_arr_rate": 22, "declared_dep_rate": 22
       },
       {
         "name": "36-13dep",
@@ -266,7 +266,7 @@
         "mode": "single_interleaved",
         "runways": { "18": { "role": "A/D", "hdg": 185 } },
         "primary_arr": "18", "primary_dep": "18",
-        "declared_arr_rate": 24, "declared_dep_rate": 12
+        "declared_arr_rate": 22, "declared_dep_rate": 22
       },
       {
         "name": "18-13dep",
@@ -298,7 +298,7 @@
         "mode": "single_interleaved",
         "runways": { "13": { "role": "A/D", "hdg": 135 } },
         "primary_arr": "13", "primary_dep": "13",
-        "declared_arr_rate": 20, "declared_dep_rate": 10
+        "declared_arr_rate": 18, "declared_dep_rate": 18
       },
       {
         "name": "31",
@@ -306,7 +306,7 @@
         "mode": "single_interleaved",
         "runways": { "31": { "role": "A/D", "hdg": 315 } },
         "primary_arr": "31", "primary_dep": "31",
-        "declared_arr_rate": 20, "declared_dep_rate": 10
+        "declared_arr_rate": 18, "declared_dep_rate": 18
       }
     ]
   },
@@ -323,8 +323,8 @@
         },
         "primary_arr": "06R",
         "primary_dep": "06L",
-        "declared_arr_rate": 40,
-        "declared_dep_rate": 16
+        "declared_arr_rate": 46,
+        "declared_dep_rate": 30
       },
       {
         "name": "24",
@@ -336,32 +336,34 @@
         },
         "primary_arr": "24L",
         "primary_dep": "24R",
-        "declared_arr_rate": 40,
-        "declared_dep_rate": 16
+        "declared_arr_rate": 46,
+        "declared_dep_rate": 30
       },
       {
         "name": "15",
         "label": "15 Direction",
+        "exceptional": true,
         "runways": {
           "15R": { "role": "A", "hdg": 147 },
           "15L": { "role": "D", "hdg": 147 }
         },
         "primary_arr": "15R",
         "primary_dep": "15L",
-        "declared_arr_rate": 40,
-        "declared_dep_rate": 16
+        "declared_arr_rate": 44,
+        "declared_dep_rate": 30
       },
       {
         "name": "33",
         "label": "33 Direction",
+        "exceptional": true,
         "runways": {
           "33L": { "role": "A", "hdg": 327 },
           "33R": { "role": "D", "hdg": 327 }
         },
         "primary_arr": "33L",
         "primary_dep": "33R",
-        "declared_arr_rate": 40,
-        "declared_dep_rate": 16
+        "declared_arr_rate": 44,
+        "declared_dep_rate": 30
       }
     ]
   }

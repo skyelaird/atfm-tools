@@ -1,0 +1,24 @@
+{
+  "_comment": "Intersection T/O TORA distances (metres) per runway. Sources: CYYZ from LIDO Airport Ground Charts (planner.flightsimulator.com, 2026-04-15); CYYC from Navigraph Jeppesen 10-9 chart (2026-04-15, converted from ft). Used for: (1) refining ADR to model interleaved intersection departures, (2) per-gate EXOT accuracy, (3) minimum-runway-length eligibility per aircraft type for intersection clearances, (4) future CDM plugin realistic slot differentiation. Values are TORA from that intersection to end of runway in the stated direction.",
+  "_units": "metres",
+  "CYYC": {
+    "11":  { "A": 1028, "C": 1524, "G": 1574, "F1": 1829 },
+    "29":  { "C": 975, "A": 1479, "J2": 2014 },
+    "17L": { "A1": 1266, "D3": 1996, "D5": 2518, "S": 3651, "C": 4107 },
+    "17R": { "A/J": 1212, "C2": 1780, "C4": 1955, "A3": 2283, "A1": 2596 },
+    "35L": { "A3": 1579, "C1": 1907, "C2": 2082, "A1": 2647, "C4": 2856, "C6": 3348 },
+    "35R": { "D2": 1267, "D4": 1970, "D6": 2519, "Z": 3111, "V": 4107, "D": 4205 }
+  },
+  "CYYZ": {
+    "05":  { "H6": 3204, "J2": 2475, "H4": 2173 },
+    "23":  { "H/J": 3123, "B": 2761 },
+    "06L": { "D6": 2875, "D4": 2366, "C4": 2189 },
+    "24R": { "C5": 2843, "D5": 2430, "C3": 2040 },
+    "06R": { "D8": 2403, "D4": 1732 },
+    "24L": { "D5": 2250, "W": 2002 },
+    "15L": { "H": 2742, "N": 2367, "B4": 2085 },
+    "33R": { "V": 3252, "T": 2810, "B3": 2515 },
+    "15R": { "H": 2216, "F4": 2022 },
+    "33L": { "F1": 2089 }
+  }
+}
