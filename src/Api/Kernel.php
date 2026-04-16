@@ -364,6 +364,7 @@ final class Kernel
                         // A-CDM milestones
                         'eobt'           => $f->eobt?->format('c'),
                         'tobt'           => $f->tobt?->format('c'),
+                        'tobt_source'    => $f->tobt_source,
                         'tsat'           => $f->tsat?->format('c'),
                         'ttot'           => $f->ttot?->format('c'),
                         'ctot'           => $f->ctot?->format('c'),

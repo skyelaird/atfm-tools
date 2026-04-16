@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>CTOT — atfm-tools</title>
+    <style>
+        :root {
+            --bg: #0f1419; --bg-elev: #1a2028; --bg-elev-hi: #242c38;
+            --border: #2a3340;
+            --text: #d7dee8; --text-dim: #8a94a3; --text-bright: #f0f4fa;
+            --accent: #5eead4; --accent-dim: #2a6b5f;
+            --warn: #facc15; --warn-dim: #5e4a0f;
+            --alert: #f87171; --alert-dim: #5e1f1f;
+            --ok: #4ade80; --ok-dim: #1e4a2e;
+            --info: #60a5fa; --info-dim: #1e3a5f;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; padding: 0;
+            background: var(--bg); color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+            font-size: 14px; line-height: 1.45;
+        }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .mono { font-family: "SF Mono", Consolas, Monaco, "Courier New", monospace; font-variant-numeric: tabular-nums; }
+
+        /* ---------- Header ---------- */
+        header {
+            position: sticky; top: 0; z-index: 100;
+            background: var(--bg-elev);
+            border-bottom: 1px solid var(--border);
+            padding: 0.65rem 1rem;
+            display: flex; align-items: center; gap: 1rem;
+            flex-wrap: wrap;
+        }
+        header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+        .clock {
+            font-family: "SF Mono", Consolas, monospace;
+            font-size: 1.1rem; color: var(--accent);
+            font-variant-numeric: tabular-nums;
+            padding: 0 0.75rem;
+            border-left: 1px solid var(--border);
+        }
+        .auto-indicator {
+            font-size: 0.7rem; color: var(--text-dim);
+        }
+        .auto-indicator .dot {
+            display: inline-block; width: 6px; height: 6px;
+            border-radius: 50%; background: var(--ok); margin-right: 4px;
+            vertical-align: middle;
+        }
+        .nav-pills { display: flex; gap: 0.5rem; margin-left: auto; align-items: center; }
+        .pill {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.25rem 0.7rem; border-radius: 3px;
+            background: var(--bg-elev-hi); border: 1px solid var(--border);
+            font-size: 0.8rem; color: var(--text-dim);
+        }
+        a.pill { text-decoration: none; }
+        a.pill:hover { color: var(--text-bright); }
+
+        /* ---------- Layout ---------- */
+        main { padding: 1rem; max-width: 1400px; margin: 0 auto; }
+
+        /* ---------- Search ---------- */
+        .search-section {
+            margin-bottom: 1rem;
+        }
+        .search-bar {
+            position: relative;
+            max-width: 700px;
+            margin: 0 auto 0.6rem;
+        }
+        .search-bar input {
+            width: 100%;
+            background: var(--bg-elev);
+            color: var(--text-bright);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 0.65rem 1rem 0.65rem 2.4rem;
+            font-size: 1rem;
+            font-family: "SF Mono", Consolas, monospace;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .search-bar input::placeholder { color: var(--text-dim); font-family: inherit; }
+        .search-bar input:focus { border-color: var(--accent); }
+        .search-bar .search-icon {
+            position: absolute; left: 0.8rem; top: 50%; transform: translateY(-50%);
+            color: var(--text-dim); font-size: 1rem; pointer-events: none;
+        }
+        .filters {
+            display: flex; gap: 0.75rem; align-items: center; justify-content: center;
+            flex-wrap: wrap;
+        }
+        .filters select {
+            background: var(--bg); color: var(--text);
+            border: 1px solid var(--border); border-radius: 3px;
+            padding: 0.3rem 0.5rem; font-size: 0.85rem; font-family: inherit;
+        }
+        .filters select:focus { border-color: var(--accent); outline: none; }
+        .filters label {
+            font-size: 0.82rem; color: var(--text-dim);
+            display: flex; align-items: center; gap: 0.3rem;
+            cursor: pointer; user-select: none;
+        }
+        .filters label input[type="checkbox"] {
+            accent-color: var(--accent);
+        }
+        .result-count {
+            font-size: 0.75rem; color: var(--text-dim);
+            text-align: center; margin-top: 0.4rem;
+        }
+
+        /* ---------- Table ---------- */
+        .table-wrap {
+            background: var(--bg-elev);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .table-scroll { overflow-x: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+        thead th {
+            text-align: left; padding: 0.45rem 0.5rem;
+            background: var(--bg-elev); color: var(--text-dim);
+            font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap; position: sticky; top: 0; z-index: 2;
+        }
+        thead th.sortable {
+            cursor: pointer; user-select: none;
+        }
+        thead th.sortable:hover { color: var(--text-bright); background: var(--bg-elev-hi); }
+        thead th.sortable::after { content: '\2195'; opacity: 0.25; margin-left: 0.3rem; font-size: 0.75rem; }
+        thead th.sortable.sort-asc::after  { content: '\2191'; opacity: 1; color: var(--accent); }
+        thead th.sortable.sort-desc::after { content: '\2193'; opacity: 1; color: var(--accent); }
+        tbody td { padding: 0.4rem 0.5rem; border-bottom: 1px solid var(--border); }
+        tbody tr:nth-child(even) { background: var(--bg); }
+        tbody tr:nth-child(odd) { background: var(--bg-elev); }
+        tbody tr:hover { background: var(--bg-elev-hi); }
+        tbody tr.expanded { background: var(--bg-elev-hi); }
+        .empty-row { text-align: center; color: var(--text-dim); padding: 2rem; }
+
+        /* Callsign link */
+        .cs-link {
+            color: var(--text-bright); cursor: pointer;
+            font-weight: 600; border-bottom: 1px dotted var(--text-dim);
+        }
+        .cs-link:hover { color: var(--accent); border-color: var(--accent); }
+
+        /* CTOT column */
+        .ctot-val {
+            font-size: 0.95rem; font-weight: 700;
+            font-family: "SF Mono", Consolas, monospace;
+            color: var(--accent);
+        }
+        .ctot-val.none { color: var(--text-dim); font-weight: 400; font-size: 0.82rem; }
+        .compliance {
+            font-size: 0.68rem; color: var(--text-dim);
+            font-family: "SF Mono", Consolas, monospace;
+            white-space: nowrap;
+        }
+
+        /* TOBT override badge */
+        .tobt-badge {
+            display: inline-block; font-size: 0.6rem; font-weight: 700;
+            padding: 0.05rem 0.25rem; border-radius: 2px;
+            margin-left: 0.25rem; vertical-align: middle;
+        }
+        .tobt-badge.manual { background: rgba(250,204,21,0.2); color: var(--warn); }
+        .tobt-badge.cdm { background: rgba(96,165,250,0.2); color: var(--info); }
+        .tobt-badge.override { background: rgba(250,204,21,0.15); color: var(--warn); }
+
+        /* Delay coloring */
+        .delay { font-family: Consolas, monospace; font-weight: 600; }
+        .delay.none  { color: var(--text-dim); }
+        .delay.zero  { color: var(--ok); }
+        .delay.small { color: var(--warn); }
+        .delay.big   { color: var(--alert); }
+
+        /* Phase badges */
+        .phase { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 3px; font-size: 0.72rem; font-weight: 600; white-space: nowrap; }
+        .phase.FILED      { background: rgba(139,148,158,0.15); color: var(--text); }
+        .phase.PREFILE    { background: rgba(139,148,158,0.12); color: var(--text-dim); }
+        .phase.TAXI_OUT   { background: rgba(250,204,21,0.15);  color: var(--warn); }
+        .phase.DEPARTED   { background: rgba(96,165,250,0.15);  color: var(--info); }
+        .phase.CLIMBOUT   { background: rgba(96,165,250,0.15);  color: var(--info); }
+        .phase.ENROUTE    { background: rgba(94,234,212,0.15);  color: var(--accent); }
+        .phase.CRUISE     { background: rgba(94,234,212,0.15);  color: var(--accent); }
+        .phase.DESCENT    { background: rgba(94,234,212,0.2);   color: var(--accent); }
+        .phase.ARRIVING   { background: rgba(94,234,212,0.2);   color: var(--accent); }
+        .phase.FLS_NRA    { background: rgba(139,148,158,0.12); color: var(--text-dim); }
+        .phase.FINAL      { background: rgba(74,222,128,0.15);  color: var(--ok); }
+        .phase.ON_RUNWAY  { background: rgba(74,222,128,0.2);   color: var(--ok); }
+        .phase.TAXI_IN    { background: rgba(250,204,21,0.15);  color: var(--warn); }
+        .phase.ARRIVED    { background: rgba(139,148,158,0.12); color: var(--text-dim); }
+        .phase.DISCONNECTED { background: rgba(248,113,113,0.15); color: var(--alert); }
+        .phase.WITHDRAWN  { background: rgba(139,148,158,0.12); color: var(--text-dim); }
+
+        .restriction-text { font-size: 0.72rem; color: var(--text-dim); white-space: nowrap; }
+
+        /* ---------- Flight detail card ---------- */
+        .detail-row td {
+            padding: 0 !important;
+            border-bottom: 1px solid var(--border);
+            background: var(--bg) !important;
+        }
+        .detail-card {
+            padding: 1rem 1.2rem;
+            max-width: 900px;
+        }
+        .detail-header {
+            display: flex; align-items: baseline; gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+        .detail-header .callsign {
+            font-family: "SF Mono", Consolas, monospace;
+            font-size: 1.3rem; font-weight: 700; color: var(--text-bright);
+        }
+        .detail-header .actype {
+            font-size: 0.85rem; color: var(--text-dim);
+        }
+        .detail-header .route {
+            font-family: "SF Mono", Consolas, monospace;
+            font-size: 0.85rem; color: var(--text-dim);
+        }
+        .detail-close {
+            margin-left: auto; background: none; border: none;
+            color: var(--text-dim); font-size: 1.1rem; cursor: pointer;
+            padding: 0.2rem 0.5rem;
+        }
+        .detail-close:hover { color: var(--text-bright); }
+        .milestones-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+        .ms-item {
+            background: var(--bg-elev); border: 1px solid var(--border);
+            border-radius: 4px; padding: 0.45rem 0.55rem;
+        }
+        .ms-item.ctot-item {
+            border-color: var(--accent-dim);
+            background: rgba(94,234,212,0.06);
+        }
+        .ms-item .ms-label {
+            font-size: 0.62rem; text-transform: uppercase;
+            letter-spacing: 0.06em; color: var(--text-dim);
+            margin-bottom: 0.1rem;
+        }
+        .ms-item .ms-value {
+            font-family: "SF Mono", Consolas, monospace;
+            font-size: 0.95rem; color: var(--text-bright);
+        }
+        .ms-item.ctot-item .ms-value {
+            font-size: 1.15rem; font-weight: 700; color: var(--accent);
+        }
+        .ms-item .ms-sub {
+            font-size: 0.65rem; color: var(--text-dim);
+            margin-top: 0.1rem;
+        }
+
+        /* TOBT edit */
+        .tobt-edit-section {
+            display: flex; align-items: center; gap: 0.5rem;
+            margin-bottom: 0.75rem;
+            flex-wrap: wrap;
+        }
+        .tobt-edit-section label {
+            font-size: 0.78rem; color: var(--text-dim);
+        }
+        .tobt-input {
+            background: var(--bg); color: var(--text-bright);
+            border: 1px solid var(--border); border-radius: 3px;
+            padding: 0.3rem 0.5rem;
+            font-family: "SF Mono", Consolas, monospace;
+            font-size: 0.9rem; width: 5.5em; text-align: center;
+        }
+        .tobt-input:focus { border-color: var(--accent); outline: none; }
+        .btn {
+            background: var(--bg-elev-hi); color: var(--text-dim);
+            border: 1px solid var(--border); border-radius: 3px;
+            padding: 0.3rem 0.7rem; font-size: 0.8rem; cursor: pointer;
+            font-family: inherit;
+        }
+        .btn:hover { color: var(--text-bright); border-color: var(--accent-dim); }
+        .btn.primary {
+            background: var(--accent-dim); color: var(--text-bright);
+            border-color: var(--accent);
+        }
+        .btn.primary:hover { background: var(--accent); color: var(--bg); }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .tobt-msg {
+            font-size: 0.75rem; padding: 0.2rem 0.5rem; border-radius: 3px;
+        }
+        .tobt-msg.ok { color: var(--ok); background: rgba(74,222,128,0.08); }
+        .tobt-msg.err { color: var(--alert); background: rgba(248,113,113,0.08); }
+
+        .restriction-context {
+            font-size: 0.78rem; color: var(--text-dim);
+            padding: 0.4rem 0.6rem;
+            background: rgba(248,113,113,0.06); border: 1px solid var(--alert-dim);
+            border-radius: 4px;
+        }
+        .restriction-context.none {
+            background: rgba(74,222,128,0.04); border-color: var(--ok-dim);
+            color: var(--ok);
+        }
+
+        /* ---------- Error ---------- */
+        .error-msg {
+            padding: 0.6rem 0.85rem; margin-bottom: 0.75rem;
+            background: rgba(248,113,113,0.1); border: 1px solid var(--alert-dim);
+            border-radius: 4px; color: var(--alert); font-size: 0.85rem;
+            display: none;
+        }
+
+        /* ---------- Loading ---------- */
+        .loading { text-align: center; padding: 2rem; color: var(--text-dim); }
+
+        /* ---------- Mobile ---------- */
+        @media (max-width: 768px) {
+            header { padding: 0.5rem 0.75rem; gap: 0.5rem; }
+            header h1 { font-size: 0.85rem; }
+            .nav-pills { margin-left: 0; width: 100%; overflow-x: auto; }
+            main { padding: 0.5rem; }
+            .search-bar input { font-size: 0.9rem; padding: 0.55rem 0.8rem 0.55rem 2rem; }
+            .milestones-grid { grid-template-columns: repeat(3, 1fr); }
+            .detail-header { flex-wrap: wrap; }
+            .filters { gap: 0.4rem; }
+            /* Hide less important columns on mobile */
+            .hide-mobile { display: none; }
+        }
+        @media (max-width: 480px) {
+            .milestones-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+    </style>
+</head>
+<body>
+<header>
+    <h1>atfm-tools &mdash; CTOT Portal</h1>
+    <span class="clock mono" id="clock">--:--:--Z</span>
+    <span class="auto-indicator"><span class="dot"></span><span id="countdown">30s</span></span>
+    <div class="nav-pills">
+        <a href="/dashboard.html" class="pill">dashboard</a>
+        <a href="/fsm.html" class="pill">FSM</a>
+        <a href="/reports.html" class="pill">reports</a>
+        <a href="/aar.html" class="pill">AAR</a>
+    </div>
+</header>
+<main>
+    <div class="error-msg" id="error-msg"></div>
+
+    <div class="search-section">
+        <div class="search-bar">
+            <span class="search-icon">&#x1F50D;</span>
+            <input type="text" id="search-input" placeholder="Search by callsign, ADEP, or ADES..." autocomplete="off" spellcheck="false">
+        </div>
+        <div class="filters">
+            <select id="ades-filter">
+                <option value="">All ADES</option>
+                <option value="CYHZ">CYHZ</option>
+                <option value="CYOW">CYOW</option>
+                <option value="CYUL">CYUL</option>
+                <option value="CYVR">CYVR</option>
+                <option value="CYWG">CYWG</option>
+                <option value="CYYC">CYYC</option>
+                <option value="CYYZ">CYYZ</option>
+            </select>
+            <label><input type="checkbox" id="regulated-only"> Regulated only</label>
+            <label><input type="checkbox" id="active-only" checked> Active only</label>
+        </div>
+        <div class="result-count" id="result-count"></div>
+    </div>
+
+    <div class="table-wrap">
+        <div class="table-scroll">
+            <table>
+                <thead>
+                    <tr id="table-head"></tr>
+                </thead>
+                <tbody id="table-body">
+                    <tr><td colspan="10" class="empty-row loading">Loading flights...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<script>
+(function () {
+    'use strict';
+
+    const AIRPORTS = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
+    const REFRESH_MS = 30000;
+
+    // ---------- DOM ----------
+    const $clock     = document.getElementById('clock');
+    const $countdown = document.getElementById('countdown');
+    const $search    = document.getElementById('search-input');
+    const $ades      = document.getElementById('ades-filter');
+    const $regulated = document.getElementById('regulated-only');
+    const $active    = document.getElementById('active-only');
+    const $thead     = document.getElementById('table-head');
+    const $tbody     = document.getElementById('table-body');
+    const $count     = document.getElementById('result-count');
+    const $error     = document.getElementById('error-msg');
+
+    // ---------- State ----------
+    let allFlights   = [];
+    let filtered     = [];
+    let sortCol      = 'ctot_sort';
+    let sortDir      = 'asc';
+    let expandedCs   = null;   // currently expanded callsign
+    let refreshTimer = null;
+    let lastRefresh  = 0;
+    let tobtEditing  = {};     // callsign -> true if currently submitting
+
+    // ---------- Clock ----------
+    function tickClock() {
+        const now = new Date();
+        $clock.textContent = now.toISOString().slice(11, 19) + 'Z';
+        const elapsed = Math.floor((Date.now() - lastRefresh) / 1000);
+        const remaining = Math.max(0, 30 - elapsed);
+        $countdown.textContent = remaining + 's';
+    }
+    setInterval(tickClock, 1000);
+    tickClock();
+
+    // ---------- Helpers ----------
+    function hhmm(iso) {
+        if (!iso) return '\u2014';
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return '\u2014';
+        return String(d.getUTCHours()).padStart(2, '0') + ':' +
+               String(d.getUTCMinutes()).padStart(2, '0');
+    }
+    function isoTs(iso) {
+        if (!iso) return null;
+        const d = new Date(iso);
+        return isNaN(d.getTime()) ? null : d.getTime();
+    }
+    function addMin(iso, min) {
+        if (!iso) return null;
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return null;
+        return new Date(d.getTime() + min * 60000);
+    }
+    function complianceWindow(ctotIso) {
+        if (!ctotIso) return '';
+        const early = addMin(ctotIso, -5);
+        const late  = addMin(ctotIso, 10);
+        if (!early || !late) return '';
+        return hhmmDate(early) + ' \u2014 ' + hhmmDate(late);
+    }
+    function hhmmDate(d) {
+        return String(d.getUTCHours()).padStart(2, '0') + ':' +
+               String(d.getUTCMinutes()).padStart(2, '0');
+    }
+    function esc(s) {
+        if (s == null) return '';
+        const el = document.createElement('span');
+        el.textContent = String(s);
+        return el.innerHTML;
+    }
+    function showError(msg) {
+        $error.style.display = msg ? 'block' : 'none';
+        $error.textContent = msg || '';
+    }
+    function delayClass(min) {
+        if (min == null) return 'none';
+        if (min === 0) return 'zero';
+        if (min <= 15) return 'small';
+        return 'big';
+    }
+    function phaseLabel(p) {
+        if (!p) return '';
+        return p.replace(/_/g, ' ');
+    }
+
+    // ---------- Columns ----------
+    const COLS = [
+        { key: 'callsign',  label: 'Callsign',       sortable: true,  cls: '' },
+        { key: 'route',     label: 'Route',           sortable: true,  cls: '' },
+        { key: 'type',      label: 'Type',            sortable: true,  cls: 'hide-mobile' },
+        { key: 'eobt',      label: 'EOBT',            sortable: true,  cls: 'hide-mobile' },
+        { key: 'tobt',      label: 'TOBT',            sortable: true,  cls: 'hide-mobile' },
+        { key: 'tsat',      label: 'TSAT',            sortable: true,  cls: 'hide-mobile' },
+        { key: 'ctot_sort', label: 'CTOT (EDCT)',     sortable: true,  cls: '' },
+        { key: 'compliance',label: 'Window',          sortable: false, cls: 'hide-mobile' },
+        { key: 'delay',     label: 'Delay',           sortable: true,  cls: '' },
+        { key: 'phase',     label: 'Phase',           sortable: true,  cls: '' },
+        { key: 'restriction',label: 'Restriction',    sortable: true,  cls: 'hide-mobile' },
+    ];
+
+    function buildHeader() {
+        let html = '';
+        for (const col of COLS) {
+            const sortCls = col.sortable ? 'sortable' : '';
+            const activeCls = col.sortable && sortCol === col.key
+                ? (sortDir === 'asc' ? ' sort-asc' : ' sort-desc') : '';
+            const mobileCls = col.cls ? ' ' + col.cls : '';
+            html += '<th class="' + sortCls + activeCls + mobileCls + '" data-col="' + col.key + '">' + col.label + '</th>';
+        }
+        $thead.innerHTML = html;
+
+        // Attach sort handlers
+        $thead.querySelectorAll('th.sortable').forEach(th => {
+            th.addEventListener('click', () => {
+                const col = th.getAttribute('data-col');
+                if (sortCol === col) {
+                    sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    sortCol = col;
+                    sortDir = 'asc';
+                }
+                buildHeader();
+                renderTable();
+            });
+        });
+    }
+
+    // ---------- Data ----------
+    async function fetchFlights() {
+        try {
+            const adesVal = $ades.value;
+            const active  = $active.checked;
+            let url;
+            if (adesVal) {
+                url = '/api/v1/flights?airport=' + adesVal + '&direction=inbound&active=' + (active ? '1' : '0') + '&hours=6';
+            } else {
+                url = '/api/v1/flights?active=' + (active ? '1' : '0') + '&hours=12';
+            }
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+            allFlights = (data.flights || []).map(enrichFlight);
+            showError('');
+        } catch (e) {
+            showError('Failed to load flights: ' + e.message);
+        }
+        lastRefresh = Date.now();
+        applyFilters();
+    }
+
+    function enrichFlight(f) {
+        const tobtOverride = f.tobt && f.eobt && f.tobt !== f.eobt;
+        return {
+            ...f,
+            _tobtOverride: tobtOverride,
+            _tobtSource:   f.tobt_source || (tobtOverride ? 'override' : null),
+            _delayMin:     f.delay_minutes != null ? f.delay_minutes : null,
+            _ctotTs:       isoTs(f.ctot),
+            _eobtTs:       isoTs(f.eobt),
+        };
+    }
+
+    // ---------- Filtering ----------
+    function applyFilters() {
+        const q = $search.value.trim().toUpperCase();
+        const regOnly = $regulated.checked;
+
+        filtered = allFlights.filter(f => {
+            // Text search
+            if (q) {
+                const match = (f.callsign || '').includes(q) ||
+                              (f.departure || '').includes(q) ||
+                              (f.arrival || '').includes(q);
+                if (!match) return false;
+            }
+            // Regulated only
+            if (regOnly && !f.ctot) return false;
+            return true;
+        });
+
+        sortFlights();
+        renderTable();
+        $count.textContent = filtered.length + ' flight' + (filtered.length !== 1 ? 's' : '');
+    }
+
+    function sortFlights() {
+        const dir = sortDir === 'asc' ? 1 : -1;
+        filtered.sort((a, b) => {
+            let va, vb;
+            switch (sortCol) {
+                case 'callsign':
+                    va = a.callsign || ''; vb = b.callsign || '';
+                    return va.localeCompare(vb) * dir;
+                case 'route':
+                    va = (a.departure || '') + (a.arrival || '');
+                    vb = (b.departure || '') + (b.arrival || '');
+                    return va.localeCompare(vb) * dir;
+                case 'type':
+                    va = a.aircraft_short || ''; vb = b.aircraft_short || '';
+                    return va.localeCompare(vb) * dir;
+                case 'eobt':
+                    va = a._eobtTs || 0; vb = b._eobtTs || 0;
+                    return (va - vb) * dir;
+                case 'tobt':
+                    va = isoTs(a.tobt) || 0; vb = isoTs(b.tobt) || 0;
+                    return (va - vb) * dir;
+                case 'tsat':
+                    va = isoTs(a.tsat) || 0; vb = isoTs(b.tsat) || 0;
+                    return (va - vb) * dir;
+                case 'ctot_sort':
+                    // Flights with CTOT first, then by EOBT
+                    if (a.ctot && !b.ctot) return -1 * dir;
+                    if (!a.ctot && b.ctot) return 1 * dir;
+                    if (a.ctot && b.ctot) return ((a._ctotTs || 0) - (b._ctotTs || 0)) * dir;
+                    return ((a._eobtTs || 0) - (b._eobtTs || 0)) * dir;
+                case 'delay':
+                    va = a._delayMin != null ? a._delayMin : -1;
+                    vb = b._delayMin != null ? b._delayMin : -1;
+                    return (va - vb) * dir;
+                case 'phase':
+                    va = a.phase || ''; vb = b.phase || '';
+                    return va.localeCompare(vb) * dir;
+                case 'restriction':
+                    va = a.ctl_element || ''; vb = b.ctl_element || '';
+                    return va.localeCompare(vb) * dir;
+                default:
+                    return 0;
+            }
+        });
+    }
+
+    // ---------- Render ----------
+    function renderTable() {
+        if (filtered.length === 0) {
+            $tbody.innerHTML = '<tr><td colspan="' + COLS.length + '" class="empty-row">No flights found</td></tr>';
+            return;
+        }
+        let html = '';
+        for (const f of filtered) {
+            const isExpanded = expandedCs === f.callsign;
+            html += renderFlightRow(f, isExpanded);
+            if (isExpanded) {
+                html += renderDetailRow(f);
+            }
+        }
+        $tbody.innerHTML = html;
+        attachRowHandlers();
+    }
+
+    function renderFlightRow(f, isExpanded) {
+        const trCls = isExpanded ? ' class="expanded"' : '';
+        // TOBT badge
+        let tobtBadge = '';
+        if (f._tobtSource === 'manual') {
+            tobtBadge = '<span class="tobt-badge manual">M</span>';
+        } else if (f._tobtSource === 'cdm') {
+            tobtBadge = '<span class="tobt-badge cdm">CDM</span>';
+        } else if (f._tobtOverride) {
+            tobtBadge = '<span class="tobt-badge override">\u2260</span>';
+        }
+        // CTOT
+        const ctotHtml = f.ctot
+            ? '<span class="ctot-val">' + hhmm(f.ctot) + '</span>'
+            : '<span class="ctot-val none">\u2014</span>';
+        // Compliance
+        const compHtml = f.ctot
+            ? '<span class="compliance">' + esc(complianceWindow(f.ctot)) + '</span>'
+            : '';
+        // Delay
+        const delMin = f._delayMin;
+        const delText = delMin != null ? (delMin > 0 ? '+' + delMin : '0') : '\u2014';
+        const delCls = delayClass(delMin);
+        // Restriction
+        const restrict = f.ctl_element
+            ? esc(f.ctl_element) + (f.ctl_type ? ' ' + esc(f.ctl_type) : '')
+            : '';
+
+        return '<tr' + trCls + ' data-cs="' + esc(f.callsign) + '">' +
+            '<td><span class="cs-link mono">' + esc(f.callsign) + '</span></td>' +
+            '<td class="mono">' + esc(f.departure) + ' \u2192 ' + esc(f.arrival) + '</td>' +
+            '<td class="mono hide-mobile">' + esc(f.aircraft_short) + '</td>' +
+            '<td class="mono hide-mobile">' + hhmm(f.eobt) + '</td>' +
+            '<td class="mono hide-mobile">' + hhmm(f.tobt) + tobtBadge + '</td>' +
+            '<td class="mono hide-mobile">' + hhmm(f.tsat) + '</td>' +
+            '<td>' + ctotHtml + '</td>' +
+            '<td class="hide-mobile">' + compHtml + '</td>' +
+            '<td class="delay ' + delCls + '">' + delText + '</td>' +
+            '<td><span class="phase ' + esc(f.phase) + '">' + esc(phaseLabel(f.phase)) + '</span></td>' +
+            '<td class="restriction-text hide-mobile">' + restrict + '</td>' +
+            '</tr>';
+    }
+
+    function renderDetailRow(f) {
+        const tobtSrc = f._tobtSource;
+        let srcBadge = '';
+        if (tobtSrc === 'manual') srcBadge = '<span class="tobt-badge manual">MANUAL</span>';
+        else if (tobtSrc === 'cdm') srcBadge = '<span class="tobt-badge cdm">CDM</span>';
+        else if (tobtSrc === 'auto' || !tobtSrc) srcBadge = '<span class="tobt-badge" style="color:var(--text-dim)">AUTO</span>';
+
+        const ctotWindow = f.ctot ? complianceWindow(f.ctot) : '';
+        const restrict = f.ctl_element
+            ? '<div class="restriction-context">Regulated by <strong>' + esc(f.ctl_element) + '</strong>' +
+              (f.ctl_type ? ' (' + esc(f.ctl_type) + ')' : '') + '</div>'
+            : '<div class="restriction-context none">No active restriction</div>';
+
+        // Current TOBT as HH:MM for the input
+        const tobtHhmm = f.tobt ? hhmm(f.tobt) : '';
+
+        return '<tr class="detail-row" data-detail-cs="' + esc(f.callsign) + '">' +
+            '<td colspan="' + COLS.length + '">' +
+            '<div class="detail-card">' +
+                '<div class="detail-header">' +
+                    '<span class="callsign">' + esc(f.callsign) + '</span>' +
+                    '<span class="actype">' + esc(f.aircraft_short) + '</span>' +
+                    '<span class="route">' + esc(f.departure) + ' \u2192 ' + esc(f.arrival) + '</span>' +
+                    '<button class="detail-close" data-close-cs="' + esc(f.callsign) + '">\u2715</button>' +
+                '</div>' +
+                '<div class="milestones-grid">' +
+                    msItem('EOBT', hhmm(f.eobt), '') +
+                    msItem('TOBT', hhmm(f.tobt), srcBadge) +
+                    msItem('TSAT', hhmm(f.tsat), '') +
+                    msItem('TTOT', hhmm(f.ttot), '') +
+                    msItem('CTOT (EDCT)', f.ctot ? hhmm(f.ctot) : '\u2014',
+                           ctotWindow ? '<span class="compliance">' + esc(ctotWindow) + '</span>' : '',
+                           !!f.ctot) +
+                    msItem('ELDT', hhmm(f.eldt_locked || f.eldt),
+                           f.eldt_locked ? 'frozen' : (f.eldt ? 'live' : '')) +
+                '</div>' +
+                '<div class="tobt-edit-section" data-edit-cs="' + esc(f.callsign) + '">' +
+                    '<label>Edit TOBT:</label>' +
+                    '<input type="text" class="tobt-input" placeholder="HH:MM" value="' + esc(tobtHhmm !== '\u2014' ? tobtHhmm : '') + '" maxlength="5" data-tobt-input="' + esc(f.callsign) + '">' +
+                    '<button class="btn primary" data-tobt-save="' + esc(f.callsign) + '">Set</button>' +
+                    '<button class="btn" data-tobt-reset="' + esc(f.callsign) + '">Reset to auto</button>' +
+                    '<span class="tobt-msg" data-tobt-msg="' + esc(f.callsign) + '"></span>' +
+                '</div>' +
+                restrict +
+            '</div>' +
+            '</td></tr>';
+    }
+
+    function msItem(label, value, sub, isCtot) {
+        const cls = isCtot ? ' ctot-item' : '';
+        return '<div class="ms-item' + cls + '">' +
+            '<div class="ms-label">' + label + '</div>' +
+            '<div class="ms-value">' + value + '</div>' +
+            (sub ? '<div class="ms-sub">' + sub + '</div>' : '') +
+            '</div>';
+    }
+
+    // ---------- Event handlers ----------
+    function attachRowHandlers() {
+        // Callsign click -> expand/collapse
+        $tbody.querySelectorAll('.cs-link').forEach(el => {
+            el.addEventListener('click', (e) => {
+                const tr = e.target.closest('tr');
+                const cs = tr?.getAttribute('data-cs');
+                if (!cs) return;
+                if (expandedCs === cs) {
+                    expandedCs = null;
+                } else {
+                    expandedCs = cs;
+                }
+                updateHash();
+                renderTable();
+            });
+        });
+
+        // Close button in detail
+        $tbody.querySelectorAll('.detail-close').forEach(el => {
+            el.addEventListener('click', () => {
+                expandedCs = null;
+                updateHash();
+                renderTable();
+            });
+        });
+
+        // TOBT save
+        $tbody.querySelectorAll('[data-tobt-save]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const cs = btn.getAttribute('data-tobt-save');
+                submitTobt(cs);
+            });
+        });
+
+        // TOBT reset
+        $tbody.querySelectorAll('[data-tobt-reset]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const cs = btn.getAttribute('data-tobt-reset');
+                resetTobt(cs);
+            });
+        });
+
+        // TOBT enter key
+        $tbody.querySelectorAll('[data-tobt-input]').forEach(input => {
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    const cs = input.getAttribute('data-tobt-input');
+                    submitTobt(cs);
+                }
+            });
+        });
+    }
+
+    function updateHash() {
+        if (expandedCs) {
+            history.replaceState(null, '', '#' + expandedCs);
+        } else {
+            history.replaceState(null, '', window.location.pathname + window.location.search);
+        }
+    }
+
+    // ---------- TOBT PATCH ----------
+    async function submitTobt(callsign) {
+        if (tobtEditing[callsign]) return;
+        const input = document.querySelector('[data-tobt-input="' + callsign + '"]');
+        const msgEl = document.querySelector('[data-tobt-msg="' + callsign + '"]');
+        if (!input || !msgEl) return;
+
+        const raw = input.value.trim();
+        if (!raw || !/^\d{1,2}:\d{2}$/.test(raw)) {
+            msgEl.className = 'tobt-msg err';
+            msgEl.textContent = 'Enter time as HH:MM';
+            return;
+        }
+
+        const parts = raw.split(':');
+        const hh = parseInt(parts[0], 10);
+        const mm = parseInt(parts[1], 10);
+        if (hh < 0 || hh > 23 || mm < 0 || mm > 59) {
+            msgEl.className = 'tobt-msg err';
+            msgEl.textContent = 'Invalid time';
+            return;
+        }
+
+        // Build ISO date from today UTC + HH:MM
+        const now = new Date();
+        const iso = now.getUTCFullYear() + '-' +
+            String(now.getUTCMonth() + 1).padStart(2, '0') + '-' +
+            String(now.getUTCDate()).padStart(2, '0') + 'T' +
+            String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0') + ':00Z';
+
+        tobtEditing[callsign] = true;
+        msgEl.className = 'tobt-msg';
+        msgEl.textContent = 'Saving...';
+
+        try {
+            const resp = await fetch('/api/v1/flights/' + encodeURIComponent(callsign) + '/tobt', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tobt: iso }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+                msgEl.className = 'tobt-msg err';
+                msgEl.textContent = data.error || ('Error ' + resp.status);
+            } else {
+                msgEl.className = 'tobt-msg ok';
+                msgEl.textContent = 'TOBT set to ' + hhmm(data.tobt) + ' — CTOT recalc in \u22642 min';
+                // Refresh data after short delay
+                setTimeout(fetchFlights, 1500);
+            }
+        } catch (e) {
+            msgEl.className = 'tobt-msg err';
+            msgEl.textContent = 'Network error';
+        } finally {
+            tobtEditing[callsign] = false;
+        }
+    }
+
+    async function resetTobt(callsign) {
+        if (tobtEditing[callsign]) return;
+        const msgEl = document.querySelector('[data-tobt-msg="' + callsign + '"]');
+        if (!msgEl) return;
+
+        tobtEditing[callsign] = true;
+        msgEl.className = 'tobt-msg';
+        msgEl.textContent = 'Resetting...';
+
+        try {
+            const resp = await fetch('/api/v1/flights/' + encodeURIComponent(callsign) + '/tobt', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tobt: null }),
+            });
+            const data = await resp.json();
+            if (!resp.ok) {
+                msgEl.className = 'tobt-msg err';
+                msgEl.textContent = data.error || ('Error ' + resp.status);
+            } else {
+                msgEl.className = 'tobt-msg ok';
+                msgEl.textContent = 'TOBT reset to auto';
+                setTimeout(fetchFlights, 1500);
+            }
+        } catch (e) {
+            msgEl.className = 'tobt-msg err';
+            msgEl.textContent = 'Network error';
+        } finally {
+            tobtEditing[callsign] = false;
+        }
+    }
+
+    // ---------- Hash routing ----------
+    function readHash() {
+        const hash = window.location.hash.replace('#', '').trim().toUpperCase();
+        if (hash) {
+            expandedCs = hash;
+            // Also populate search if not already matching
+            if (!$search.value.trim()) {
+                $search.value = hash;
+            }
+        }
+    }
+
+    // ---------- Init ----------
+    buildHeader();
+    readHash();
+
+    // Debounced search
+    let searchTimeout = null;
+    $search.addEventListener('input', () => {
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(applyFilters, 300);
+    });
+
+    // Filter changes
+    $ades.addEventListener('change', fetchFlights);
+    $regulated.addEventListener('change', applyFilters);
+    $active.addEventListener('change', fetchFlights);
+
+    // Hash changes
+    window.addEventListener('hashchange', () => {
+        readHash();
+        applyFilters();
+    });
+
+    // Auto-refresh
+    function scheduleRefresh() {
+        clearInterval(refreshTimer);
+        refreshTimer = setInterval(fetchFlights, REFRESH_MS);
+    }
+
+    fetchFlights();
+    scheduleRefresh();
+})();
+</script>
+</body>
+</html>
