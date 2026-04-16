@@ -319,12 +319,26 @@ final class VatsimIngestor
         // refiled, or our date-rollover heuristic may have been wrong on the
         // first-seen pass).
         if ($eobt !== null) {
+            $eobtMoved = ($flight->eobt === null)
+                || (abs($flight->eobt->getTimestamp() - $eobt->getTimestamp()) > 300);
             $flight->eobt = $eobt;
-            // Clear downstream derived times so the computation below will
-            // regenerate them if the EOBT has actually moved.
-            $flight->tobt = null;
-            $flight->tsat = null;
-            $flight->ttot = null;
+
+            // Only clear downstream derived times if EOBT actually moved
+            // AND the TOBT was auto-derived (not manually set by a controller).
+            // A manual TOBT survives small EOBT jitter; a genuine refile
+            // (>5 min shift) forces a reset even on manual TOBTs.
+            if ($eobtMoved) {
+                if (!in_array($flight->tobt_source, ['manual', 'cdm'], true)) {
+                    $flight->tobt = null;
+                    $flight->tsat = null;
+                    $flight->ttot = null;
+                } else {
+                    // Manual TOBT — recascade TSAT/TTOT from the manual TOBT
+                    // but don't touch TOBT itself unless refile is large
+                    $flight->tsat = null;
+                    $flight->ttot = null;
+                }
+            }
         }
 
         // Update classification from flight plan
@@ -612,6 +626,7 @@ final class VatsimIngestor
         if ($adepAirport !== null) {
             if ($flight->tobt === null && $flight->eobt !== null) {
                 $flight->tobt = $flight->eobt;
+                $flight->tobt_source = 'auto';
             }
             if ($flight->tsat === null && $flight->tobt !== null) {
                 $flight->tsat = $flight->tobt;

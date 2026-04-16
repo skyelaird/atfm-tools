@@ -50,6 +50,7 @@ final class Kernel
         self::registerEcfmpPluginMirror($app);
         self::registerCdmPluginProtocol($app);
         self::registerFlightsApi($app);
+        self::registerTobtEndpoint($app);
         self::registerAdminEndpoints($app);
         self::registerReportsEndpoints($app);
         self::registerDebugEndpoints($app);
@@ -220,7 +221,63 @@ final class Kernel
         $app->get('/cdm/ifps/allStatus',     fn ($req, $res) => self::json($res, []));
         $app->get('/cdm/ifps/allOnTime',     fn ($req, $res) => self::json($res, []));
         $app->get('/cdm/ifps/dpi',           fn ($req, $res) => self::json($res, ['ok' => true]));
-        $app->get('/cdm/ifps/setCdmData',    fn ($req, $res) => self::json($res, ['ok' => true]));
+        // setCdmData — the CDM plugin pushes TOBT/TSAT/TTOT/CTOT/reason/depInfo
+        // back to the server whenever a controller edits times in the EuroScope tag.
+        // This is the write-back half of the A-CDM round trip.
+        // Query params: callsign, tobt, tsat, ttot, ctot, reason, asrt, depInfo
+        // All time values are HHMM (4 chars, zero-padded).
+        $app->get('/cdm/ifps/setCdmData', function ($req, $res) {
+            $params = $req->getQueryParams();
+            $callsign = strtoupper(trim($params['callsign'] ?? ''));
+            if ($callsign === '') {
+                return self::json($res, ['ok' => false, 'error' => 'missing callsign']);
+            }
+
+            $flight = Flight::where('callsign', $callsign)
+                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                ->first();
+
+            if (!$flight) {
+                return self::json($res, ['ok' => true]); // don't error — plugin sends for all flights
+            }
+
+            $today = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d');
+            $parseHhmm = function (string $hhmm) use ($today): ?DateTimeImmutable {
+                $hhmm = trim($hhmm);
+                if (strlen($hhmm) < 4 || !ctype_digit(substr($hhmm, 0, 4))) return null;
+                try {
+                    return new DateTimeImmutable($today . ' ' . substr($hhmm, 0, 2) . ':' . substr($hhmm, 2, 2) . ':00', new DateTimeZone('UTC'));
+                } catch (\Exception $e) {
+                    return null;
+                }
+            };
+
+            $changed = false;
+            $tobt = $parseHhmm($params['tobt'] ?? '');
+            if ($tobt !== null) {
+                $flight->tobt = $tobt;
+                $flight->tobt_source = 'cdm';
+                $changed = true;
+            }
+            $tsat = $parseHhmm($params['tsat'] ?? '');
+            if ($tsat !== null) { $flight->tsat = $tsat; $changed = true; }
+            $ttot = $parseHhmm($params['ttot'] ?? '');
+            if ($ttot !== null) { $flight->ttot = $ttot; $changed = true; }
+
+            // depInfo = "RWY/SID" e.g. "05/JEDLI4"
+            $depInfo = trim($params['depInfo'] ?? '');
+            if ($depInfo !== '') {
+                $parts = explode('/', $depInfo, 2);
+                $flight->departure_runway = $parts[0];
+                $changed = true;
+            }
+
+            if ($changed) {
+                $flight->save();
+            }
+
+            return self::json($res, ['ok' => true]);
+        });
         $app->get('/cdm/airport/setMaster',  fn ($req, $res) => self::json($res, ['ok' => true]));
         $app->get('/cdm/airport/removeMaster', fn ($req, $res) => self::json($res, ['ok' => true]));
         $app->get('/cdm/airport/removeAllMasterByPosition', fn ($req, $res) => self::json($res, ['ok' => true]));
@@ -358,6 +415,74 @@ final class Kernel
                     'phase'     => $phases,
                 ],
                 'flights'      => $flights,
+            ]);
+        });
+    }
+
+    // ------------------------------------------------------------------
+    //  TOBT update — controller portal / VGDS
+    // ------------------------------------------------------------------
+
+    private static function registerTobtEndpoint(App $app): void
+    {
+        // PATCH /api/v1/flights/{callsign}/tobt
+        // Body: { "tobt": "2026-04-16T14:30:00Z" }
+        // Sets a manual TOBT. The next ingest cycle will cascade TSAT/TTOT
+        // from this TOBT (but not overwrite it). The next allocator run
+        // (≤2 min) will recompute CTOT from the new TTOT.
+        //
+        // To clear a manual TOBT and revert to auto: { "tobt": null }
+        $app->patch('/api/v1/flights/{callsign}/tobt', function ($req, $res, array $args) {
+            $callsign = strtoupper(trim($args['callsign']));
+            $flight = Flight::where('callsign', $callsign)
+                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                ->first();
+
+            if (!$flight) {
+                return self::json($res->withStatus(404), [
+                    'error' => 'Flight not found or already arrived/withdrawn',
+                ]);
+            }
+
+            $body = (array) $req->getParsedBody();
+            $raw  = $body['tobt'] ?? null;
+
+            if ($raw === null || $raw === '') {
+                // Revert to auto — next ingest cycle will re-derive from EOBT
+                $flight->tobt        = null;
+                $flight->tobt_source = null;
+                $flight->tsat        = null;
+                $flight->ttot        = null;
+            } else {
+                try {
+                    $tobt = new DateTimeImmutable($raw, new DateTimeZone('UTC'));
+                } catch (\Exception $e) {
+                    return self::json($res->withStatus(400), [
+                        'error' => 'Invalid tobt format — use ISO 8601 (e.g. 2026-04-16T14:30:00Z)',
+                    ]);
+                }
+                $flight->tobt        = $tobt;
+                $flight->tobt_source = 'manual';
+                $flight->tsat        = $tobt;
+                // Cascade TTOT = TOBT + EXOT
+                $exot = $flight->planned_exot_min;
+                if ($exot !== null) {
+                    $flight->ttot = $tobt->modify("+{$exot} minutes");
+                } else {
+                    $flight->ttot = $tobt; // fallback: no taxi time
+                }
+            }
+
+            $flight->save();
+
+            return self::json($res, [
+                'callsign'    => $flight->callsign,
+                'tobt'        => $flight->tobt?->format('c'),
+                'tobt_source' => $flight->tobt_source,
+                'tsat'        => $flight->tsat?->format('c'),
+                'ttot'        => $flight->ttot?->format('c'),
+                'ctot'        => $flight->ctot?->format('c'),
+                'note'        => 'CTOT will be recalculated on next allocator run (≤2 min)',
             ]);
         });
     }

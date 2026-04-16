@@ -106,6 +106,18 @@
         .card-body { padding: 0.85rem; }
 
         /* ---------- Summary stats ---------- */
+        .chart-legend {
+            display: flex; gap: 1.2rem; padding: 0.4rem 0; font-size: 0.75rem;
+            color: var(--text-dim); justify-content: center;
+        }
+        .legend-item { display: flex; align-items: center; gap: 0.3rem; }
+        .legend-swatch {
+            display: inline-block; width: 12px; height: 10px; border-radius: 2px;
+        }
+        .legend-line {
+            display: inline-block; width: 18px; height: 0;
+            border-top: 2px dashed var(--alert); vertical-align: middle;
+        }
         .stats-row {
             display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
             gap: 0.5rem; margin-top: 0.75rem;
@@ -258,6 +270,12 @@
                     <div class="chart-container">
                         <canvas id="demand-chart"></canvas>
                     </div>
+                    <div class="chart-legend">
+                        <span class="legend-item"><span class="legend-swatch" style="background:rgba(74,222,128,0.7)"></span>Filed / Ground</span>
+                        <span class="legend-item"><span class="legend-swatch" style="background:rgba(248,113,113,0.8)"></span>Airborne</span>
+                        <span class="legend-item"><span class="legend-swatch" style="background:rgba(140,140,140,0.7)"></span>Landed</span>
+                        <span class="legend-item"><span class="legend-line cap-line"></span>Capacity</span>
+                    </div>
                     <div class="stats-row" id="stats-row"></div>
                     <div id="restriction-info"></div>
                 </div>
@@ -380,20 +398,34 @@
     }
 
     // ---- Build time bins ----
+    // Phase classification for stacked bars (matches real FSM):
+    //   landed  (black) = ARRIVED / ON_RUNWAY / VACATED / TAXI_IN
+    //   airborne (red)  = CRUISE / DESCENT / ARRIVING / CLIMBOUT
+    //   filed  (green)  = FILED / TAXI_OUT / PREFILE / null
+    const AIRBORNE_PHASES = ['CRUISE', 'DESCENT', 'ARRIVING', 'CLIMBOUT'];
+    const LANDED_PHASES   = ['ARRIVED', 'ON_RUNWAY', 'VACATED', 'TAXI_IN', 'IN_BLOCKS'];
+
+    function classifyPhase(phase) {
+        if (!phase) return 'filed';
+        const p = phase.toUpperCase();
+        if (LANDED_PHASES.includes(p)) return 'landed';
+        if (AIRBORNE_PHASES.includes(p)) return 'airborne';
+        return 'filed';
+    }
+
     function buildBins() {
         const now = new Date();
         const start = floorToBin(now);
         const bins = [];
         for (let i = 0; i < BINS_COUNT; i++) {
             const t = new Date(start.getTime() + i * BIN_MINUTES * 60000);
-            bins.push({ time: t, key: binKey(t), label: binLabel(t), count: 0 });
+            bins.push({ time: t, key: binKey(t), label: binLabel(t), count: 0, landed: 0, airborne: 0, filed: 0 });
         }
         return bins;
     }
 
     function populateBins(bins, flights) {
-        // Reset counts
-        bins.forEach(b => b.count = 0);
+        bins.forEach(b => { b.count = 0; b.landed = 0; b.airborne = 0; b.filed = 0; });
         const first = bins[0].time.getTime();
         const last = bins[bins.length - 1].time.getTime() + BIN_MINUTES * 60000;
         flights.forEach(f => {
@@ -406,7 +438,11 @@
             const floored = floorToBin(d);
             const key = binKey(floored);
             const bin = bins.find(b => b.key === key);
-            if (bin) bin.count++;
+            if (bin) {
+                bin.count++;
+                const cat = classifyPhase(f.phase);
+                bin[cat]++;
+            }
         });
         return bins;
     }
@@ -509,28 +545,36 @@
         ctx.lineTo(w - padR, yPos(0));
         ctx.stroke();
 
-        // Bars
+        // Stacked bars: landed (dark/black) on bottom, airborne (red) middle,
+        // filed (green) on top — matches real FSM demand composition.
+        // Over-capacity portion gets a brighter tint on the topmost segment.
         bins.forEach(function (bin, i) {
             const x = padL + i * binW + (binW - barW) / 2;
-            const barH = (bin.count / yMax) * chartH;
-            const y = yPos(bin.count);
+            const base = padT + chartH; // y = 0 line
+            let yBottom = base;
 
+            // Stack order: landed → airborne → filed (bottom to top)
+            const segments = [
+                { count: bin.landed,   color: 'rgba(140,140,140,0.6)' },   // gray/dark (landed)
+                { count: bin.airborne, color: 'rgba(248,113,113,0.65)' },   // red (airborne)
+                { count: bin.filed,    color: 'rgba(74,222,128,0.55)' },    // green (filed)
+            ];
+
+            for (const seg of segments) {
+                if (seg.count <= 0) continue;
+                const segH = (seg.count / yMax) * chartH;
+                yBottom -= segH;
+                ctx.fillStyle = seg.color;
+                ctx.fillRect(x, yBottom, barW, segH);
+            }
+
+            // Over-capacity highlight: thin bright red overlay on the portion above cap line
             const over = bin.count > capPerBin;
-            if (over) {
-                // Red for over-capacity portion
-                const capH = (capPerBin / yMax) * chartH;
+            if (over && capPerBin > 0) {
                 const capY = yPos(capPerBin);
-                // Green portion (up to cap)
-                if (capPerBin > 0) {
-                    ctx.fillStyle = 'rgba(74,222,128,0.55)';
-                    ctx.fillRect(x, capY, barW, padT + chartH - capY);
-                }
-                // Red portion (over cap)
-                ctx.fillStyle = 'rgba(248,113,113,0.65)';
-                ctx.fillRect(x, y, barW, capY - y);
-            } else {
-                ctx.fillStyle = bin.count > 0 ? 'rgba(74,222,128,0.55)' : 'rgba(74,222,128,0.15)';
-                ctx.fillRect(x, y, barW, padT + chartH - y);
+                const topY = yPos(bin.count);
+                ctx.fillStyle = 'rgba(248,60,60,0.25)';
+                ctx.fillRect(x, topY, barW, capY - topY);
             }
 
             // Count label on top of bar
@@ -538,7 +582,7 @@
                 ctx.fillStyle = over ? '#f87171' : '#d7dee8';
                 ctx.font = 'bold 11px Consolas, monospace';
                 ctx.textAlign = 'center';
-                ctx.fillText(String(bin.count), x + barW / 2, y - 4);
+                ctx.fillText(String(bin.count), x + barW / 2, yPos(bin.count) - 4);
             }
         });
 

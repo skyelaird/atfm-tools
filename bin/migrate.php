@@ -472,4 +472,16 @@ if ($schema->hasTable('airports')) {
     }
 }
 
+// v0.5.23: tobt_source column — distinguishes auto-derived TOBT (from EOBT)
+// from manual TOBT set by a controller via the web portal. The ingestor
+// will only overwrite TOBT when the source is 'auto' (and EOBT has moved).
+if ($schema->hasTable('flights') && !$schema->hasColumn('flights', 'tobt_source')) {
+    $schema->table('flights', function ($t) {
+        $t->string('tobt_source', 10)->nullable()->default(null)
+          ->after('tobt')
+          ->comment("'auto' = ingestor-derived from EOBT, 'manual' = controller-set via portal");
+    });
+    echo "✓ added flights.tobt_source column (v0.5.23)\n";
+}
+
 echo "done.\n";

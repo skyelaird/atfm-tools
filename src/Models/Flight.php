@@ -82,7 +82,7 @@ final class Flight extends Model
         // A-CDM milestones (EUROCONTROL Airport CDM Implementation Manual,
         // 5.0, 31 March 2017 — see docs/GLOSSARY.md for canonical defs).
         // E* = estimated, T* = target, A* = actual, C* = calculated.
-        'eobt', 'tobt', 'tsat', 'ttot', 'ctot',
+        'eobt', 'tobt', 'tobt_source', 'tsat', 'ttot', 'ctot',
         'asat', 'aobt', 'atot',
         'eldt',
         // ELDT snapshot frozen at the validation horizon (default 60 min
