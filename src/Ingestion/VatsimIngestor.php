@@ -358,6 +358,31 @@ final class VatsimIngestor
         $remarks = (string) ($fp['remarks'] ?? '');
         $flight->is_simbrief = stripos($remarks, 'SIMBRIEF') !== false;
 
+        // FIR EET extraction — ICAO remarks contain EET/FIRCHHM entries
+        // giving cumulative time from EOBT to each FIR boundary. These
+        // are computed by airline dispatch (winds-corrected, route-aware).
+        // Extract the ETE to the destination airport's FIR as fp_fir_ete_min.
+        // E.g. for THY→CYYZ: "EET/...CZYZ0919" → 9h19m = 559 min to CZYZ FIR.
+        if ($flight->fp_fir_ete_min === null && $ades !== null) {
+            $destFir = \Atfm\Allocator\FirMap::airportFir($ades);
+            if ($destFir !== null
+                && preg_match('/\bEET\/([A-Z0-9 ]+)/', $remarks, $eetBlock)
+            ) {
+                // Parse all FIR ETE entries: FIRHHMM
+                if (preg_match_all('/(' . preg_quote($destFir) . ')(\d{4})/', $eetBlock[1], $eetM)) {
+                    // Last match wins (if dest FIR appears multiple times,
+                    // the last one is the entry into the FIR closest to dest).
+                    $lastIdx = count($eetM[2]) - 1;
+                    $h = (int) substr($eetM[2][$lastIdx], 0, 2);
+                    $m = (int) substr($eetM[2][$lastIdx], 2, 2);
+                    $eteMin = $h * 60 + $m;
+                    if ($eteMin > 0 && $eteMin < 1440) { // sanity: < 24h
+                        $flight->fp_fir_ete_min = $eteMin;
+                    }
+                }
+            }
+        }
+
         // Snapshot SimBrief ELDT once — the FILED tier ETE from SimBrief
         // is wind-corrected. Store it for triple comparison vs frozen vs ALDT.
         if ($flight->is_simbrief

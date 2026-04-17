@@ -17,26 +17,29 @@ use DateTimeImmutable;
  * arrival estimate for every flight inbound to a regulated airport in
  * order to allocate a slot, so we cascade:
  *
- *   Tier 1 FILED         filed enroute_time (SimBrief-quality when present)
- *                        → eobt + taxi + enroute_time
- *   Tier 2 OBSERVED_POS  airborne: great-circle from current position
- *                        ÷ filed TAS (preferred, wind-neutral) or
- *                        observed GS (fallback) → now + ETE remaining
- *   Tier 3 CALC_FILED_TAS on ground: great-circle(adep, ades) ÷ filed cruise_tas
- *                        → eobt + taxi + cruise_time
- *   Tier 4 CALC_TYPE_TAS  on ground: great-circle ÷ AircraftTas::typicalTas()
- *                        → eobt + taxi + cruise_time
- *   Tier 5 CALC_DEFAULT   on ground: great-circle ÷ 430 kt (last resort)
+ *   Tier 1  FILED         filed enroute_time (SimBrief-quality when present)
+ *                         → eobt + taxi + enroute_time
+ *   Tier 1b FIR_EET       ICAO EET/ entries from remarks (dispatch-quality)
+ *                         → eobt + taxi + fir_ete + 30 min approach
+ *   Tier 2  OBSERVED_POS  airborne: along-route distance from current pos
+ *                         ÷ filed TAS (preferred, wind-neutral) or
+ *                         observed GS (fallback) → now + ETE remaining
+ *   Tier 3  CALC_FILED_TAS on ground: great-circle(adep, ades) ÷ filed TAS
+ *                         → eobt + taxi + cruise_time
+ *   Tier 4  CALC_TYPE_TAS  on ground: great-circle ÷ AircraftTas::typicalTas()
+ *                         → eobt + taxi + cruise_time
+ *   Tier 5  CALC_DEFAULT   on ground: great-circle ÷ 430 kt (last resort)
  *
  * Rule for airborne flights: OBSERVED_POS beats everything else because
  * observed position > filed route. Uses filed TAS for the cruise speed
  * (wind-neutral) with GS fallback. Distance remaining is from the
  * observed position; speed is from the flight plan when available.
  *
- * Rule for ground flights: filed enroute_time > filed TAS > aircraft-type
- * table > default. Pilots who file enroute_time typically got it from
- * SimBrief which includes wind compensation, so it beats our geometric
- * recomputation.
+ * Rule for ground flights: filed enroute_time > FIR EET > filed TAS >
+ * aircraft-type table > default. Pilots who file enroute_time typically
+ * got it from SimBrief which includes wind compensation. FIR EET comes
+ * from airline dispatch (wind-corrected, route-aware) and is the next
+ * best thing when no filed ETE exists.
  *
  * Flights we can't estimate at all (no position, no EOBT, no ADEP coords,
  * no ADES coords) return null → skipped by the allocator this cycle.
@@ -46,6 +49,7 @@ use DateTimeImmutable;
 final class EtaEstimator
 {
     public const SOURCE_FILED         = 'FILED';
+    public const SOURCE_FIR_EET       = 'FIR_EET';
     public const SOURCE_OBSERVED_POS  = 'OBSERVED_POS';
     public const SOURCE_CALC_FILED_TAS = 'CALC_FILED_TAS';
     public const SOURCE_CALC_TYPE_TAS  = 'CALC_TYPE_TAS';
@@ -162,6 +166,28 @@ final class EtaEstimator
             ];
         }
 
+        // -- Tier 1b: FIR EET from ICAO remarks (dispatch-quality)
+        //
+        // EET/CZYZ0919 = cumulative time from takeoff to CZYZ FIR boundary.
+        // Airline dispatch computes these from actual winds and the planned
+        // route — wind-corrected, route-following, no SimBrief needed.
+        //
+        // We add an approach time estimate (FIR boundary → threshold):
+        // airport-specific because FIR boundary distance varies greatly.
+        // Derived from real flight plans (e.g. THY7JE CZQM0818→CYHZ0902
+        // = 44 min intra-FIR). Default 40 min covers most cases.
+        if ($flight->fp_fir_ete_min !== null && $flight->fp_fir_ete_min > 0) {
+            $approachMin = self::firApproachMinutes($flight->ades);
+            $epoch = $eobtEpoch + ($taxiMin * 60)
+                   + ($flight->fp_fir_ete_min * 60)
+                   + ($approachMin * 60);
+            return [
+                'epoch'      => $epoch,
+                'source'     => self::SOURCE_FIR_EET,
+                'confidence' => 80,
+            ];
+        }
+
         // Tiers 3-5 need ADEP/ADES coordinates for great-circle computation.
         if (! $flight->adep || ! $flight->ades) {
             return ['epoch' => null, 'source' => self::SOURCE_NONE, 'confidence' => 0];
@@ -214,5 +240,36 @@ final class EtaEstimator
             'source'     => self::SOURCE_CALC_DEFAULT,
             'confidence' => 40,
         ];
+    }
+
+    /**
+     * Estimated minutes from destination FIR boundary to threshold.
+     *
+     * These are rough constants derived from examining real flight plans.
+     * They account for intra-FIR transit, approach vectoring, STAR routing,
+     * and typical sequencing delays. Conservative (slightly long) is better
+     * than optimistic since we'd rather predict a late ELDT than an early one.
+     *
+     * Example calibration: THY7JE LTFM→CYHZ, CZQM0818 + total ETE 0902 = 44 min.
+     */
+    private static function firApproachMinutes(?string $ades): int
+    {
+        return match ($ades) {
+            // CZQM FIR — CYHZ is ~150nm inside, typical 40-45 min
+            'CYHZ'  => 44,
+            // CZYZ FIR — CYYZ is deep inside, long STAR routing, ~50 min
+            'CYYZ'  => 50,
+            // CZYZ FIR — CYOW is near CZUL/CZYZ boundary, ~25 min
+            'CYOW'  => 25,
+            // CZUL FIR — CYUL is central, ~35 min
+            'CYUL'  => 35,
+            // CZVR FIR — CYVR is near the coast, long oceanic approach, ~45 min
+            'CYVR'  => 45,
+            // CZWG FIR — CYWG is central, ~40 min
+            'CYWG'  => 40,
+            // CZEG FIR — CYYC is in southern Alberta, ~40 min
+            'CYYC'  => 40,
+            default => 40,
+        };
     }
 }
