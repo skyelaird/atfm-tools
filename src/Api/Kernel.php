@@ -1820,6 +1820,116 @@ final class Kernel
                 'recent_landings' => $landings,
             ]);
         });
+
+        // ------------------------------------------------------------------
+        //  TOBT proxy analysis — spawn-to-pushback statistics
+        // ------------------------------------------------------------------
+        $app->get('/api/v1/debug/tobt-analysis', function ($req, $res) {
+            $hours = max(1, min(168, (int) ($req->getQueryParams()['hours'] ?? 168)));
+            $since = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
+                ->modify("-{$hours} hours")->format('Y-m-d H:i:s');
+            $scope = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
+
+            // 1. EOBT error (AOBT - EOBT) by departure airport
+            $eobtByApt = \Illuminate\Database\Capsule\Manager::select("
+                SELECT
+                    adep,
+                    COUNT(*) as n,
+                    ROUND(AVG(TIMESTAMPDIFF(SECOND, eobt, aobt)) / 60, 1) as avg_min,
+                    ROUND(STDDEV(TIMESTAMPDIFF(SECOND, eobt, aobt)) / 60, 1) as std_min
+                FROM flights
+                WHERE aobt IS NOT NULL AND eobt IS NOT NULL
+                  AND aobt >= ?
+                  AND ABS(TIMESTAMPDIFF(SECOND, eobt, aobt)) < 14400
+                GROUP BY adep HAVING n >= 3
+                ORDER BY n DESC
+            ", [$since]);
+
+            // 2. Distribution buckets
+            $buckets = \Illuminate\Database\Capsule\Manager::select("
+                SELECT
+                    CASE
+                        WHEN TIMESTAMPDIFF(SECOND, eobt, aobt) < -3600 THEN 'a_lt_neg60'
+                        WHEN TIMESTAMPDIFF(SECOND, eobt, aobt) < -900  THEN 'b_neg60_neg15'
+                        WHEN TIMESTAMPDIFF(SECOND, eobt, aobt) <= 300  THEN 'c_neg15_pos5'
+                        WHEN TIMESTAMPDIFF(SECOND, eobt, aobt) <= 900  THEN 'd_pos5_pos15'
+                        WHEN TIMESTAMPDIFF(SECOND, eobt, aobt) <= 3600 THEN 'e_pos15_pos60'
+                        WHEN TIMESTAMPDIFF(SECOND, eobt, aobt) <= 7200 THEN 'f_pos60_pos120'
+                        ELSE 'g_gt_pos120'
+                    END as bucket,
+                    COUNT(*) as n
+                FROM flights
+                WHERE aobt IS NOT NULL AND eobt IS NOT NULL
+                  AND aobt >= ?
+                  AND ABS(TIMESTAMPDIFF(SECOND, eobt, aobt)) < 14400
+                  AND adep IN ('" . implode("','", $scope) . "')
+                GROUP BY bucket ORDER BY bucket
+            ", [$since]);
+
+            // 3. Spawn-to-pushback dwell (AOBT - created_at)
+            $dwell = \Illuminate\Database\Capsule\Manager::select("
+                SELECT
+                    adep,
+                    COUNT(*) as n,
+                    ROUND(AVG(TIMESTAMPDIFF(SECOND, created_at, aobt)) / 60, 1) as avg_dwell_min,
+                    ROUND(MIN(TIMESTAMPDIFF(SECOND, created_at, aobt)) / 60, 1) as min_dwell,
+                    ROUND(MAX(TIMESTAMPDIFF(SECOND, created_at, aobt)) / 60, 1) as max_dwell
+                FROM flights
+                WHERE aobt IS NOT NULL AND created_at IS NOT NULL
+                  AND aobt >= ?
+                  AND TIMESTAMPDIFF(SECOND, created_at, aobt) > 0
+                  AND TIMESTAMPDIFF(SECOND, created_at, aobt) < 14400
+                  AND adep IN ('" . implode("','", $scope) . "')
+                GROUP BY adep HAVING n >= 3
+                ORDER BY n DESC
+            ", [$since]);
+
+            // 4. EOBT vs first_seen (created_at - eobt)
+            $spawnVsEobt = \Illuminate\Database\Capsule\Manager::select("
+                SELECT
+                    adep,
+                    COUNT(*) as n,
+                    ROUND(AVG(TIMESTAMPDIFF(SECOND, eobt, created_at)) / 60, 1) as avg_spawn_vs_eobt
+                FROM flights
+                WHERE created_at IS NOT NULL AND eobt IS NOT NULL AND aobt IS NOT NULL
+                  AND aobt >= ?
+                  AND ABS(TIMESTAMPDIFF(SECOND, eobt, created_at)) < 14400
+                  AND adep IN ('" . implode("','", $scope) . "')
+                GROUP BY adep HAVING n >= 3
+                ORDER BY n DESC
+            ", [$since]);
+
+            // 5. Percentiles (combined scope airports)
+            $allErrors = \Illuminate\Database\Capsule\Manager::select("
+                SELECT ROUND(TIMESTAMPDIFF(SECOND, eobt, aobt) / 60, 1) as err_min
+                FROM flights
+                WHERE aobt IS NOT NULL AND eobt IS NOT NULL
+                  AND aobt >= ?
+                  AND ABS(TIMESTAMPDIFF(SECOND, eobt, aobt)) < 14400
+                  AND adep IN ('" . implode("','", $scope) . "')
+                ORDER BY err_min
+            ", [$since]);
+            $vals = array_map(fn($r) => (float) $r->err_min, $allErrors);
+            $n = count($vals);
+            $pctiles = [];
+            if ($n > 0) {
+                foreach ([5, 10, 25, 50, 75, 90, 95] as $p) {
+                    $idx = max(0, min($n - 1, (int) floor($n * $p / 100)));
+                    $pctiles["p{$p}"] = $vals[$idx];
+                }
+                $pctiles['mean'] = round(array_sum($vals) / $n, 1);
+                $pctiles['n'] = $n;
+            }
+
+            return self::json($res, [
+                'window_hours' => $hours,
+                'eobt_error_by_airport' => $eobtByApt,
+                'eobt_error_distribution' => $buckets,
+                'spawn_to_pushback_dwell' => $dwell,
+                'spawn_vs_eobt' => $spawnVsEobt,
+                'eobt_error_percentiles' => $pctiles,
+            ]);
+        });
     }
 
     // ------------------------------------------------------------------
