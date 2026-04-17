@@ -219,13 +219,13 @@ final class VatsimIngestor
                 }
 
                 if ($dof !== null) {
-                    $eobt = $dof->format('Y-m-d H:i:s');
+                    $eobt = $dof;
                 } else {
                     $candidate = $now->setTime((int) $m[1], (int) $m[2], 0);
                     if ($candidate->getTimestamp() < $now->getTimestamp() - 1800) {
                         $candidate = $candidate->modify('+1 day');
                     }
-                    $eobt = $candidate->format('Y-m-d H:i:s');
+                    $eobt = $candidate;
                 }
             }
         }
