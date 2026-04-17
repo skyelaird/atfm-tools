@@ -176,6 +176,56 @@ if (file_exists($awyFile)) {
     echo "Wrote " . count($airways) . " airways ({$totalFixes} fix entries) to {$awyOutFile} ({$awySizeMb} MB)\n";
 }
 
+// ---- Parse SID/STAR procedures from PMDG SidStars files ----
+$procOutFile = __DIR__ . '/../data/procedures.json';
+$sidStarDir = 'D:\\data\\SidStars';
+$airports = ['CYHZ', 'CYOW', 'CYUL', 'CYVR', 'CYWG', 'CYYC', 'CYYZ'];
+$procedures = []; // base_name => [fix1, fix2, ...]
+
+foreach ($airports as $icao) {
+    $ssFile = $sidStarDir . DIRECTORY_SEPARATOR . $icao . '.txt';
+    if (!file_exists($ssFile)) continue;
+
+    $procs = []; // base_name => list of variant fix lists
+    $fh = fopen($ssFile, 'r');
+    while (($line = fgets($fh)) !== false) {
+        $line = trim($line);
+        if (strpos($line, 'STAR ') !== 0 && strpos($line, 'SID ') !== 0) continue;
+
+        $parts = explode(' ', $line);
+        $fullName = $parts[1] ?? '';
+        $dotPos = strpos($fullName, '.');
+        $base = $dotPos !== false ? substr($fullName, 0, $dotPos) : $fullName;
+
+        $fixes = [];
+        for ($j = 2; $j < count($parts); $j++) {
+            if ($parts[$j] === 'FIX' && isset($parts[$j + 1])) {
+                $fixes[] = $parts[$j + 1];
+                $j++;
+            }
+        }
+        if (!isset($procs[$base])) $procs[$base] = [];
+        $procs[$base][] = $fixes;
+
+        // Also add terminal fix coordinates to waypoint DB
+        // (parsed from FIXES section separately if needed)
+    }
+    fclose($fh);
+
+    // Keep longest variant per procedure (most complete route picture)
+    foreach ($procs as $base => $variants) {
+        $longest = [];
+        foreach ($variants as $v) {
+            if (count($v) > count($longest)) $longest = $v;
+        }
+        if (!empty($longest)) $procedures[$base] = $longest;
+    }
+}
+
+$procJson = json_encode($procedures, JSON_UNESCAPED_UNICODE);
+file_put_contents($procOutFile, $procJson);
+echo "Wrote " . count($procedures) . " SID/STAR procedures to {$procOutFile}\n";
+
 // ---- Verify some known Canadian fixes ----
 $check = ['TONNY', 'IKLEN', 'FIORD', 'YEE', 'DOTTY', 'SCROD', 'LOBST', 'RAGID', 'CYMON'];
 echo "\nVerification:\n";

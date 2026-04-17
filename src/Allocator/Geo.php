@@ -156,6 +156,9 @@ final class Geo
     /** @var array<string,array<string,array>>|null Lazy-loaded airway graph */
     private static ?array $airwayDb = null;
 
+    /** @var array<string,array<string>>|null Lazy-loaded SID/STAR procedure DB */
+    private static ?array $procedureDb = null;
+
     /**
      * Load the waypoint database (data/waypoints.json) once per process.
      *
@@ -196,6 +199,28 @@ final class Geo
             self::$airwayDb = [];
         }
         return self::$airwayDb;
+    }
+
+    /**
+     * Load SID/STAR procedure fix sequences (data/procedures.json) once per process.
+     *
+     * Format: { "BOXUM7": ["BOXUM", "DUVOS", "DEBGO", ...], ... }
+     *
+     * @return array<string,array<string>>
+     */
+    private static function loadProcedures(): array
+    {
+        if (self::$procedureDb !== null) {
+            return self::$procedureDb;
+        }
+        $file = __DIR__ . '/../../data/procedures.json';
+        if (file_exists($file)) {
+            $data = json_decode((string) file_get_contents($file), true);
+            self::$procedureDb = is_array($data) ? $data : [];
+        } else {
+            self::$procedureDb = [];
+        }
+        return self::$procedureDb;
     }
 
     /**
@@ -261,6 +286,10 @@ final class Geo
      * Expands airway segments: when "FIX_A J501 FIX_B" is encountered,
      * walks the airway graph (data/airways.json) to insert all
      * intermediate fixes between FIX_A and FIX_B.
+     *
+     * Expands SID/STAR procedures: when "BOXUM7" or "RAGID6" is
+     * encountered, resolves the procedure fix sequence from
+     * data/procedures.json.
      *
      * Returns an array of [lat, lon] pairs in decimal degrees,
      * in the order they appear in the route string.
@@ -349,6 +378,21 @@ final class Geo
                 $coords[] = [$waypoints[$token][0], $waypoints[$token][1]];
                 $lastFixName = $token;
                 continue;
+            }
+
+            // SID/STAR procedure expansion (e.g. BOXUM7, RAGID6, CANUC6)
+            // Pattern: 3-5 alpha + 1-2 digits (matches standard procedure naming)
+            if (preg_match('/^[A-Z]{3,5}\d{1,2}$/', $token)) {
+                $procedures = self::loadProcedures();
+                if (isset($procedures[$token])) {
+                    foreach ($procedures[$token] as $fixName) {
+                        if (isset($waypoints[$fixName])) {
+                            $coords[] = [$waypoints[$fixName][0], $waypoints[$fixName][1]];
+                            $lastFixName = $fixName;
+                        }
+                    }
+                    continue;
+                }
             }
         }
 

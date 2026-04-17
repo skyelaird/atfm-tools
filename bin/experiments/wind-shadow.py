@@ -314,6 +314,7 @@ def bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 _waypoint_db: dict[str, list[float]] | None = None
 _airway_db: dict[str, dict[str, list]] | None = None
+_procedure_db: dict[str, list[str]] | None = None
 
 def _load_waypoints() -> dict[str, list[float]]:
     """Load waypoint database from data/waypoints.json (lazy, once per process)."""
@@ -341,6 +342,20 @@ def _load_airways() -> dict[str, dict[str, list]]:
     else:
         _airway_db = {}
     return _airway_db
+
+
+def _load_procedures() -> dict[str, list[str]]:
+    """Load SID/STAR procedure fix sequences from data/procedures.json."""
+    global _procedure_db
+    if _procedure_db is not None:
+        return _procedure_db
+    proc_file = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'procedures.json')
+    if os.path.exists(proc_file):
+        with open(proc_file, 'r') as f:
+            _procedure_db = json.load(f)
+    else:
+        _procedure_db = {}
+    return _procedure_db
 
 
 def expand_airway_segment(airway_id: str, from_fix: str, to_fix: str) -> list[tuple[float, float]] | None:
@@ -455,6 +470,17 @@ def parse_route_coordinates(route: str) -> list[tuple[float, float]]:
             last_fix_name = token
             i += 1
             continue
+
+        # SID/STAR procedure expansion (e.g. BOXUM7, RAGID6, CANUC6)
+        if re.match(r'^[A-Z]{3,5}\d{1,2}$', token):
+            procedures = _load_procedures()
+            if token in procedures:
+                for fix_name in procedures[token]:
+                    if fix_name in waypoints:
+                        coords.append((waypoints[fix_name][0], waypoints[fix_name][1]))
+                        last_fix_name = fix_name
+                i += 1
+                continue
 
         i += 1
 
