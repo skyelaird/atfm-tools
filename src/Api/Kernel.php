@@ -2001,7 +2001,6 @@ final class Kernel
                 }
                 $n = Flight::where('callsign', $cs)
                     ->whereNull('aldt')
-                    ->whereNull('eldt_wind')
                     ->update(['eldt_wind' => $dt->format('Y-m-d H:i:s')]);
                 $updated += $n;
             }
