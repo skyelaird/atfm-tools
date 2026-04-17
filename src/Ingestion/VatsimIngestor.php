@@ -627,8 +627,26 @@ final class VatsimIngestor
         // (EDDF, EGLL, etc.) we have no AOBT observation and EOBT is garbage
         // on VATSIM — don't cascade a fictional TOBT/TSAT/TTOT from it.
         if ($adepAirport !== null) {
+            // TOBT proxy cascade (v0.5.24). The data shows:
+            //   - EOBT median error is -2 min (decent) but tails are ±20+ min
+            //   - Spawn-to-pushback dwell averages 20 min across all airports
+            //   - Pilots appear ~20 min before EOBT (spawning on time)
+            //
+            // Strategy: use EOBT as baseline, but snap forward to
+            // created_at + DWELL_MIN for late spawners. This corrects
+            // the fat right tail (pilots who spawn 30+ min after EOBT)
+            // without disrupting the 56% who are within [-15, +5] of EOBT.
             if ($flight->tobt === null && $flight->eobt !== null) {
-                $flight->tobt = $flight->eobt;
+                $dwellMin = 20; // observed median spawn-to-pushback
+                if ($flight->created_at !== null) {
+                    $spawnBased = $flight->created_at->modify("+{$dwellMin} minutes");
+                    // Take the later of EOBT and spawn+dwell — catches late spawners
+                    $flight->tobt = ($spawnBased->getTimestamp() > $flight->eobt->getTimestamp())
+                        ? $spawnBased
+                        : $flight->eobt;
+                } else {
+                    $flight->tobt = $flight->eobt;
+                }
                 $flight->tobt_source = 'auto';
             }
             if ($flight->tsat === null && $flight->tobt !== null) {

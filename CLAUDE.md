@@ -145,10 +145,12 @@ bin/
   seed-airports.php   airport + runway threshold seeding
   scrub-hallucinations.php  data cleanup (one-shot, idempotent)
   audit-data.php      data quality report (read-only)
+  tobt-analysis.php   TOBT proxy research: spawn-to-pushback stats
 docs/
   ARCHITECTURE.md     full design document
   GLOSSARY.md         cross-system term reference
   API.md              endpoint reference + integration guide
+  AMAN-DMAN.md        aman-dman plugin operational guide for CZQM/CZQX
 ```
 
 ## Deferred / known TODO
