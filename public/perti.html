@@ -182,7 +182,7 @@ function render(d) {
 
         html += `<section><h2>ETA Comparison — ${withEta.length} flights, avg |delta| = ${avgDelta.toFixed(0)} min</h2>
             <div class="table-wrap"><table>
-            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>Our ELDT</th><th>PERTI ETA</th><th>Delta</th><th>Tags</th><th>Phase (ours/PERTI)</th></tr></thead><tbody>`;
+            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>Our ELDT</th><th>GRIB ELDT</th><th>PERTI ETA</th><th>Delta</th><th>Tags</th><th>Phase</th></tr></thead><tbody>`;
         for (const c of withEta) {
             const tags = [];
             if (c.our_simbrief) tags.push('<span class="tag tag-simbrief">SB</span>');
@@ -195,6 +195,7 @@ function render(d) {
                 <td class="mono muted">${c.aircraft_type || '?'}</td>
                 <td class="mono">${c.adep || '?'} → ${c.ades}</td>
                 <td class="mono">${hhmmz(c.our_eldt)}</td>
+                <td class="mono" style="color:var(--accent);">${hhmmz(c.eldt_wind)}</td>
                 <td class="mono">${hhmmz(c.perti_eta)}</td>
                 <td class="mono ${deltaClass(c.eta_delta_min)}">${c.eta_delta_min > 0 ? '+' : ''}${c.eta_delta_min}m</td>
                 <td>${tags.join(' ')}</td>

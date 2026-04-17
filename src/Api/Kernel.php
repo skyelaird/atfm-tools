@@ -1745,6 +1745,7 @@ final class Kernel
                     'display_phase' => self::displayPhase($f),
                     'perti_phase'   => $pf['phase'] ?? null,
                     'our_eldt'      => $f->eldt?->format('c'),
+                    'eldt_wind'     => $f->eldt_wind?->format('c'),
                     'perti_eta'     => $pf['eta_utc'] ?? null,
                     'eta_delta_min' => $etaDelta,
                     'no_eldt_reason'=> $noEldtReason,
