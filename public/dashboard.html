@@ -748,7 +748,6 @@ function renderAirports(airports) {
                 `${activeRestrictions.length} active · cap ${activeRestrictions[0].capacity}`) : null
         );
         grid.appendChild(card);
-        select.appendChild(el('option', { value: a.icao }, a.icao));
     }
 }
 
