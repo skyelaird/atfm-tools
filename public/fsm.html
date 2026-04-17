@@ -251,6 +251,11 @@
             <option value="CYYC">CYYC</option>
             <option value="CYYZ">CYYZ</option>
         </select>
+        <select id="bin-select" title="Bin width">
+            <option value="15" selected>15 min</option>
+            <option value="30">30 min</option>
+            <option value="60">60 min</option>
+        </select>
         <button class="btn" id="refresh-btn" title="Refresh now">Refresh</button>
         <span class="auto-indicator"><span class="dot"></span>60s</span>
     </div>
@@ -317,8 +322,9 @@
 
     // ---- Constants ----
     const AIRPORTS = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
-    const BIN_MINUTES = 15;
-    const BINS_COUNT = 12; // 3 hours
+    let BIN_MINUTES = 15;
+    const WINDOW_HOURS = 3;
+    let BINS_COUNT = (WINDOW_HOURS * 60) / BIN_MINUTES;
     const REFRESH_MS = 60000;
 
     // ---- DOM refs ----
@@ -971,8 +977,14 @@
     }
 
     // ---- Events ----
+    const $binSelect = document.getElementById('bin-select');
     $select.addEventListener('change', function () {
         refresh();
+    });
+    $binSelect.addEventListener('change', function () {
+        BIN_MINUTES = parseInt($binSelect.value);
+        BINS_COUNT = (WINDOW_HOURS * 60) / BIN_MINUTES;
+        render();
     });
     $refreshBtn.addEventListener('click', function () {
         refresh();
