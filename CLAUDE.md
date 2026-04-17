@@ -163,6 +163,10 @@ docs/
   VATSIM directly so we don't need it.
 - ~~Persist `eta_source` on flights table~~ ✅ shipped v0.5.24
 - ~~Add ETA accuracy breakdown by source tier to reports page~~ ✅ shipped v0.5.24
+- ~~TOBT proxy from spawn-to-movement stats~~ ✅ shipped v0.5.24
+  (TOBT = max(EOBT, created_at + 20 min) — data-driven from 675 departures)
+- Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
+- ctot.html live testing with CDM plugin — needs a real session
 
 ## Retired ideas (don't re-propose without checking)
 
