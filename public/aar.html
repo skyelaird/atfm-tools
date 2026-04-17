@@ -394,22 +394,25 @@ async function computeRates(icao) {
 
     // Operational AAR = min(declared, achievable). FAA facilities never
     // publish above their declared rate even if wx supports more.
+    // Cap calm rate by declared — physics doesn't know about ROT/exit geometry,
+    // so wake-sep calm can exceed what the runway actually supports.
+    const calmCapped = (declaredArr !== null) ? Math.min(declaredArr, calmArr) : calmArr;
     const opArr = (declaredArr !== null) ? Math.min(declaredArr, achievableArr) : achievableArr;
     const aarCell = document.getElementById(`aar-${icao}`);
     if (aarCell) {
         aarCell.textContent = `${opArr}/hr`;
-        const gap = calmArr - achievableArr;
+        const gap = calmCapped - opArr;
         if (gap >= 1) {
             // Wind is reducing rate below calm capacity — colour-code severity
             aarCell.style.color = gap >= 8 ? 'var(--alert)' : gap >= 4 ? 'var(--warn)' : 'var(--info)';
-            aarCell.title = `Wind-reduced by ${gap} from calm ${calmArr}/hr`;
+            aarCell.title = `Wind-reduced by ${gap} from calm ${calmCapped}/hr`;
         } else {
             aarCell.style.color = '';
             aarCell.title = '';
         }
         // Show calm reference underneath when wind-reduced
         const calmRef = document.getElementById(`aar-calm-${icao}`);
-        if (calmRef) calmRef.textContent = gap >= 1 ? `calm ${calmArr}` : '';
+        if (calmRef) calmRef.textContent = gap >= 1 ? `calm ${calmCapped}` : '';
     }
     el(`adr-${icao}`, `${totalDep}/hr`);
     el(`total-${icao}`, `${opArr + totalDep}`);
