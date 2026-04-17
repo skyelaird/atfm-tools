@@ -90,12 +90,25 @@ final class EtaEstimator
             } else {
                 // At or near cruise — compute descent-aware ETA from
                 // observed position and cruise speed.
-                $distNm = Geo::distanceNm(
-                    (float) $flight->last_lat,
-                    (float) $flight->last_lon,
-                    (float) $destAirport->latitude,
-                    (float) $destAirport->longitude
-                );
+                //
+                // Distance: prefer along-route distance when filed
+                // route contains coordinate waypoints (NAT tracks,
+                // ICAO lat/lon fixes). This corrects for jet-stream
+                // avoidance routing that inflates the actual path
+                // 10-15% beyond great-circle on westbound NAT tracks.
+                $routeCoords = !empty($flight->fp_route)
+                    ? Geo::parseRouteCoordinates($flight->fp_route)
+                    : [];
+                $distNm = !empty($routeCoords)
+                    ? Geo::alongRouteDistanceNm(
+                        (float) $flight->last_lat, (float) $flight->last_lon,
+                        (float) $destAirport->latitude, (float) $destAirport->longitude,
+                        $routeCoords
+                    )
+                    : Geo::distanceNm(
+                        (float) $flight->last_lat, (float) $flight->last_lon,
+                        (float) $destAirport->latitude, (float) $destAirport->longitude
+                    );
 
                 // Cruise speed selection: prefer filed TAS over observed
                 // GS. GS includes wind — headwinds (common for westbound
