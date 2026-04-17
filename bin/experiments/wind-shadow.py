@@ -313,6 +313,7 @@ def bearing_deg(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
 
 
 _waypoint_db: dict[str, list[float]] | None = None
+_airway_db: dict[str, dict[str, list]] | None = None
 
 def _load_waypoints() -> dict[str, list[float]]:
     """Load waypoint database from data/waypoints.json (lazy, once per process)."""
@@ -328,22 +329,77 @@ def _load_waypoints() -> dict[str, list[float]]:
     return _waypoint_db
 
 
+def _load_airways() -> dict[str, dict[str, list]]:
+    """Load airway adjacency graph from data/airways.json (lazy, once per process)."""
+    global _airway_db
+    if _airway_db is not None:
+        return _airway_db
+    awy_file = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'airways.json')
+    if os.path.exists(awy_file):
+        with open(awy_file, 'r') as f:
+            _airway_db = json.load(f)
+    else:
+        _airway_db = {}
+    return _airway_db
+
+
+def expand_airway_segment(airway_id: str, from_fix: str, to_fix: str) -> list[tuple[float, float]] | None:
+    """Walk airway linked list from from_fix to to_fix, return intermediate coords.
+
+    Excludes from_fix, includes to_fix. Returns None if can't resolve.
+    """
+    airways = _load_airways()
+    if airway_id not in airways:
+        return None
+    awy = airways[airway_id]
+    if from_fix not in awy or to_fix not in awy:
+        return None
+
+    # Try next (index 2) and prev (index 3)
+    for idx in (2, 3):
+        path = []
+        cur = from_fix
+        visited = {from_fix}
+        while True:
+            node = awy.get(cur)
+            if node is None:
+                break
+            nxt = node[idx] if len(node) > idx else None
+            if not nxt or nxt in visited:
+                break
+            if nxt == to_fix:
+                path.append((awy[to_fix][0], awy[to_fix][1]))
+                return path
+            visited.add(nxt)
+            if nxt in awy:
+                path.append((awy[nxt][0], awy[nxt][1]))
+            cur = nxt
+
+    return None
+
+
 def parse_route_coordinates(route: str) -> list[tuple[float, float]]:
-    """Extract coordinate and named-fix waypoints from a filed route string.
+    """Extract coordinate, named-fix, and airway-segment waypoints from a filed route.
 
     Handles:
     - NAT format: DDN/SDDDW/E (e.g. 49N050W, 60N020W)
     - ICAO DDMM format: DDMMN/SDDDMME/W (e.g. 5530N02030W)
     - Named fixes resolved via data/waypoints.json (e.g. TONNY, YEE, FIORD)
+    - Airway segments expanded via data/airways.json (e.g. TONNY J501 YEE)
 
     Mirrors PHP Geo::parseRouteCoordinates().
     """
     waypoints = _load_waypoints()
     coords = []
+    tokens = route.split()
+    count = len(tokens)
+    last_fix_name: str | None = None
+    i = 0
 
-    for token in route.split():
-        token = token.strip()
+    while i < count:
+        token = tokens[i].strip()
         if not token:
+            i += 1
             continue
 
         # NAT format: 2-digit lat, 3-digit lon (49N050W)
@@ -352,6 +408,8 @@ def parse_route_coordinates(route: str) -> list[tuple[float, float]]:
             lat = float(m.group(1)) * (-1 if m.group(2) == 'S' else 1)
             lon = float(m.group(3)) * (-1 if m.group(4) == 'W' else 1)
             coords.append((lat, lon))
+            last_fix_name = None
+            i += 1
             continue
 
         # ICAO DDMM format: 4-digit lat, 5-digit lon (5530N02030W)
@@ -362,20 +420,43 @@ def parse_route_coordinates(route: str) -> list[tuple[float, float]]:
             lat = (lat_d + lat_m / 60.0) * (-1 if m.group(2) == 'S' else 1)
             lon = (lon_d + lon_m / 60.0) * (-1 if m.group(4) == 'W' else 1)
             coords.append((lat, lon))
+            last_fix_name = None
+            i += 1
             continue
 
         # Skip speed/level groups (N0450F350, M082F390)
         if re.match(r'^[NMK]\d{4}[FSAM]\d{3,4}$', token):
+            i += 1
             continue
 
         # Skip DCT
         if token == 'DCT':
+            i += 1
+            continue
+
+        # Airway identifier: 1-2 letters + 1-4 digits (J501, V300, UN601)
+        if re.match(r'^[A-Z]{1,2}\d{1,4}$', token):
+            if last_fix_name and i + 1 < count:
+                next_token = tokens[i + 1].strip()
+                exit_fix = next_token if re.match(r'^[A-Z]{2,5}$', next_token) else None
+                if exit_fix:
+                    expanded = expand_airway_segment(token, last_fix_name, exit_fix)
+                    if expanded:
+                        coords.extend(expanded)
+                        last_fix_name = exit_fix
+                        i += 2  # skip airway + exit fix
+                        continue
+            i += 1
             continue
 
         # Named fix lookup — 2-5 uppercase alpha chars
         if re.match(r'^[A-Z]{2,5}$', token) and token in waypoints:
             coords.append((waypoints[token][0], waypoints[token][1]))
+            last_fix_name = token
+            i += 1
             continue
+
+        i += 1
 
     return coords
 

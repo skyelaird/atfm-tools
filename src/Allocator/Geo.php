@@ -153,6 +153,9 @@ final class Geo
     /** @var array<string,array{float,float}>|null Lazy-loaded waypoint DB */
     private static ?array $waypointDb = null;
 
+    /** @var array<string,array<string,array>>|null Lazy-loaded airway graph */
+    private static ?array $airwayDb = null;
+
     /**
      * Load the waypoint database (data/waypoints.json) once per process.
      *
@@ -174,15 +177,90 @@ final class Geo
     }
 
     /**
-     * Parse coordinate and named-fix waypoints from a filed route string.
+     * Load the airway adjacency graph (data/airways.json) once per process.
+     *
+     * Format: { "J501": { "TONNY": [lat, lon, "next_fix"|null, "prev_fix"|null], ... }, ... }
+     *
+     * @return array<string,array<string,array>>
+     */
+    private static function loadAirways(): array
+    {
+        if (self::$airwayDb !== null) {
+            return self::$airwayDb;
+        }
+        $file = __DIR__ . '/../../data/airways.json';
+        if (file_exists($file)) {
+            $data = json_decode((string) file_get_contents($file), true);
+            self::$airwayDb = is_array($data) ? $data : [];
+        } else {
+            self::$airwayDb = [];
+        }
+        return self::$airwayDb;
+    }
+
+    /**
+     * Expand an airway segment between two fixes into intermediate waypoints.
+     *
+     * Walks the airway's linked list (next/prev pointers) from $fromFix to
+     * $toFix, returning the intermediate fixes (excluding $fromFix, including
+     * $toFix). Returns null if the segment can't be resolved.
+     *
+     * @return array<array{float,float}>|null  Intermediate fix coords, or null
+     */
+    public static function expandAirwaySegment(string $airwayId, string $fromFix, string $toFix): ?array
+    {
+        $airways = self::loadAirways();
+        if (!isset($airways[$airwayId])) {
+            return null;
+        }
+        $awy = $airways[$airwayId];
+        if (!isset($awy[$fromFix]) || !isset($awy[$toFix])) {
+            return null;
+        }
+
+        // Try both directions (next and prev pointers)
+        foreach (['next' => 2, 'prev' => 3] as $dir => $idx) {
+            $path = [];
+            $cur = $fromFix;
+            $visited = [$fromFix => true];
+            while (true) {
+                $node = $awy[$cur] ?? null;
+                if ($node === null) {
+                    break;
+                }
+                $nxt = $node[$idx] ?? null;
+                if ($nxt === null || isset($visited[$nxt])) {
+                    break;
+                }
+                if ($nxt === $toFix) {
+                    $path[] = [$awy[$toFix][0], $awy[$toFix][1]];
+                    return $path;
+                }
+                $visited[$nxt] = true;
+                if (isset($awy[$nxt])) {
+                    $path[] = [$awy[$nxt][0], $awy[$nxt][1]];
+                }
+                $cur = $nxt;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Parse coordinate, named-fix, and airway-segment waypoints from a
+     * filed route string.
      *
      * Handles coordinate formats:
      *   - NAT integer degrees: 49N050W, 54N020W, 60N020W
      *   - ICAO DDMM format:    3303S15639E, 5530N02030W
      *
-     * Also resolves named fixes (TONNY, YEE, FIORD, etc.) against
-     * data/waypoints.json. Speed/level groups, airway identifiers,
-     * and SID/STAR procedure names are skipped.
+     * Resolves named fixes (TONNY, YEE, FIORD, etc.) against
+     * data/waypoints.json.
+     *
+     * Expands airway segments: when "FIX_A J501 FIX_B" is encountered,
+     * walks the airway graph (data/airways.json) to insert all
+     * intermediate fixes between FIX_A and FIX_B.
      *
      * Returns an array of [lat, lon] pairs in decimal degrees,
      * in the order they appear in the route string.
@@ -197,18 +275,20 @@ final class Geo
         if ($tokens === false) {
             return [];
         }
+        // Re-index after filtering empty tokens
+        $tokens = array_values(array_filter($tokens, fn($t) => trim($t) !== ''));
+        $count = count($tokens);
+        $lastFixName = null; // track last resolved fix name for airway expansion
 
-        foreach ($tokens as $token) {
-            $token = trim($token);
-            if ($token === '') {
-                continue;
-            }
+        for ($i = 0; $i < $count; $i++) {
+            $token = trim($tokens[$i]);
 
             // NAT format: DDN/SDDDW/E (2-digit lat, 3-digit lon)
             if (preg_match('/^(\d{2})(N|S)(\d{3})(W|E)$/', $token, $m)) {
                 $lat = (float) $m[1] * ($m[2] === 'S' ? -1 : 1);
                 $lon = (float) $m[3] * ($m[4] === 'W' ? -1 : 1);
                 $coords[] = [$lat, $lon];
+                $lastFixName = null; // coordinate waypoint, no name for airway lookup
                 continue;
             }
 
@@ -221,6 +301,7 @@ final class Geo
                 $lonMin = (int) substr($m[3], 3, 2);
                 $lon = ($lonDeg + $lonMin / 60.0) * ($m[4] === 'W' ? -1 : 1);
                 $coords[] = [$lat, $lon];
+                $lastFixName = null;
                 continue;
             }
 
@@ -234,10 +315,39 @@ final class Geo
                 continue;
             }
 
+            // Airway identifier: 1-2 letters + 1-4 digits (J501, V300, T720, Q42, UN601, UL9)
+            // When we see one, look at prev fix and next token to expand the segment
+            if (preg_match('/^[A-Z]{1,2}\d{1,4}$/', $token)) {
+                $airwayId = $token;
+                // Next token should be the exit fix
+                if ($lastFixName !== null && $i + 1 < $count) {
+                    $nextToken = trim($tokens[$i + 1]);
+                    // Resolve the exit fix name
+                    $exitFix = null;
+                    if (preg_match('/^[A-Z]{2,5}$/', $nextToken)) {
+                        $exitFix = $nextToken;
+                    }
+                    if ($exitFix !== null) {
+                        $expanded = self::expandAirwaySegment($airwayId, $lastFixName, $exitFix);
+                        if ($expanded !== null) {
+                            // Add intermediate + exit fix coords; skip next token (we consumed it)
+                            foreach ($expanded as $coord) {
+                                $coords[] = $coord;
+                            }
+                            $lastFixName = $exitFix;
+                            $i++; // skip exit fix token
+                            continue;
+                        }
+                    }
+                }
+                // Couldn't expand — skip the airway token
+                continue;
+            }
+
             // Named fix lookup — must be 2-5 uppercase alpha chars
-            // (filters out airway ids like UN601, UL9, single letters)
             if (preg_match('/^[A-Z]{2,5}$/', $token) && isset($waypoints[$token])) {
                 $coords[] = [$waypoints[$token][0], $waypoints[$token][1]];
+                $lastFixName = $token;
                 continue;
             }
         }

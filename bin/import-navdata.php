@@ -128,7 +128,7 @@ if (file_exists($awyFile)) {
     echo "AIRWAY: {$awyAdded} new/updated waypoints\n";
 }
 
-// ---- Write output ----
+// ---- Write waypoints output ----
 // Strip the distance field, round coords to 6 decimal places
 $output = [];
 foreach ($waypoints as $name => [$lat, $lon, $dist]) {
@@ -141,6 +141,40 @@ $json = json_encode($output, JSON_UNESCAPED_UNICODE);
 file_put_contents($outFile, $json);
 $sizeMb = round(strlen($json) / 1024 / 1024, 2);
 echo "Wrote " . count($output) . " waypoints to {$outFile} ({$sizeMb} MB)\n";
+
+// ---- Build airway adjacency graph ----
+$awyOutFile = __DIR__ . '/../data/airways.json';
+$airways = []; // airway_id => { fix_name => [lat, lon, next, prev] }
+
+if (file_exists($awyFile)) {
+    $fh = fopen($awyFile, 'r');
+    while (($line = fgets($fh)) !== false) {
+        $line = trim($line);
+        if ($line === '' || $line[0] === ';') continue;
+        $parts = preg_split('/\t+/', $line);
+        if (count($parts) < 5) continue;
+
+        $name = trim($parts[0]);
+        $lat = (float) trim($parts[1]);
+        $lon = (float) trim($parts[2]);
+        $awyId = trim($parts[4]);
+
+        if ($lat < $latMin || $lat > $latMax || $lon < $lonMin || $lon > $lonMax) continue;
+
+        $nextFix = (count($parts) > 6 && trim($parts[6]) !== '') ? trim($parts[6]) : null;
+        $prevFix = (count($parts) > 11 && trim($parts[11]) !== '') ? trim($parts[11]) : null;
+
+        if (!isset($airways[$awyId])) $airways[$awyId] = [];
+        $airways[$awyId][$name] = [round($lat, 6), round($lon, 6), $nextFix, $prevFix];
+    }
+    fclose($fh);
+
+    $awyJson = json_encode($airways, JSON_UNESCAPED_UNICODE);
+    file_put_contents($awyOutFile, $awyJson);
+    $awySizeMb = round(strlen($awyJson) / 1024 / 1024, 2);
+    $totalFixes = array_sum(array_map('count', $airways));
+    echo "Wrote " . count($airways) . " airways ({$totalFixes} fix entries) to {$awyOutFile} ({$awySizeMb} MB)\n";
+}
 
 // ---- Verify some known Canadian fixes ----
 $check = ['TONNY', 'IKLEN', 'FIORD', 'YEE', 'DOTTY', 'SCROD', 'LOBST', 'RAGID', 'CYMON'];
