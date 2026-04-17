@@ -5,10 +5,8 @@ declare(strict_types=1);
 namespace Atfm\Allocator;
 
 /**
- * Great-circle and along-route distance helpers. No winds, no
- * atmosphere model. Uses filed route coordinates when available
- * to correct for routing deviations (NAT tracks, jet-stream
- * avoidance) that inflate actual distance vs great-circle.
+ * Tiny great-circle helper. No winds. No climb/descent profile.
+ * 450 kt average cruise when filed TAS is missing.
  *
  * See docs/ARCHITECTURE.md §2 for why we deliberately don't do more.
  */
@@ -148,113 +146,6 @@ final class Geo
      * @param float $fl100DistNm   Distance from airport where FL100 intersects the 3° slope
      * @param int   $iasHighKt     Type-specific descent IAS above FL100 (e.g. 310 for B77W)
      */
-    /**
-     * Parse coordinate waypoints from a filed route string.
-     *
-     * Handles two common formats in VATSIM flight plans:
-     *   - NAT integer degrees: 49N050W, 54N020W, 60N020W
-     *   - ICAO DDMM format:    3303S15639E, 5530N02030W
-     *
-     * Returns an array of [lat, lon] pairs in decimal degrees,
-     * in the order they appear in the route string. Named fixes,
-     * airways, speed/level groups are ignored (no navdata DB).
-     *
-     * @return array<array{float,float}>
-     */
-    public static function parseRouteCoordinates(string $route): array
-    {
-        $coords = [];
-
-        // NAT format: DDN/SDDDW/E (2-digit lat, 3-digit lon)
-        // e.g. 49N050W, 60N020W, 35S170E
-        if (preg_match_all('/\b(\d{2})(N|S)(\d{3})(W|E)\b/', $route, $m, PREG_SET_ORDER)) {
-            foreach ($m as $match) {
-                $lat = (float) $match[1] * ($match[2] === 'S' ? -1 : 1);
-                $lon = (float) $match[3] * ($match[4] === 'W' ? -1 : 1);
-                $coords[] = [$lat, $lon];
-            }
-        }
-
-        // ICAO DDMM format: DDMMS/NDDDMME/W (4-digit lat, 5-digit lon)
-        // e.g. 3303S15639E, 5530N02030W
-        if (preg_match_all('/\b(\d{4})(N|S)(\d{5})(W|E)\b/', $route, $m, PREG_SET_ORDER)) {
-            foreach ($m as $match) {
-                $latDeg = (int) substr($match[1], 0, 2);
-                $latMin = (int) substr($match[1], 2, 2);
-                $lat = ($latDeg + $latMin / 60.0) * ($match[2] === 'S' ? -1 : 1);
-                $lonDeg = (int) substr($match[3], 0, 3);
-                $lonMin = (int) substr($match[3], 3, 2);
-                $lon = ($lonDeg + $lonMin / 60.0) * ($match[4] === 'W' ? -1 : 1);
-                $coords[] = [$lat, $lon];
-            }
-        }
-
-        return $coords;
-    }
-
-    /**
-     * Along-route distance from current position to destination,
-     * using parsed route coordinate waypoints for the intervening path.
-     *
-     * Strategy: determine which waypoints are still AHEAD of the
-     * aircraft by comparing each waypoint's distance-to-dest against
-     * the aircraft's distance-to-dest. Waypoints closer to dest than
-     * the aircraft is are "ahead" — the aircraft must still fly through
-     * them. Sum: cur → first_ahead → remaining_ahead → dest.
-     *
-     * This corrects the systematic distance underestimate for NAT
-     * westbound flights that route 10-15% longer than great-circle
-     * to avoid jet-stream headwinds.
-     *
-     * @param array<array{float,float}> $routeCoords parsed waypoints
-     */
-    public static function alongRouteDistanceNm(
-        float $curLat, float $curLon,
-        float $destLat, float $destLon,
-        array $routeCoords
-    ): float {
-        $directDist = self::distanceNm($curLat, $curLon, $destLat, $destLon);
-        if (empty($routeCoords)) {
-            return $directDist;
-        }
-
-        // Compute each waypoint's distance to destination.
-        $wptDistToDest = [];
-        foreach ($routeCoords as [$wLat, $wLon]) {
-            $wptDistToDest[] = self::distanceNm($wLat, $wLon, $destLat, $destLon);
-        }
-
-        // Keep only waypoints that are AHEAD: closer to destination
-        // than the aircraft currently is. This filters out waypoints
-        // the aircraft has already passed.
-        $ahead = [];
-        foreach ($routeCoords as $i => [$wLat, $wLon]) {
-            if ($wptDistToDest[$i] < $directDist) {
-                $ahead[] = [$wLat, $wLon];
-            }
-        }
-
-        if (empty($ahead)) {
-            // All waypoints are behind us — direct to dest.
-            return $directDist;
-        }
-
-        // Sum: cur → first_ahead → subsequent_ahead → dest.
-        $dist = self::distanceNm($curLat, $curLon, $ahead[0][0], $ahead[0][1]);
-        for ($i = 1; $i < count($ahead); $i++) {
-            $dist += self::distanceNm(
-                $ahead[$i - 1][0], $ahead[$i - 1][1],
-                $ahead[$i][0], $ahead[$i][1]
-            );
-        }
-        $lastAhead = $ahead[count($ahead) - 1];
-        $dist += self::distanceNm($lastAhead[0], $lastAhead[1], $destLat, $destLon);
-
-        // Sanity bounds: never shorter than direct, never more than
-        // 1.3x direct (catches garbage waypoints or route mismatches).
-        return max($directDist, min($dist, $directDist * 1.30));
-    }
-
     private static function descentSegmentMinutes(float $distNm, float $fl100DistNm = 31.0, int $iasHighKt = 280): float
     {
         if ($distNm <= 0) {
