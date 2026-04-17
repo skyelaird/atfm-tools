@@ -246,7 +246,7 @@
           "13": { "role": "D", "hdg": 135 }
         },
         "primary_arr": "36", "primary_dep": "13",
-        "declared_arr_rate": 28, "declared_dep_rate": 16
+        "declared_arr_rate": 28, "declared_dep_rate": 24
       },
       {
         "name": "36-31dep",
@@ -258,7 +258,7 @@
           "31": { "role": "D", "hdg": 315 }
         },
         "primary_arr": "36", "primary_dep": "31",
-        "declared_arr_rate": 28, "declared_dep_rate": 16
+        "declared_arr_rate": 28, "declared_dep_rate": 24
       },
       {
         "name": "18",
@@ -278,7 +278,19 @@
           "13": { "role": "D", "hdg": 135 }
         },
         "primary_arr": "18", "primary_dep": "13",
-        "declared_arr_rate": 28, "declared_dep_rate": 16
+        "declared_arr_rate": 28, "declared_dep_rate": 24
+      },
+      {
+        "name": "18-LAHSO-13",
+        "label": "18 Arr / 13 Dep (LAHSO)",
+        "mode": "lahso",
+        "requires": { "dry": true, "vmc": true },
+        "runways": {
+          "18": { "role": "A", "hdg": 185 },
+          "13": { "role": "D", "hdg": 135 }
+        },
+        "primary_arr": "18", "primary_dep": "13",
+        "declared_arr_rate": 32, "declared_dep_rate": 28
       },
       {
         "name": "18-31dep",
@@ -290,7 +302,19 @@
           "31": { "role": "D", "hdg": 315 }
         },
         "primary_arr": "18", "primary_dep": "31",
-        "declared_arr_rate": 28, "declared_dep_rate": 16
+        "declared_arr_rate": 28, "declared_dep_rate": 24
+      },
+      {
+        "name": "18-LAHSO-31",
+        "label": "18 Arr / 31 Dep (LAHSO)",
+        "mode": "lahso",
+        "requires": { "dry": true, "vmc": true },
+        "runways": {
+          "18": { "role": "A", "hdg": 185 },
+          "31": { "role": "D", "hdg": 315 }
+        },
+        "primary_arr": "18", "primary_dep": "31",
+        "declared_arr_rate": 32, "declared_dep_rate": 28
       },
       {
         "name": "13",
