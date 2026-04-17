@@ -372,6 +372,7 @@ final class Kernel
                         'aobt'           => $f->aobt?->format('c'),
                         'atot'           => $f->atot?->format('c'),
                         'eldt'           => $f->eldt?->format('c'),
+                        'eldt_perti'     => $f->eldt_perti?->format('c'),
                         'eta_source'     => $f->eta_source,
                         'eta_confidence' => $f->eta_confidence,
                         'eldt_locked'    => $f->eldt_locked?->format('c'),
