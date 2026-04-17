@@ -20,8 +20,8 @@ use DateTimeImmutable;
  *   Tier 1 FILED         filed enroute_time (SimBrief-quality when present)
  *                        → eobt + taxi + enroute_time
  *   Tier 2 OBSERVED_POS  airborne: great-circle from current position
- *                        ÷ observed groundspeed (or 450 kt fallback)
- *                        → now + flight_time_remaining
+ *                        ÷ filed TAS (preferred, wind-neutral) or
+ *                        observed GS (fallback) → now + ETE remaining
  *   Tier 3 CALC_FILED_TAS on ground: great-circle(adep, ades) ÷ filed cruise_tas
  *                        → eobt + taxi + cruise_time
  *   Tier 4 CALC_TYPE_TAS  on ground: great-circle ÷ AircraftTas::typicalTas()
@@ -29,8 +29,9 @@ use DateTimeImmutable;
  *   Tier 5 CALC_DEFAULT   on ground: great-circle ÷ 430 kt (last resort)
  *
  * Rule for airborne flights: OBSERVED_POS beats everything else because
- * physical reality > pilot's filing. Filed enroute_time captures the
- * pilot's pre-flight plan but not actual winds / routing / speed choices.
+ * observed position > filed route. Uses filed TAS for the cruise speed
+ * (wind-neutral) with GS fallback. Distance remaining is from the
+ * observed position; speed is from the flight plan when available.
  *
  * Rule for ground flights: filed enroute_time > filed TAS > aircraft-type
  * table > default. Pilots who file enroute_time typically got it from
@@ -88,27 +89,42 @@ final class EtaEstimator
                 // Don't return — let the cascade continue.
             } else {
                 // At or near cruise — compute descent-aware ETA from
-                // observed position and groundspeed.
+                // observed position and cruise speed.
                 $distNm = Geo::distanceNm(
                     (float) $flight->last_lat,
                     (float) $flight->last_lon,
                     (float) $destAirport->latitude,
                     (float) $destAirport->longitude
                 );
-                $gs = ($flight->last_groundspeed_kts !== null && $flight->last_groundspeed_kts > 100)
+
+                // Cruise speed selection: prefer filed TAS over observed
+                // GS. GS includes wind — headwinds (common for westbound
+                // arrivals into Canada) reduce GS below TAS, inflating
+                // the cruise-segment ETE and producing a systematic late
+                // bias (+7 min mean on OBSERVED_POS). Filed TAS from
+                // SimBrief/pfpx is wind-neutral and better represents
+                // the aircraft's performance over the remaining cruise.
+                // Fall back to GS when no filed TAS exists, and to the
+                // default 430 kt last resort.
+                $filedTas = ($flight->fp_cruise_tas !== null && $flight->fp_cruise_tas >= 120 && $flight->fp_cruise_tas <= 650)
+                    ? $flight->fp_cruise_tas
+                    : null;
+                $observedGs = ($flight->last_groundspeed_kts !== null && $flight->last_groundspeed_kts > 100)
                     ? $flight->last_groundspeed_kts
-                    : Geo::DEFAULT_CRUISE_KT;
+                    : null;
+                $cruiseKt = $filedTas ?? $observedGs ?? Geo::DEFAULT_CRUISE_KT;
+
                 $altFt = $currentAlt;
                 $descentIas = $flight->aircraft_type
                     ? AircraftTas::descentIasHigh($flight->aircraft_type)
                     : AircraftTas::DEFAULT_DESCENT_IAS_HIGH;
                 $etaMin = Geo::etaMinutesWithDescent(
-                    $distNm, $gs, $altFt, (int) $destAirport->elevation_ft, $descentIas
+                    $distNm, $cruiseKt, $altFt, (int) $destAirport->elevation_ft, $descentIas
                 );
                 return [
                     'epoch'      => $now->getTimestamp() + (int) round($etaMin * 60),
                     'source'     => self::SOURCE_OBSERVED_POS,
-                    'confidence' => 85,
+                    'confidence' => $filedTas !== null ? 88 : 85,
                 ];
             }
             // Still climbing — fall through to ground tiers below.

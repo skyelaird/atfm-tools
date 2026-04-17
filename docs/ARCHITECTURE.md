@@ -45,8 +45,8 @@ These are explicitly out of scope for v1 (and in some cases permanently):
   ADES filters, not waypoints or sector counts.
 - **Deterministic GDP with Ration-By-Schedule.** See §9 for why. We run a
   rate-based tactical controller instead of a classical FAA TFMS GDP.
-- **Wind modelling / GRIB parsing.** Filed TAS primary, type-table fallback,
-  observed groundspeed for airborne flights. No meteorology.
+- **Wind modelling / GRIB parsing.** Filed TAS preferred for cruise speed
+  (wind-neutral), GS fallback, type-table last resort. No meteorology.
 - **Authoring UI for restrictions.** vIFF or PERTI owns the flow-manager web
   form. atfm-tools consumes the resulting state, it doesn't compete for the
   authoring role.
@@ -728,7 +728,7 @@ returns the highest-tier estimate it can compute:
 | Tier | Source | Applies when | Formula | Confidence |
 |---|---|---|---|---|
 | **1** | **FILED** | Pilot filed `enroute_time` (HHMM) in the flight plan, flight is on ground | `EOBT + taxi + enroute_time` | 90 |
-| **2** | **OBSERVED_POS** | Flight is airborne with known lat/lon | `now + descent_aware_eta(pos, dest, GS, alt, type)` | 85 |
+| **2** | **OBSERVED_POS** | Flight is airborne with known lat/lon | `now + descent_aware_eta(pos, dest, filed_TAS‖GS, alt, type)` | 85–88 |
 | **3** | **CALC_FILED_TAS** | On ground, filed `cruise_tas` is present and plausible (120-650 kt) | `EOBT + taxi + descent_aware_eta(adep, dest, TAS, FL, type)` | 70 |
 | **4** | **CALC_TYPE_TAS** | On ground, aircraft_type is in `AircraftTas::TABLE` | `EOBT + taxi + descent_aware_eta(adep, dest, type_TAS, FL, type)` | 55 |
 | **5** | **CALC_DEFAULT** | On ground, unknown type | `EOBT + taxi + descent_aware_eta(adep, dest, 430, FL350, default)` | 40 |

@@ -78,6 +78,22 @@
         .loading { color: var(--text-dim); padding: 2rem; text-align: center; }
         .error { color: var(--alert); padding: 2rem; text-align: center; }
 
+        .pill-btn {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.2rem 0.6rem; border-radius: 999px;
+            background: var(--bg-elev-hi); border: 1px solid var(--border);
+            font-size: 0.75rem; color: var(--text-dim);
+            cursor: pointer; transition: background 0.15s, color 0.15s;
+        }
+        .pill-btn:hover { color: var(--text); border-color: var(--accent-dim); }
+        .pill-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+
+        th.sortable { cursor: pointer; user-select: none; }
+        th.sortable:hover { color: var(--text-bright); }
+        th.sortable::after { content: ' \u25B4\u25BE'; font-size: 0.6rem; opacity: 0.4; }
+        th.sort-asc::after { content: ' \u25B4'; opacity: 1; }
+        th.sort-desc::after { content: ' \u25BE'; opacity: 1; }
+
         .tmi-none { color: var(--ok); }
         .tmi-active { color: var(--alert); }
     </style>
@@ -244,6 +260,19 @@ function render(d) {
         html += `<section><h2>Post-Landing Accuracy (last 2h)</h2><div class="muted" style="padding:0.5rem 0;">No flights with frozen ELDT have landed in the last 2 hours.</div></section>`;
     }
 
+    // Historical accuracy placeholder — populated independently
+    html += `<section id="hist-section">
+        <h2>Historical ELDT Accuracy</h2>
+        <div style="display:flex;gap:0.4rem;margin-bottom:1rem;" id="hist-pills">
+            <span class="pill-btn" data-days="1">1d</span>
+            <span class="pill-btn" data-days="3">3d</span>
+            <span class="pill-btn active" data-days="7">7d</span>
+            <span class="pill-btn" data-days="14">14d</span>
+            <span class="pill-btn" data-days="30">30d</span>
+        </div>
+        <div id="hist-content"><div class="loading">Loading historical accuracy...</div></div>
+    </section>`;
+
     html += `<section><h2>Legend</h2>
         <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.8rem;">
             <span><span class="tag tag-simbrief">SB</span> SimBrief flight plan</span>
@@ -262,6 +291,220 @@ function render(d) {
 
 load();
 setInterval(load, 120000); // refresh every 2 min
+
+// --- Historical ELDT Accuracy (independent fetch) ---
+
+let histDays = 7;
+let histData = [];
+let histSortCol = null;
+let histSortAsc = true;
+
+function fmtPct(n, total) {
+    if (!total) return '—';
+    return (100 * n / total).toFixed(1) + '%';
+}
+
+function fmtSigned(v) {
+    if (v === null || v === undefined) return '—';
+    const r = Number(v).toFixed(1);
+    return (v > 0 ? '+' : '') + r;
+}
+
+async function loadAccuracy() {
+    const el = document.getElementById('hist-content');
+    if (!el) return; // section not yet rendered
+    el.innerHTML = '<div class="loading">Loading historical accuracy...</div>';
+    try {
+        const res = await fetch('/api/v1/accuracy?days=' + histDays);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const raw = await res.json();
+        // API may return { flights: [...] } or just [...]
+        const flights = Array.isArray(raw) ? raw : (raw.flights || []);
+        histData = flights.filter(f => !f.synthetic && (f.our_err_min === null || Math.abs(f.our_err_min) <= 120));
+        renderAccuracy();
+    } catch (err) {
+        el.innerHTML = '<div class="error">Failed to load accuracy: ' + err.message + '</div>';
+    }
+}
+
+function renderAccuracy() {
+    const el = document.getElementById('hist-content');
+    if (!el) return;
+    const rows = histData;
+    if (rows.length === 0) {
+        el.innerHTML = '<div class="muted" style="padding:0.5rem 0;">No accuracy data for this window.</div>';
+        return;
+    }
+
+    let html = '';
+
+    // --- Summary: ours vs PERTI ---
+    const ourErrs = rows.filter(r => r.our_err_min !== null);
+    const pertiErrs = rows.filter(r => r.perti_err_min !== null);
+
+    function stats(arr, key) {
+        if (!arr.length) return { n: 0, mean: null, absMean: null, w3: null, w5: null };
+        const vals = arr.map(r => r[key]);
+        const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+        const absMean = vals.reduce((a, b) => a + Math.abs(b), 0) / vals.length;
+        const w3 = vals.filter(v => Math.abs(v) <= 3).length;
+        const w5 = vals.filter(v => Math.abs(v) <= 5).length;
+        return { n: vals.length, mean, absMean, w3: 100 * w3 / vals.length, w5: 100 * w5 / vals.length };
+    }
+
+    const ourS = stats(ourErrs, 'our_err_min');
+    const pertiS = stats(pertiErrs, 'perti_err_min');
+
+    html += '<div class="summary-bar" style="display:grid;grid-template-columns:auto 1fr 1fr;gap:0.5rem 1.5rem;align-items:center;">';
+    html += '<div></div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">Our Model</div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">PERTI</div>';
+    const metricRows = [
+        ['n', ourS.n, pertiS.n],
+        ['Mean error', ourS.mean !== null ? fmtSigned(ourS.mean) + 'm' : '—', pertiS.mean !== null ? fmtSigned(pertiS.mean) + 'm' : '—'],
+        ['|Mean|', ourS.absMean !== null ? ourS.absMean.toFixed(1) + 'm' : '—', pertiS.absMean !== null ? pertiS.absMean.toFixed(1) + 'm' : '—'],
+        ['\u00b13 min', ourS.w3 !== null ? ourS.w3.toFixed(1) + '%' : '—', pertiS.w3 !== null ? pertiS.w3.toFixed(1) + '%' : '—'],
+        ['\u00b15 min', ourS.w5 !== null ? ourS.w5.toFixed(1) + '%' : '—', pertiS.w5 !== null ? pertiS.w5.toFixed(1) + '%' : '—'],
+    ];
+    for (const [lbl, ours, perti] of metricRows) {
+        html += `<div style="font-size:0.75rem;color:var(--text-dim);">${lbl}</div>`;
+        html += `<div class="mono" style="text-align:center;color:var(--text-bright);">${ours}</div>`;
+        html += `<div class="mono" style="text-align:center;color:var(--text-bright);">${perti}</div>`;
+    }
+    html += '</div>';
+
+    // --- By ETA source tier ---
+    const tiers = {};
+    for (const r of rows) {
+        const src = r.locked_source || 'UNKNOWN';
+        if (!tiers[src]) tiers[src] = [];
+        tiers[src].push(r);
+    }
+    const tierOrder = ['FILED', 'OBSERVED_POS', 'CALC_FILED_TAS', 'CALC_TYPE_TAS', 'CALC_DEFAULT', 'UNKNOWN'];
+    const tierKeys = tierOrder.filter(k => tiers[k]).concat(Object.keys(tiers).filter(k => !tierOrder.includes(k)));
+
+    html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">Accuracy by ETA Source Tier</h3>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Source</th><th>n</th><th>Mean err</th><th>|Mean|</th><th>\u00b13 min</th></tr></thead><tbody>';
+    for (const src of tierKeys) {
+        const s = stats(tiers[src].filter(r => r.our_err_min !== null), 'our_err_min');
+        if (!s.n) continue;
+        html += `<tr>
+            <td class="mono">${src}</td>
+            <td class="mono">${s.n}</td>
+            <td class="mono ${deltaClass(s.mean)}">${fmtSigned(s.mean)}m</td>
+            <td class="mono">${s.absMean.toFixed(1)}m</td>
+            <td class="mono">${s.w3.toFixed(1)}%</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div></div>';
+
+    // --- By airport ---
+    const airports = {};
+    for (const r of rows) {
+        const apt = r.ades || '?';
+        if (!airports[apt]) airports[apt] = [];
+        airports[apt].push(r);
+    }
+    const aptKeys = Object.keys(airports).sort();
+
+    html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">Accuracy by Airport</h3>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Airport</th><th>n (ours)</th><th>Our mean</th><th>Our \u00b13%</th><th>n (PERTI)</th><th>PERTI mean</th><th>PERTI \u00b13%</th></tr></thead><tbody>';
+    for (const apt of aptKeys) {
+        const arr = airports[apt];
+        const ourA = stats(arr.filter(r => r.our_err_min !== null), 'our_err_min');
+        const pA = stats(arr.filter(r => r.perti_err_min !== null), 'perti_err_min');
+        html += `<tr>
+            <td class="mono">${apt}</td>
+            <td class="mono">${ourA.n}</td>
+            <td class="mono ${deltaClass(ourA.mean)}">${ourA.mean !== null ? fmtSigned(ourA.mean) + 'm' : '—'}</td>
+            <td class="mono">${ourA.w3 !== null ? ourA.w3.toFixed(1) + '%' : '—'}</td>
+            <td class="mono">${pA.n || '—'}</td>
+            <td class="mono ${deltaClass(pA.mean)}">${pA.mean !== null ? fmtSigned(pA.mean) + 'm' : '—'}</td>
+            <td class="mono">${pA.w3 !== null ? pA.w3.toFixed(1) + '%' : '—'}</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div></div>';
+
+    // --- Full flight table (sortable) ---
+    let sorted = [...rows];
+    if (histSortCol !== null) {
+        sorted.sort((a, b) => {
+            let va = a[histSortCol], vb = b[histSortCol];
+            if (va === null || va === undefined) va = histSortAsc ? Infinity : -Infinity;
+            if (vb === null || vb === undefined) vb = histSortAsc ? Infinity : -Infinity;
+            if (typeof va === 'string') return histSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+            return histSortAsc ? va - vb : vb - va;
+        });
+    }
+
+    html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">All Flights (' + sorted.length + ')</h3>';
+    html += '<div class="table-wrap"><table id="hist-table"><thead><tr>';
+    const cols = [
+        { key: 'callsign', label: 'Callsign' },
+        { key: 'aircraft_type', label: 'Type' },
+        { key: 'route', label: 'Route', nosort: true },
+        { key: 'aldt', label: 'ALDT' },
+        { key: 'eldt_locked', label: 'Our ELDT' },
+        { key: 'our_err_min', label: 'Us err' },
+        { key: 'eldt_perti', label: 'PERTI ETA' },
+        { key: 'perti_err_min', label: 'PERTI err' },
+        { key: 'sb_err_min', label: 'SB err' },
+        { key: 'locked_source', label: 'Source' },
+    ];
+    for (const c of cols) {
+        const sortCls = c.nosort ? '' : 'sortable' + (histSortCol === c.key ? (histSortAsc ? ' sort-asc' : ' sort-desc') : '');
+        html += `<th class="${sortCls}" ${c.nosort ? '' : 'data-sort="' + c.key + '"'}>${c.label}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    for (const r of sorted) {
+        html += `<tr>
+            <td class="mono">${r.callsign}</td>
+            <td class="mono muted">${r.aircraft_type || '?'}</td>
+            <td class="mono">${r.adep || '?'} &rarr; ${r.ades || '?'}</td>
+            <td class="mono">${hhmmz(r.aldt)}</td>
+            <td class="mono">${hhmmz(r.eldt_locked)}</td>
+            <td class="mono ${deltaClass(r.our_err_min)}">${r.our_err_min !== null ? (r.our_err_min > 0 ? '+' : '') + r.our_err_min + 'm' : '—'}</td>
+            <td class="mono">${hhmmz(r.eldt_perti)}</td>
+            <td class="mono ${r.perti_err_min !== null ? deltaClass(r.perti_err_min) : 'muted'}">${r.perti_err_min !== null ? (r.perti_err_min > 0 ? '+' : '') + r.perti_err_min + 'm' : '—'}</td>
+            <td class="mono ${r.sb_err_min !== null ? deltaClass(r.sb_err_min) : 'muted'}">${r.sb_err_min !== null ? (r.sb_err_min > 0 ? '+' : '') + r.sb_err_min + 'm' : '—'}</td>
+            <td class="mono muted">${r.locked_source || '—'}</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div></div>';
+
+    el.innerHTML = html;
+
+    // Bind sort handlers
+    el.querySelectorAll('th.sortable[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+            const key = th.getAttribute('data-sort');
+            if (histSortCol === key) histSortAsc = !histSortAsc;
+            else { histSortCol = key; histSortAsc = true; }
+            renderAccuracy();
+        });
+    });
+}
+
+// Bind pill clicks after each render cycle
+function bindHistPills() {
+    const pills = document.getElementById('hist-pills');
+    if (!pills) return;
+    pills.querySelectorAll('.pill-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            pills.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            histDays = parseInt(btn.getAttribute('data-days'));
+            histSortCol = null; histSortAsc = true;
+            loadAccuracy();
+        });
+    });
+    loadAccuracy();
+}
+
+// Hook into the existing render to bind pills after DOM update
+const _origRender = render;
+render = function(d) {
+    _origRender(d);
+    bindHistPills();
+};
 </script>
 </body>
 </html>
