@@ -6,9 +6,11 @@ namespace Atfm\Allocator;
 
 /**
  * Great-circle and along-route distance helpers. No winds, no
- * atmosphere model. Uses filed route coordinates when available
- * to correct for routing deviations (NAT tracks, jet-stream
- * avoidance) that inflate actual distance vs great-circle.
+ * atmosphere model. Uses filed route waypoints (both coordinate
+ * and named fixes from data/waypoints.json) when available to
+ * correct for routing deviations (NAT tracks, jet-stream avoidance,
+ * domestic routes via named fixes) that inflate actual distance
+ * vs great-circle.
  *
  * See docs/ARCHITECTURE.md §2 for why we deliberately don't do more.
  */
@@ -148,44 +150,95 @@ final class Geo
      * @param float $fl100DistNm   Distance from airport where FL100 intersects the 3° slope
      * @param int   $iasHighKt     Type-specific descent IAS above FL100 (e.g. 310 for B77W)
      */
+    /** @var array<string,array{float,float}>|null Lazy-loaded waypoint DB */
+    private static ?array $waypointDb = null;
+
     /**
-     * Parse coordinate waypoints from a filed route string.
+     * Load the waypoint database (data/waypoints.json) once per process.
      *
-     * Handles two common formats in VATSIM flight plans:
+     * @return array<string,array{float,float}>
+     */
+    private static function loadWaypoints(): array
+    {
+        if (self::$waypointDb !== null) {
+            return self::$waypointDb;
+        }
+        $file = __DIR__ . '/../../data/waypoints.json';
+        if (file_exists($file)) {
+            $data = json_decode((string) file_get_contents($file), true);
+            self::$waypointDb = is_array($data) ? $data : [];
+        } else {
+            self::$waypointDb = [];
+        }
+        return self::$waypointDb;
+    }
+
+    /**
+     * Parse coordinate and named-fix waypoints from a filed route string.
+     *
+     * Handles coordinate formats:
      *   - NAT integer degrees: 49N050W, 54N020W, 60N020W
      *   - ICAO DDMM format:    3303S15639E, 5530N02030W
      *
+     * Also resolves named fixes (TONNY, YEE, FIORD, etc.) against
+     * data/waypoints.json. Speed/level groups, airway identifiers,
+     * and SID/STAR procedure names are skipped.
+     *
      * Returns an array of [lat, lon] pairs in decimal degrees,
-     * in the order they appear in the route string. Named fixes,
-     * airways, speed/level groups are ignored (no navdata DB).
+     * in the order they appear in the route string.
      *
      * @return array<array{float,float}>
      */
     public static function parseRouteCoordinates(string $route): array
     {
+        $waypoints = self::loadWaypoints();
         $coords = [];
-
-        // NAT format: DDN/SDDDW/E (2-digit lat, 3-digit lon)
-        // e.g. 49N050W, 60N020W, 35S170E
-        if (preg_match_all('/\b(\d{2})(N|S)(\d{3})(W|E)\b/', $route, $m, PREG_SET_ORDER)) {
-            foreach ($m as $match) {
-                $lat = (float) $match[1] * ($match[2] === 'S' ? -1 : 1);
-                $lon = (float) $match[3] * ($match[4] === 'W' ? -1 : 1);
-                $coords[] = [$lat, $lon];
-            }
+        $tokens = preg_split('/\s+/', trim($route));
+        if ($tokens === false) {
+            return [];
         }
 
-        // ICAO DDMM format: DDMMS/NDDDMME/W (4-digit lat, 5-digit lon)
-        // e.g. 3303S15639E, 5530N02030W
-        if (preg_match_all('/\b(\d{4})(N|S)(\d{5})(W|E)\b/', $route, $m, PREG_SET_ORDER)) {
-            foreach ($m as $match) {
-                $latDeg = (int) substr($match[1], 0, 2);
-                $latMin = (int) substr($match[1], 2, 2);
-                $lat = ($latDeg + $latMin / 60.0) * ($match[2] === 'S' ? -1 : 1);
-                $lonDeg = (int) substr($match[3], 0, 3);
-                $lonMin = (int) substr($match[3], 3, 2);
-                $lon = ($lonDeg + $lonMin / 60.0) * ($match[4] === 'W' ? -1 : 1);
+        foreach ($tokens as $token) {
+            $token = trim($token);
+            if ($token === '') {
+                continue;
+            }
+
+            // NAT format: DDN/SDDDW/E (2-digit lat, 3-digit lon)
+            if (preg_match('/^(\d{2})(N|S)(\d{3})(W|E)$/', $token, $m)) {
+                $lat = (float) $m[1] * ($m[2] === 'S' ? -1 : 1);
+                $lon = (float) $m[3] * ($m[4] === 'W' ? -1 : 1);
                 $coords[] = [$lat, $lon];
+                continue;
+            }
+
+            // ICAO DDMM format: DDMMN/SDDDMME/W (4-digit lat, 5-digit lon)
+            if (preg_match('/^(\d{4})(N|S)(\d{5})(W|E)$/', $token, $m)) {
+                $latDeg = (int) substr($m[1], 0, 2);
+                $latMin = (int) substr($m[1], 2, 2);
+                $lat = ($latDeg + $latMin / 60.0) * ($m[2] === 'S' ? -1 : 1);
+                $lonDeg = (int) substr($m[3], 0, 3);
+                $lonMin = (int) substr($m[3], 3, 2);
+                $lon = ($lonDeg + $lonMin / 60.0) * ($m[4] === 'W' ? -1 : 1);
+                $coords[] = [$lat, $lon];
+                continue;
+            }
+
+            // Skip speed/level groups (N0450F350, M082F390, K0900S1200)
+            if (preg_match('/^[NMK]\d{4}[FSAM]\d{3,4}$/', $token)) {
+                continue;
+            }
+
+            // Skip DCT (direct-to)
+            if ($token === 'DCT') {
+                continue;
+            }
+
+            // Named fix lookup — must be 2-5 uppercase alpha chars
+            // (filters out airway ids like UN601, UL9, single letters)
+            if (preg_match('/^[A-Z]{2,5}$/', $token) && isset($waypoints[$token])) {
+                $coords[] = [$waypoints[$token][0], $waypoints[$token][1]];
+                continue;
             }
         }
 
