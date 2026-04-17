@@ -84,10 +84,11 @@ who reposition aircraft) produce 100+ min outliers that skew reports.
 
 ## ETA estimation (`src/Allocator/EtaEstimator.php`)
 
-5-tier cascade, all using **descent-aware** computation (v0.5.6+):
+6-tier cascade, all using **descent-aware** computation (v0.5.6+):
 
 1. **FILED** (ground) — filed enroute_time + taxi, conf 90
-2. **OBSERVED_POS** (airborne) — descent-aware ETA from observed position, filed TAS preferred over GS (wind-neutral), conf 85/88
+1b. **FIR_EET** (ground) — ICAO EET/ from remarks (dispatch winds-corrected) + airport-specific approach time, conf 80
+2. **OBSERVED_POS** (airborne) — along-route distance from observed position, filed TAS preferred over GS (wind-neutral), conf 85/88
 3. **CALC_FILED_TAS** — descent-aware from filed cruise_tas, conf 70
 4. **CALC_TYPE_TAS** — descent-aware from `AircraftTas::typicalTas()`, conf 55
 5. **CALC_DEFAULT** — descent-aware from 430 kt, conf 40

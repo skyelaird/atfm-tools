@@ -498,4 +498,17 @@ if ($schema->hasTable('flights') && !$schema->hasColumn('flights', 'eta_source')
     echo "✓ added flights.eta_source + eta_confidence (v0.5.24)\n";
 }
 
+// v0.5.25: fp_fir_ete_min — cumulative ETE from EOBT to destination FIR
+// boundary, parsed from ICAO EET/ entries in flight plan remarks.
+// Airline-dispatch quality (wind-corrected, route-aware). Used as a
+// high-confidence ETA tier for non-SimBrief flights.
+if ($schema->hasTable('flights') && !$schema->hasColumn('flights', 'fp_fir_ete_min')) {
+    $schema->table('flights', function ($t) {
+        $t->unsignedSmallInteger('fp_fir_ete_min')->nullable()->default(null)
+          ->after('fp_enroute_time_min')
+          ->comment('Cumulative ETE (min) from EOBT to dest FIR boundary, from ICAO EET/ remarks');
+    });
+    echo "✓ added flights.fp_fir_ete_min (v0.5.25)\n";
+}
+
 echo "done.\n";
