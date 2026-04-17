@@ -54,6 +54,7 @@ final class Kernel
         self::registerAdminEndpoints($app);
         self::registerReportsEndpoints($app);
         self::registerDebugEndpoints($app);
+        self::registerEmergencyEndpoints($app);
 
         return $app;
     }
@@ -1929,6 +1930,30 @@ final class Kernel
                 'spawn_vs_eobt' => $spawnVsEobt,
                 'eobt_error_percentiles' => $pctiles,
             ]);
+        });
+    }
+
+    // ------------------------------------------------------------------
+    //  Emergency: manual ingest trigger (no cron needed)
+    // ------------------------------------------------------------------
+
+    private static function registerEmergencyEndpoints(App $app): void
+    {
+        // POST /api/v1/admin/trigger-ingest — run the ingestor once on demand.
+        // Use when the cron is dead (WHC hosting kills it after repeated failures).
+        // Returns the ingestor's normal result payload.
+        $app->post('/api/v1/admin/trigger-ingest', function ($req, $res) {
+            try {
+                $result = (new \Atfm\Ingestion\VatsimIngestor())->run();
+                return self::json($res, ['ok' => true, 'result' => $result]);
+            } catch (\Throwable $e) {
+                $res->getBody()->write(json_encode([
+                    'ok' => false,
+                    'error' => $e->getMessage(),
+                    'trace' => explode("\n", $e->getTraceAsString()),
+                ]));
+                return $res->withStatus(500)->withHeader('Content-Type', 'application/json');
+            }
         });
     }
 
