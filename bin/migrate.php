@@ -511,4 +511,13 @@ if ($schema->hasTable('flights') && !$schema->hasColumn('flights', 'fp_fir_ete_m
     echo "✓ added flights.fp_fir_ete_min (v0.5.25)\n";
 }
 
+// v0.5.27: Wind-corrected ELDT snapshot for three-way comparison.
+if ($schema->hasTable('flights') && !$schema->hasColumn('flights', 'eldt_wind')) {
+    $schema->table('flights', function (Blueprint $t) {
+        $t->dateTime('eldt_wind')->nullable()->after('eldt_perti')
+            ->comment('Wind-corrected (GRIB 250mb) ELDT snapshot from wind-shadow experiment');
+    });
+    echo "✓ added flights.eldt_wind (v0.5.27)\n";
+}
+
 echo "done.\n";

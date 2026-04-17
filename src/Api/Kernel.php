@@ -1377,6 +1377,9 @@ final class Kernel
                 $sbErr = $f->eldt_simbrief
                     ? round(($aldt - $f->eldt_simbrief->getTimestamp()) / 60)
                     : null;
+                $windErr = $f->eldt_wind
+                    ? round(($aldt - $f->eldt_wind->getTimestamp()) / 60)
+                    : null;
                 $synthetic = $f->aldt->getTimestamp() === $f->eldt_locked->getTimestamp();
                 return [
                     'callsign'      => $f->callsign,
@@ -1387,8 +1390,10 @@ final class Kernel
                     'eldt_locked'   => $f->eldt_locked->format('c'),
                     'eldt_perti'    => $f->eldt_perti?->format('c'),
                     'eldt_simbrief' => $f->eldt_simbrief?->format('c'),
+                    'eldt_wind'     => $f->eldt_wind?->format('c'),
                     'our_err_min'   => $ourErr,
                     'perti_err_min' => $pertiErr,
+                    'wind_err_min'  => $windErr,
                     'sb_err_min'    => $sbErr,
                     'is_simbrief'   => (bool) $f->is_simbrief,
                     'synthetic'     => $synthetic,
@@ -1400,6 +1405,7 @@ final class Kernel
             $real = array_filter($rows, fn($r) => !$r['synthetic'] && abs($r['our_err_min']) <= 120);
             $ourErrs = array_map(fn($r) => $r['our_err_min'], $real);
             $pertiErrs = array_values(array_filter(array_map(fn($r) => $r['perti_err_min'], $real), fn($v) => $v !== null));
+            $windErrs = array_values(array_filter(array_map(fn($r) => $r['wind_err_min'], $real), fn($v) => $v !== null));
 
             return self::json($res, [
                 'days'          => $days,
@@ -1410,6 +1416,8 @@ final class Kernel
                 'our_mean_abs'  => count($ourErrs) > 0 ? round(array_sum(array_map('abs', $ourErrs)) / count($ourErrs), 1) : null,
                 'perti_mean_err'=> count($pertiErrs) > 0 ? round(array_sum($pertiErrs) / count($pertiErrs), 1) : null,
                 'perti_mean_abs'=> count($pertiErrs) > 0 ? round(array_sum(array_map('abs', $pertiErrs)) / count($pertiErrs), 1) : null,
+                'wind_mean_err' => count($windErrs) > 0 ? round(array_sum($windErrs) / count($windErrs), 1) : null,
+                'wind_mean_abs' => count($windErrs) > 0 ? round(array_sum(array_map('abs', $windErrs)) / count($windErrs), 1) : null,
                 'flights'       => $rows,
             ]);
         });
@@ -1791,6 +1799,10 @@ final class Kernel
                     if ($f->eldt_simbrief) {
                         $sbErr = round(($aldt - $f->eldt_simbrief->getTimestamp()) / 60);
                     }
+                    $windErr = null;
+                    if ($f->eldt_wind) {
+                        $windErr = round(($aldt - $f->eldt_wind->getTimestamp()) / 60);
+                    }
                     // Detect synthetic ALDT (ALDT = eldt_locked exactly)
                     $synthetic = $f->aldt->getTimestamp() === $f->eldt_locked->getTimestamp();
                     return [
@@ -1801,8 +1813,10 @@ final class Kernel
                         'aldt'          => $f->aldt->format('c'),
                         'eldt_locked'   => $f->eldt_locked->format('c'),
                         'eldt_perti'    => $f->eldt_perti?->format('c'),
+                        'eldt_wind'     => $f->eldt_wind?->format('c'),
                         'eldt_simbrief' => $f->eldt_simbrief?->format('c'),
                         'our_err_min'   => $ourErr,
+                        'wind_err_min'  => $windErr,
                         'perti_err_min' => $pertiErr,
                         'sb_err_min'    => $sbErr,
                         'is_simbrief'   => (bool) $f->is_simbrief,
@@ -1955,6 +1969,32 @@ final class Kernel
                 ]));
                 return $res->withStatus(500)->withHeader('Content-Type', 'application/json');
             }
+        });
+
+        // POST /api/v1/admin/wind-eldt — batch-update wind-corrected ELDT.
+        // Called by the wind-shadow experiment script (bin/experiments/wind-shadow.py)
+        // to write GRIB-derived ELDTs onto flight records for three-way comparison.
+        // Body: { "updates": [ { "callsign": "ACA881", "eldt_wind": "2026-04-17T20:44:00Z" }, ... ] }
+        $app->post('/api/v1/admin/wind-eldt', function ($req, $res) {
+            $body = json_decode((string) $req->getBody(), true);
+            $updates = $body['updates'] ?? [];
+            $updated = 0;
+            foreach ($updates as $u) {
+                $cs = $u['callsign'] ?? null;
+                $eldtStr = $u['eldt_wind'] ?? null;
+                if (!$cs || !$eldtStr) continue;
+                try {
+                    $dt = new \DateTimeImmutable($eldtStr);
+                } catch (\Throwable $e) {
+                    continue;
+                }
+                $n = Flight::where('callsign', $cs)
+                    ->whereNull('aldt')
+                    ->whereNull('eldt_wind')
+                    ->update(['eldt_wind' => $dt->format('Y-m-d H:i:s')]);
+                $updated += $n;
+            }
+            return self::json($res, ['ok' => true, 'updated' => $updated]);
         });
     }
 

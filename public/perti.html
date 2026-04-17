@@ -238,9 +238,14 @@ function render(d) {
             ? (pertiLandings.map(l => Math.abs(l.perti_err_min)).reduce((a,b) => a+b, 0) / pertiLandings.length).toFixed(1)
             : '—';
 
-        html += `<section><h2>Post-Landing Accuracy (last 2h) — ${landings.length} flights, avg |err|: us=${ourAvg}m, PERTI=${pertiAvg}m</h2>
+        const windLandings = landings.filter(l => l.wind_err_min !== null);
+        const windAvg = windLandings.length > 0
+            ? (windLandings.map(l => Math.abs(l.wind_err_min)).reduce((a,b) => a+b, 0) / windLandings.length).toFixed(1)
+            : '—';
+
+        html += `<section><h2>Post-Landing Accuracy (last 2h) — ${landings.length} flights, avg |err|: us=${ourAvg}m, GRIB=${windAvg}m, PERTI=${pertiAvg}m</h2>
             <div class="table-wrap"><table>
-            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>ALDT</th><th>Our ELDT</th><th>Us err</th><th>PERTI ETA</th><th>PERTI err</th><th>SimBrief</th><th>SB err</th></tr></thead><tbody>`;
+            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>ALDT</th><th>Our ELDT</th><th>Us err</th><th>GRIB ELDT</th><th>GRIB err</th><th>PERTI ETA</th><th>PERTI err</th></tr></thead><tbody>`;
         for (const l of landings) {
             html += `<tr>
                 <td class="mono">${l.callsign}</td>
@@ -249,10 +254,10 @@ function render(d) {
                 <td class="mono">${hhmmz(l.aldt)}</td>
                 <td class="mono">${hhmmz(l.eldt_locked)}</td>
                 <td class="mono ${deltaClass(l.our_err_min)}">${l.our_err_min > 0 ? '+' : ''}${l.our_err_min}m</td>
+                <td class="mono">${hhmmz(l.eldt_wind) || '—'}</td>
+                <td class="mono ${l.wind_err_min !== null ? deltaClass(l.wind_err_min) : 'muted'}">${l.wind_err_min !== null ? (l.wind_err_min > 0 ? '+' : '') + l.wind_err_min + 'm' : '—'}</td>
                 <td class="mono">${hhmmz(l.eldt_perti) || '—'}</td>
                 <td class="mono ${l.perti_err_min !== null ? deltaClass(l.perti_err_min) : 'muted'}">${l.perti_err_min !== null ? (l.perti_err_min > 0 ? '+' : '') + l.perti_err_min + 'm' : '—'}</td>
-                <td class="mono">${hhmmz(l.eldt_simbrief) || '—'}</td>
-                <td class="mono ${l.sb_err_min !== null ? deltaClass(l.sb_err_min) : 'muted'}">${l.sb_err_min !== null ? (l.sb_err_min > 0 ? '+' : '') + l.sb_err_min + 'm' : '—'}</td>
             </tr>`;
         }
         html += '</tbody></table></div></section>';
@@ -355,18 +360,22 @@ function renderAccuracy() {
     const ourS = stats(ourErrs, 'our_err_min');
     const pertiS = stats(pertiErrs, 'perti_err_min');
 
-    html += '<div class="summary-bar" style="display:grid;grid-template-columns:auto 1fr 1fr;gap:0.5rem 1.5rem;align-items:center;">';
-    html += '<div></div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">Our Model</div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">PERTI</div>';
+    const windErrs = rows.filter(r => r.wind_err_min !== null);
+    const windS = stats(windErrs, 'wind_err_min');
+
+    html += '<div class="summary-bar" style="display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:0.5rem 1.5rem;align-items:center;">';
+    html += '<div></div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">Our Model</div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">GRIB Wind</div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">PERTI</div>';
     const metricRows = [
-        ['n', ourS.n, pertiS.n],
-        ['Mean error', ourS.mean !== null ? fmtSigned(ourS.mean) + 'm' : '—', pertiS.mean !== null ? fmtSigned(pertiS.mean) + 'm' : '—'],
-        ['|Mean|', ourS.absMean !== null ? ourS.absMean.toFixed(1) + 'm' : '—', pertiS.absMean !== null ? pertiS.absMean.toFixed(1) + 'm' : '—'],
-        ['\u00b13 min', ourS.w3 !== null ? ourS.w3.toFixed(1) + '%' : '—', pertiS.w3 !== null ? pertiS.w3.toFixed(1) + '%' : '—'],
-        ['\u00b15 min', ourS.w5 !== null ? ourS.w5.toFixed(1) + '%' : '—', pertiS.w5 !== null ? pertiS.w5.toFixed(1) + '%' : '—'],
+        ['n', ourS.n, windS.n, pertiS.n],
+        ['Mean error', ourS.mean !== null ? fmtSigned(ourS.mean) + 'm' : '—', windS.mean !== null ? fmtSigned(windS.mean) + 'm' : '—', pertiS.mean !== null ? fmtSigned(pertiS.mean) + 'm' : '—'],
+        ['|Mean|', ourS.absMean !== null ? ourS.absMean.toFixed(1) + 'm' : '—', windS.absMean !== null ? windS.absMean.toFixed(1) + 'm' : '—', pertiS.absMean !== null ? pertiS.absMean.toFixed(1) + 'm' : '—'],
+        ['\u00b13 min', ourS.w3 !== null ? ourS.w3.toFixed(1) + '%' : '—', windS.w3 !== null ? windS.w3.toFixed(1) + '%' : '—', pertiS.w3 !== null ? pertiS.w3.toFixed(1) + '%' : '—'],
+        ['\u00b15 min', ourS.w5 !== null ? ourS.w5.toFixed(1) + '%' : '—', windS.w5 !== null ? windS.w5.toFixed(1) + '%' : '—', pertiS.w5 !== null ? pertiS.w5.toFixed(1) + '%' : '—'],
     ];
-    for (const [lbl, ours, perti] of metricRows) {
+    for (const [lbl, ours, wind, perti] of metricRows) {
         html += `<div style="font-size:0.75rem;color:var(--text-dim);">${lbl}</div>`;
         html += `<div class="mono" style="text-align:center;color:var(--text-bright);">${ours}</div>`;
+        html += `<div class="mono" style="text-align:center;color:var(--accent);">${wind}</div>`;
         html += `<div class="mono" style="text-align:center;color:var(--text-bright);">${perti}</div>`;
     }
     html += '</div>';
@@ -444,9 +453,10 @@ function renderAccuracy() {
         { key: 'aldt', label: 'ALDT' },
         { key: 'eldt_locked', label: 'Our ELDT' },
         { key: 'our_err_min', label: 'Us err' },
+        { key: 'eldt_wind', label: 'GRIB ELDT' },
+        { key: 'wind_err_min', label: 'GRIB err' },
         { key: 'eldt_perti', label: 'PERTI ETA' },
         { key: 'perti_err_min', label: 'PERTI err' },
-        { key: 'sb_err_min', label: 'SB err' },
         { key: 'locked_source', label: 'Source' },
     ];
     for (const c of cols) {
@@ -462,9 +472,10 @@ function renderAccuracy() {
             <td class="mono">${hhmmz(r.aldt)}</td>
             <td class="mono">${hhmmz(r.eldt_locked)}</td>
             <td class="mono ${deltaClass(r.our_err_min)}">${r.our_err_min !== null ? (r.our_err_min > 0 ? '+' : '') + r.our_err_min + 'm' : '—'}</td>
+            <td class="mono">${hhmmz(r.eldt_wind)}</td>
+            <td class="mono ${r.wind_err_min !== null ? deltaClass(r.wind_err_min) : 'muted'}">${r.wind_err_min !== null ? (r.wind_err_min > 0 ? '+' : '') + r.wind_err_min + 'm' : '—'}</td>
             <td class="mono">${hhmmz(r.eldt_perti)}</td>
             <td class="mono ${r.perti_err_min !== null ? deltaClass(r.perti_err_min) : 'muted'}">${r.perti_err_min !== null ? (r.perti_err_min > 0 ? '+' : '') + r.perti_err_min + 'm' : '—'}</td>
-            <td class="mono ${r.sb_err_min !== null ? deltaClass(r.sb_err_min) : 'muted'}">${r.sb_err_min !== null ? (r.sb_err_min > 0 ? '+' : '') + r.sb_err_min + 'm' : '—'}</td>
             <td class="mono muted">${r.locked_source || '—'}</td>
         </tr>`;
     }
