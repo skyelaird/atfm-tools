@@ -107,6 +107,7 @@
         .rate-total { margin-left: auto; text-align: center; }
         .rate-total .rate-num { font-size: 2rem; color: #c084fc; }
         .rate-total .rate-label { width: auto; font-size: 0.6rem; }
+        .rate-calm { font-size: 0.6rem; color: var(--text-dim); margin-left: 0.5rem; font-family: var(--mono); }
         .rate-sub { font-size: 0.6rem; color: var(--text-dim); margin-top: 0.2rem; }
 
         .metar-raw { font-size: 0.6rem; color: var(--text-dim); margin-top: 0.3rem; word-break: break-all; cursor: pointer; max-height: 1.2em; overflow: hidden; transition: max-height 0.3s; }
@@ -296,7 +297,7 @@ function renderCard(icao) {
         <div class="rwy-grid">${cards}</div>
         <div class="rate-box">
             <div class="rate-stack">
-                <div class="rate-row rate-arr"><span class="rate-label">AAR</span><span class="rate-num" id="aar-${icao}">—</span></div>
+                <div class="rate-row rate-arr"><span class="rate-label">AAR</span><span class="rate-num" id="aar-${icao}">—</span><span class="rate-calm" id="aar-calm-${icao}"></span></div>
                 <div class="rate-row rate-dep"><span class="rate-label">ADR</span><span class="rate-num" id="adr-${icao}">—</span></div>
             </div>
             <div class="rate-total"><div class="rate-num" id="total-${icao}">—</div><div class="rate-label">movements</div></div>
@@ -358,15 +359,23 @@ async function computeRates(icao) {
     const declaredArr = cfg?.declared_arr_rate || null;
     const declaredDep = cfg?.declared_dep_rate || null;
 
-    let achievableArr = 0, details = [];
+    let achievableArr = 0, calmArr = 0, details = [];
     for (const [ident, r] of arrRwys) {
         try {
-            const res = await fetch(`/api/v1/aar/calculate?airport=${icao}&headwind=${r.hw}`);
+            // Fetch wind-adjusted and calm (zero headwind) rates in parallel
+            const [res, resCal] = await Promise.all([
+                fetch(`/api/v1/aar/calculate?airport=${icao}&headwind=${r.hw}`),
+                fetch(`/api/v1/aar/calculate?airport=${icao}&headwind=0`),
+            ]);
             const d = await res.json();
+            const dCal = await resCal.json();
             // Interleaved A/D single-runway loses ~40% of slots to deps (FAA
             // Ch.10 §7: mixed ops reduce arrival capacity to give dep windows).
-            const rate = r.role === 'A/D' ? Math.round(d.aar * 0.6) : d.aar;
-            achievableArr += rate; details.push(`${ident}:${rate}A`);
+            const adFactor = r.role === 'A/D' ? 0.6 : 1;
+            const rate = Math.round(d.aar * adFactor);
+            const calmRate = Math.round(dCal.aar * adFactor);
+            achievableArr += rate; calmArr += calmRate;
+            details.push(`${ident}:${rate}A`);
         } catch (e) {}
     }
 
@@ -389,19 +398,22 @@ async function computeRates(icao) {
     const aarCell = document.getElementById(`aar-${icao}`);
     if (aarCell) {
         aarCell.textContent = `${opArr}/hr`;
-        if (declaredArr !== null && achievableArr < declaredArr) {
-            // Wind-constrained below declared rate — colour-code severity
-            const gap = declaredArr - achievableArr;
+        const gap = calmArr - achievableArr;
+        if (gap >= 1) {
+            // Wind is reducing rate below calm capacity — colour-code severity
             aarCell.style.color = gap >= 8 ? 'var(--alert)' : gap >= 4 ? 'var(--warn)' : 'var(--info)';
-            aarCell.title = `Wind-reduced from declared ${declaredArr}/hr (−${gap})`;
+            aarCell.title = `Wind-reduced by ${gap} from calm ${calmArr}/hr`;
         } else {
             aarCell.style.color = '';
-            aarCell.title = declaredArr !== null ? `At or above declared ${declaredArr}/hr` : '';
+            aarCell.title = '';
         }
+        // Show calm reference underneath when wind-reduced
+        const calmRef = document.getElementById(`aar-calm-${icao}`);
+        if (calmRef) calmRef.textContent = gap >= 1 ? `calm ${calmArr}` : '';
     }
     el(`adr-${icao}`, `${totalDep}/hr`);
     el(`total-${icao}`, `${opArr + totalDep}`);
-    el(`rate-detail-${icao}`, details.join(' | ') + (declaredArr !== null ? ` | decl ${declaredArr}A/${declaredDep}D` : ''));
+    el(`rate-detail-${icao}`, details.join(' | '));
 }
 
 async function loadAll() {
