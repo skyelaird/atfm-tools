@@ -813,15 +813,28 @@ final class VatsimIngestor
 
     private function fetchPertiAdlIndex(): array
     {
-        $key = 'swim_pub_7783b37a28c167af41788599954e3e39';
-        $ctx = stream_context_create([
-            'http' => [
-                'header' => "Authorization: Bearer {$key}\r\n",
-                'timeout' => 5,
-            ],
-            'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
-        ]);
-        $raw = @file_get_contents('https://perti.vatcscc.org/api/adl/current', false, $ctx);
+        // Re-use the 2-min cache written by the /perti/compare endpoint
+        // so we never hit PERTI more than once per 2 min across all callers.
+        $cacheFile = sys_get_temp_dir() . '/atfm_perti_adl_cache.json';
+        $cacheTtl  = 120;
+        $raw = null;
+        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $cacheTtl) {
+            $raw = file_get_contents($cacheFile);
+        }
+        if (!$raw) {
+            $key = 'swim_pub_7783b37a28c167af41788599954e3e39';
+            $ctx = stream_context_create([
+                'http' => [
+                    'header' => "Authorization: Bearer {$key}\r\n",
+                    'timeout' => 5,
+                ],
+                'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
+            ]);
+            $raw = @file_get_contents('https://perti.vatcscc.org/api/adl/current', false, $ctx);
+            if ($raw !== false) {
+                @file_put_contents($cacheFile, $raw);
+            }
+        }
         if ($raw === false) {
             return []; // PERTI unreachable — silent fail
         }

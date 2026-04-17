@@ -1673,17 +1673,27 @@ final class Kernel
             $airports = ['CYHZ', 'CYOW', 'CYUL', 'CYVR', 'CYWG', 'CYYC', 'CYYZ'];
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
-            // Fetch PERTI ADL
-            $ctx = stream_context_create([
-                'http' => [
-                    'header' => "Authorization: Bearer {$swimKey}\r\n",
-                    'timeout' => 10,
-                ],
-                'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
-            ]);
-            $raw = @file_get_contents('https://perti.vatcscc.org/api/adl/current', false, $ctx);
-            if ($raw === false) {
-                return self::json($res, ['error' => 'Failed to fetch PERTI ADL'], 502);
+            // Fetch PERTI ADL — cached for 2 min to avoid hammering their server.
+            // Multiple page loads and the ingestor all share the same cache file.
+            $cacheFile = sys_get_temp_dir() . '/atfm_perti_adl_cache.json';
+            $cacheTtl  = 120; // seconds
+            $raw = null;
+            if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $cacheTtl) {
+                $raw = file_get_contents($cacheFile);
+            }
+            if (!$raw) {
+                $ctx = stream_context_create([
+                    'http' => [
+                        'header' => "Authorization: Bearer {$swimKey}\r\n",
+                        'timeout' => 10,
+                    ],
+                    'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
+                ]);
+                $raw = @file_get_contents('https://perti.vatcscc.org/api/adl/current', false, $ctx);
+                if ($raw === false) {
+                    return self::json($res, ['error' => 'Failed to fetch PERTI ADL'], 502);
+                }
+                @file_put_contents($cacheFile, $raw);
             }
             $adl = json_decode($raw, true);
             if (!$adl || !isset($adl['flights'])) {
