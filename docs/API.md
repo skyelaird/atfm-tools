@@ -149,6 +149,8 @@ curl http://atfm.momentaryshutter.com/api/v1/flights?airport=CYHZ&direction=inbo
   "aobt": "2026-04-12T14:32:00+00:00",
   "atot": "2026-04-12T14:42:00+00:00",
   "eldt": "2026-04-12T15:48:00+00:00",
+  "eta_source": "OBSERVED_POS",
+  "eta_confidence": 85,
   "aldt": null,
   "aibt": null,
 

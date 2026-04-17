@@ -159,9 +159,8 @@ docs/
 - Jeremy Peterson coordination for PERTI SWIM partner key — **strictly
   optional**, not blocking. PERTI runs a public SWIM v1 API; we ingest
   VATSIM directly so we don't need it.
-- Persist `eta_source` on flights table (currently computed in EtaEstimator
-  output but not stored)
-- Add ETA accuracy breakdown by source tier to reports page
+- ~~Persist `eta_source` on flights table~~ ✅ shipped v0.5.24
+- ~~Add ETA accuracy breakdown by source tier to reports page~~ ✅ shipped v0.5.24
 
 ## Retired ideas (don't re-propose without checking)
 

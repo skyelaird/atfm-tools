@@ -484,4 +484,18 @@ if ($schema->hasTable('flights') && !$schema->hasColumn('flights', 'tobt_source'
     echo "✓ added flights.tobt_source column (v0.5.23)\n";
 }
 
+// v0.5.24: eta_source + eta_confidence — persists the EtaEstimator
+// output tier so we can break down ELDT accuracy by source on reports.
+if ($schema->hasTable('flights') && !$schema->hasColumn('flights', 'eta_source')) {
+    $schema->table('flights', function ($t) {
+        $t->string('eta_source', 20)->nullable()->default(null)
+          ->after('eldt')
+          ->comment('EtaEstimator tier: FILED, OBSERVED_POS, CALC_FILED_TAS, CALC_TYPE_TAS, CALC_DEFAULT');
+        $t->unsignedTinyInteger('eta_confidence')->nullable()->default(null)
+          ->after('eta_source')
+          ->comment('Self-rated confidence 0-100 from EtaEstimator');
+    });
+    echo "✓ added flights.eta_source + eta_confidence (v0.5.24)\n";
+}
+
 echo "done.\n";

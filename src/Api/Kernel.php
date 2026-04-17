@@ -371,6 +371,8 @@ final class Kernel
                         'aobt'           => $f->aobt?->format('c'),
                         'atot'           => $f->atot?->format('c'),
                         'eldt'           => $f->eldt?->format('c'),
+                        'eta_source'     => $f->eta_source,
+                        'eta_confidence' => $f->eta_confidence,
                         'eldt_locked'    => $f->eldt_locked?->format('c'),
                         'eldt_locked_at' => $f->eldt_locked_at?->format('c'),
                         'eldt_locked_source' => $f->eldt_locked_source,
@@ -1082,7 +1084,7 @@ final class Kernel
                     ->where('aldt', '>=', $sinceStr)
                     ->get([
                         'aldt', 'aibt', 'actual_exit_min',
-                        'eldt_locked', 'tldt',
+                        'eldt_locked', 'eldt_locked_source', 'tldt',
                     ]);
 
                 $departures = Flight::where('adep', $a->icao)
@@ -1122,6 +1124,37 @@ final class Kernel
                     }
                 }
 
+                // ELDT accuracy by ETA source tier. Uses eldt_locked_source
+                // (the tier active at freeze time) to attribute error to the
+                // right estimator branch. This is the diagnostic tool for
+                // "which tier is dragging down accuracy?"
+                $eldtByTier = [];
+                foreach ($arrivals as $f) {
+                    if ($f->aldt && $f->eldt_locked && $f->eldt_locked_source
+                        && $f->aldt->getTimestamp() !== $f->eldt_locked->getTimestamp()
+                    ) {
+                        $err = ($f->aldt->getTimestamp() - $f->eldt_locked->getTimestamp()) / 60;
+                        if (abs($err) > 120) continue;
+                        $tier = $f->eldt_locked_source;
+                        if (!isset($eldtByTier[$tier])) {
+                            $eldtByTier[$tier] = ['errors' => [], 'within' => 0];
+                        }
+                        $eldtByTier[$tier]['errors'][] = $err;
+                        if (abs($err) <= $toleranceMin) {
+                            $eldtByTier[$tier]['within']++;
+                        }
+                    }
+                }
+                $tierBreakdown = [];
+                foreach ($eldtByTier as $tier => $td) {
+                    $n = count($td['errors']);
+                    $tierBreakdown[$tier] = [
+                        'n'       => $n,
+                        'err_min' => self::avg($td['errors']),
+                        'pct_ok'  => $n > 0 ? round(100 * $td['within'] / $n, 1) : null,
+                    ];
+                }
+
                 // TLDT slot fidelity. For each completed arrival with a
                 // tldt assigned by the allocator, compute (ALDT − tldt) in
                 // minutes. This is the operational metric: how well did
@@ -1159,6 +1192,7 @@ final class Kernel
                                                   ? round(100 * $eldtWithinTolerance / count($eldtErrors), 1)
                                                   : null,
                     'eldt_sample_n'            => count($eldtErrors),
+                    'eldt_by_tier'             => $tierBreakdown,
                     // TLDT slot fidelity
                     'tldt_err_min'            => self::avg($tldtErrors),
                     'tldt_p90_abs_min'         => self::percentile($tldtAbsErrors, 90),
@@ -1183,6 +1217,17 @@ final class Kernel
             $nonCompliant = Flight::where('delay_status', Flight::DELAY_NON_COMPLIANT)
                 ->where('updated_at', '>=', $sinceStr)
                 ->count();
+
+            // Live ETA source distribution — how many active flights are
+            // on each estimator tier right now? Useful for diagnosing
+            // "90% of my flights are on CALC_DEFAULT" situations.
+            $etaSourceDist = Flight::selectRaw('eta_source, COUNT(*) as n')
+                ->whereNotNull('eta_source')
+                ->where('eta_source', '!=', 'NONE')
+                ->where('last_updated_at', '>=', $sinceStr)
+                ->groupBy('eta_source')
+                ->pluck('n', 'eta_source')
+                ->all();
 
             // Aircraft type distribution (top 20) with per-airport breakdown.
             // Two queries: one for the global top-20 ranking, then a second
@@ -1249,6 +1294,7 @@ final class Kernel
                         ? round($compliant / ($compliant + $nonCompliant), 3)
                         : null,
                 ],
+                'eta_source_distribution' => $etaSourceDist,
                 'airports'     => $rows,
                 'top_aircraft' => $typeRows,
             ]);

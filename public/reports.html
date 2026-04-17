@@ -145,6 +145,20 @@
     </section>
 
     <section>
+        <h2>ETA source distribution</h2>
+        <div class="totals-grid" id="eta-dist-grid">
+            <div class="stat-card"><div class="lbl">Loading...</div><div class="val">&mdash;</div></div>
+        </div>
+        <p style="font-size:0.7rem;color:var(--text-dim);margin-top:0.4rem;">
+            FILED = pilot's enroute_time &middot;
+            OBSERVED_POS = descent-aware from radar &middot;
+            CALC_FILED_TAS = geometric from filed TAS &middot;
+            CALC_TYPE_TAS = geometric from type table &middot;
+            CALC_DEFAULT = geometric at 430 kt
+        </p>
+    </section>
+
+    <section>
         <h2>Per-airport movements, taxi times &amp; prediction quality</h2>
         <div class="table-wrap">
             <table id="airports-table">
@@ -327,6 +341,25 @@ function rerender() {
     addTotal('compliant departed',  t.compliant_departed);
     addTotal('non-compliant',       t.non_compliant);
     addTotal('compliance rate',     t.compliance_rate != null ? (t.compliance_rate * 100).toFixed(0) + '%' : '\u2014');
+
+    // ETA source distribution
+    const etaGrid = $('eta-dist-grid');
+    etaGrid.innerHTML = '';
+    const etaDist = d.eta_source_distribution || {};
+    const tierOrder = ['FILED', 'OBSERVED_POS', 'CALC_FILED_TAS', 'CALC_TYPE_TAS', 'CALC_DEFAULT'];
+    const tierLabels = { FILED: 'Filed ETE', OBSERVED_POS: 'Observed pos', CALC_FILED_TAS: 'Filed TAS', CALC_TYPE_TAS: 'Type TAS', CALC_DEFAULT: 'Default 430kt' };
+    const tierTotal = Object.values(etaDist).reduce((a, b) => a + b, 0);
+    for (const tier of tierOrder) {
+        const n = etaDist[tier] || 0;
+        const pct = tierTotal > 0 ? (100 * n / tierTotal).toFixed(0) + '%' : '\u2014';
+        etaGrid.appendChild(el('div', { class: 'stat-card' },
+            el('div', { class: 'lbl' }, tierLabels[tier] || tier),
+            el('div', { class: 'val mono' },
+                String(n),
+                el('span', { class: 'unit' }, ` (${pct})`)
+            )
+        ));
+    }
 
     // Airports — default sort west to east by longitude
     d.airports.sort((a, b) => (a.longitude || 0) - (b.longitude || 0));

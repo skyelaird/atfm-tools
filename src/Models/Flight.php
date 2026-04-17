@@ -84,7 +84,7 @@ final class Flight extends Model
         // E* = estimated, T* = target, A* = actual, C* = calculated.
         'eobt', 'tobt', 'tobt_source', 'tsat', 'ttot', 'ctot',
         'asat', 'aobt', 'atot',
-        'eldt',
+        'eldt', 'eta_source', 'eta_confidence',
         // ELDT snapshot frozen at the validation horizon (default 60 min
         // before predicted landing). Used to compute (ALDT − eldt_locked)
         // as the prediction-quality KPI.

@@ -537,6 +537,9 @@ final class VatsimIngestor
                 $est = \Atfm\Allocator\EtaEstimator::estimate($flight, $airportRow, $now, [
                     'force_observed' => $levelFlight && !$nearFiledAlt,
                 ]);
+                $flight->eta_source     = $est['source'];
+                $flight->eta_confidence = $est['confidence'];
+
                 if ($est['epoch'] !== null) {
                     $flight->eldt = (new DateTimeImmutable('@' . $est['epoch']))
                         ->setTimezone(new DateTimeZone('UTC'));
