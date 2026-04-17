@@ -27,7 +27,7 @@
         "primary_arr": "05",
         "primary_dep": "14",
         "declared_arr_rate": 26,
-        "declared_dep_rate": 22
+        "declared_dep_rate": 30
       },
       {
         "name": "05-LAHSO-32",
@@ -41,7 +41,7 @@
         "primary_arr": "05",
         "primary_dep": "32",
         "declared_arr_rate": 26,
-        "declared_dep_rate": 22
+        "declared_dep_rate": 30
       },
       {
         "name": "23",
