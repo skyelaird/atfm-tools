@@ -388,14 +388,15 @@ async function computeRates(icao) {
     const opArr = (declaredArr !== null) ? Math.min(declaredArr, achievableArr) : achievableArr;
     const aarCell = document.getElementById(`aar-${icao}`);
     if (aarCell) {
+        aarCell.textContent = `${opArr}/hr`;
         if (declaredArr !== null && achievableArr < declaredArr) {
-            // Wind-constrained: show red/yellow based on gap
+            // Wind-constrained below declared rate — colour-code severity
             const gap = declaredArr - achievableArr;
-            aarCell.textContent = `${opArr}/${declaredArr}`;
-            aarCell.style.color = gap >= 8 ? 'var(--alert)' : gap >= 4 ? 'var(--warn)' : '';
+            aarCell.style.color = gap >= 8 ? 'var(--alert)' : gap >= 4 ? 'var(--warn)' : 'var(--info)';
+            aarCell.title = `Wind-reduced from declared ${declaredArr}/hr (−${gap})`;
         } else {
-            aarCell.textContent = `${opArr}/hr`;
             aarCell.style.color = '';
+            aarCell.title = declaredArr !== null ? `At or above declared ${declaredArr}/hr` : '';
         }
     }
     el(`adr-${icao}`, `${totalDep}/hr`);

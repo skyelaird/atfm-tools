@@ -33,7 +33,9 @@ Not multi-region. Not a generalised flow management platform.
 
 ## Hard rules / non-goals
 
-- Never compute winds, pressure, atmosphere — geometric ETA only
+- Never compute winds, pressure, atmosphere in production — geometric ETA only
+  (experimental GRIB wind-correction exists in `bin/experiments/` but is not
+  wired into the allocator)
 - Never invent A-CDM milestones we can't observe (e.g. **never stamp ASAT**
   from the ingestor — it's a controller event, not a position event)
 - Never persist CTOTs across restriction lifetimes — stale CTOTs are
@@ -88,7 +90,9 @@ who reposition aircraft) produce 100+ min outliers that skew reports.
 
 1. **FILED** (ground) — filed enroute_time + taxi, conf 90
 1b. **FIR_EET** (ground) — ICAO EET/ from remarks (dispatch winds-corrected) + airport-specific approach time, conf 80
-2. **OBSERVED_POS** (airborne) — along-route distance from observed position, filed TAS preferred over GS (wind-neutral), conf 85/88
+2. **OBSERVED_POS** (airborne) — along-route distance from observed position
+   using 4-layer route resolution (see below), filed TAS preferred over GS
+   (wind-neutral), conf 85/88
 3. **CALC_FILED_TAS** — descent-aware from filed cruise_tas, conf 70
 4. **CALC_TYPE_TAS** — descent-aware from `AircraftTas::typicalTas()`, conf 55
 5. **CALC_DEFAULT** — descent-aware from 430 kt, conf 40
@@ -111,6 +115,32 @@ ETE ≤ 1:30, so allocator lookahead and freeze horizon are the same clock.
 The frozen value becomes TLDT (committed slot). Target accuracy: ±3 min.
 See [docs/DESIGN.md](docs/DESIGN.md) §4 for rationale.
 
+## Route resolution (`Geo::parseRouteCoordinates()`)
+
+4-layer pipeline resolves ICAO route strings to coordinate waypoint arrays
+(v0.5.29+). A route like `SSM V300 YVV DCT TONNY BOXUM7` yields ~18
+resolved waypoints instead of 2.
+
+1. **Coordinate waypoints** — `49N050W`, `5530N02030W` parsed directly
+2. **Named fixes** — lookup in `data/waypoints.json` (124 684 fixes from
+   Navigraph ISEC + AIRWAY + PMDG SidStars terminal fixes)
+3. **Airway segments** — `FIX_A J501 FIX_B` expanded via adjacency graph
+   in `data/airways.json` (4 654 airways, 38 654 fix entries)
+4. **SID/STAR procedures** — e.g. `BOXUM7` expanded via
+   `data/procedures.json` (61 procedures for the 7 Canadian airports)
+
+`bin/import-navdata.php` regenerates all three JSON files from Navigraph
+AIRAC data + PMDG SidStars. The Python `wind-shadow.py` mirrors the same
+4-layer parsing.
+
+## Wind-corrected ELDT experiment (v0.5.27+)
+
+`bin/experiments/wind-shadow.py` — offline GRIB 250 mb wind-correction
+prototype. Writes `eldt_wind` column on flights. Three-way comparison on
+PERTI page (our geometric ELDT / GRIB wind / PERTI). PERTI API responses
+cached 2-min TTL. **Not wired into production ETA cascade** — research
+only to quantify geometric-vs-wind accuracy gap.
+
 ## OpLevel taxonomy (PERTI-compatible)
 
 1. Steady State, 2. Localized, 3. Regional, 4. NAS-Wide.
@@ -131,10 +161,13 @@ src/
 public/
   dashboard.html  FMP view + airport detail right-docked drawer
   reports.html    per-airport KPIs + ELDT/TLDT accuracy + aircraft mix
-  map.html        live map
+  map.html        live map (disabled — no operational use yet, shows FIR boundaries only)
 data/
   taxizones.txt   apron polygons x runway -> taxi time (from vIFF CDM config)
   rates.txt       runway-config arrival/departure rates
+  waypoints.json  124,684 enroute + terminal fixes (from Navigraph + PMDG)
+  airways.json    4,654 airways with adjacency graph (from Navigraph AIRWAY.txt)
+  procedures.json 61 SID/STAR procedures for the 7 Canadian airports
 bin/
   ingest-vatsim.php   cron: VatsimIngestor (every 2 min)
   compute-ctots.php   cron: CtotAllocator (every 2 min)
@@ -147,6 +180,8 @@ bin/
   scrub-hallucinations.php  data cleanup (one-shot, idempotent)
   audit-data.php      data quality report (read-only)
   tobt-analysis.php   TOBT proxy research: spawn-to-pushback stats
+  import-navdata.php  generate waypoints/airways/procedures JSON from Navigraph + PMDG
+  experiments/        wind-shadow.py (GRIB wind-corrected ELDT prototype)
 docs/
   ARCHITECTURE.md     full design document
   GLOSSARY.md         cross-system term reference
@@ -168,6 +203,11 @@ docs/
   (TOBT = max(EOBT, created_at + 20 min) — data-driven from 675 departures)
 - Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
 - ctot.html live testing with CDM plugin — needs a real session
+- ~~Navigation data + route resolution~~ ✅ shipped v0.5.31
+  (4-layer parsing: coordinates, named fixes, airways, SID/STARs)
+- ~~FIR_EET tier~~ ✅ shipped v0.5.26 (dispatch-quality ETA from ICAO EET/)
+- Wind-corrected ELDT — experimental GRIB prototype in `bin/experiments/`,
+  quantifying geometric-vs-wind accuracy gap. Not yet production.
 
 ## Retired ideas (don't re-propose without checking)
 
