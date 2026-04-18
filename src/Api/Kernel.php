@@ -1122,6 +1122,9 @@ final class Kernel
                 $eldtErrors = [];
                 $eldtAbsErrors = [];
                 $eldtWithinTolerance = 0;
+                $eldtWithin5 = 0;
+                $eldtWithin10 = 0;
+                $eldtBeyond10 = 0;
                 foreach ($arrivals as $f) {
                     if ($f->aldt && $f->eldt_locked
                         && $f->aldt->getTimestamp() !== $f->eldt_locked->getTimestamp() // exclude synthetic
@@ -1132,6 +1135,14 @@ final class Kernel
                         $eldtAbsErrors[] = abs($err);
                         if (abs($err) <= $toleranceMin) {
                             $eldtWithinTolerance++;
+                        }
+                        if (abs($err) <= 5) {
+                            $eldtWithin5++;
+                        }
+                        if (abs($err) <= 10) {
+                            $eldtWithin10++;
+                        } else {
+                            $eldtBeyond10++;
                         }
                     }
                 }
@@ -1174,6 +1185,9 @@ final class Kernel
                 $tldtErrors = [];
                 $tldtAbsErrors = [];
                 $tldtWithinTolerance = 0;
+                $tldtWithin5 = 0;
+                $tldtWithin10 = 0;
+                $tldtBeyond10 = 0;
                 foreach ($arrivals as $f) {
                     if ($f->aldt && $f->tldt) {
                         $err = ($f->aldt->getTimestamp() - $f->tldt->getTimestamp()) / 60;
@@ -1181,6 +1195,14 @@ final class Kernel
                         $tldtAbsErrors[] = abs($err);
                         if (abs($err) <= $toleranceMin) {
                             $tldtWithinTolerance++;
+                        }
+                        if (abs($err) <= 5) {
+                            $tldtWithin5++;
+                        }
+                        if (abs($err) <= 10) {
+                            $tldtWithin10++;
+                        } else {
+                            $tldtBeyond10++;
                         }
                     }
                 }
@@ -1204,6 +1226,15 @@ final class Kernel
                     'eldt_within_tolerance_pct'=> count($eldtErrors) > 0
                                                   ? round(100 * $eldtWithinTolerance / count($eldtErrors), 1)
                                                   : null,
+                    'eldt_within_5_pct'       => count($eldtErrors) > 0
+                                                  ? round(100 * $eldtWithin5 / count($eldtErrors), 1)
+                                                  : null,
+                    'eldt_within_10_pct'      => count($eldtErrors) > 0
+                                                  ? round(100 * $eldtWithin10 / count($eldtErrors), 1)
+                                                  : null,
+                    'eldt_beyond_10_pct'      => count($eldtErrors) > 0
+                                                  ? round(100 * $eldtBeyond10 / count($eldtErrors), 1)
+                                                  : null,
                     'eldt_sample_n'            => count($eldtErrors),
                     'eldt_by_tier'             => $tierBreakdown,
                     // TLDT slot fidelity — median resists outliers
@@ -1211,6 +1242,15 @@ final class Kernel
                     'tldt_p90_abs_min'         => self::percentile($tldtAbsErrors, 90),
                     'tldt_within_tolerance_pct'=> count($tldtErrors) > 0
                                                   ? round(100 * $tldtWithinTolerance / count($tldtErrors), 1)
+                                                  : null,
+                    'tldt_within_5_pct'       => count($tldtErrors) > 0
+                                                  ? round(100 * $tldtWithin5 / count($tldtErrors), 1)
+                                                  : null,
+                    'tldt_within_10_pct'      => count($tldtErrors) > 0
+                                                  ? round(100 * $tldtWithin10 / count($tldtErrors), 1)
+                                                  : null,
+                    'tldt_beyond_10_pct'      => count($tldtErrors) > 0
+                                                  ? round(100 * $tldtBeyond10 / count($tldtErrors), 1)
                                                   : null,
                     'tldt_sample_n'            => count($tldtErrors),
                 ];
@@ -2169,7 +2209,7 @@ final class Kernel
             // Compute summary stats
             $computeStats = function (array $errs): array {
                 if (empty($errs)) {
-                    return ['n' => 0, 'median' => null, 'mae' => null, 'within_3' => null, 'within_5' => null];
+                    return ['n' => 0, 'median' => null, 'mae' => null, 'within_3' => null, 'within_5' => null, 'within_10' => null, 'beyond_10' => null];
                 }
                 sort($errs);
                 $n = count($errs);
@@ -2179,12 +2219,16 @@ final class Kernel
                 $mae = array_sum(array_map('abs', $errs)) / $n;
                 $within3 = count(array_filter($errs, fn($e) => abs($e) <= 3)) / $n * 100;
                 $within5 = count(array_filter($errs, fn($e) => abs($e) <= 5)) / $n * 100;
+                $within10 = count(array_filter($errs, fn($e) => abs($e) <= 10)) / $n * 100;
+                $beyond10 = count(array_filter($errs, fn($e) => abs($e) > 10)) / $n * 100;
                 return [
                     'n' => $n,
                     'median' => round($median, 1),
                     'mae' => round($mae, 1),
                     'within_3' => round($within3),
                     'within_5' => round($within5),
+                    'within_10' => round($within10),
+                    'beyond_10' => round($beyond10),
                 ];
             };
 

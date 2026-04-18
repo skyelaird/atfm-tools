@@ -166,8 +166,8 @@
                     <tr class="group-row">
                         <th colspan="4">Movements</th>
                         <th colspan="3" class="grp-start grp-tint">Taxi &amp; Dwell</th>
-                        <th colspan="3" class="grp-start">ELDT prediction</th>
-                        <th colspan="3" class="grp-start grp-tint">TLDT slot fidelity</th>
+                        <th colspan="6" class="grp-start">ELDT prediction</th>
+                        <th colspan="6" class="grp-start grp-tint">TLDT slot fidelity</th>
                     </tr>
                     <tr>
                         <th data-sort="icao">ICAO</th>
@@ -180,13 +180,19 @@
                         <th data-sort="eldt_sample_n" class="num grp-start" title="ELDT sample size">n</th>
                         <th data-sort="eldt_err_min" class="num" title="Median (ALDT minus ELDT_locked) in min. Frozen at T-90m.">err</th>
                         <th data-sort="eldt_within_tolerance_pct" class="num" title="% within plus/minus 3 min">&plusmn;3</th>
+                        <th data-sort="eldt_within_5_pct" class="num" title="% within plus/minus 5 min">&plusmn;5</th>
+                        <th data-sort="eldt_within_10_pct" class="num" title="% within plus/minus 10 min">&plusmn;10</th>
+                        <th data-sort="eldt_beyond_10_pct" class="num" title="% beyond plus/minus 10 min">&gt;10</th>
                         <th data-sort="tldt_sample_n" class="num grp-start grp-tint" title="TLDT sample size">n</th>
                         <th data-sort="tldt_err_min" class="num grp-tint" title="Median (ALDT minus TLDT) in min">err</th>
                         <th data-sort="tldt_within_tolerance_pct" class="num grp-tint" title="% within plus/minus 3 min">&plusmn;3</th>
+                        <th data-sort="tldt_within_5_pct" class="num grp-tint" title="% within plus/minus 5 min">&plusmn;5</th>
+                        <th data-sort="tldt_within_10_pct" class="num grp-tint" title="% within plus/minus 10 min">&plusmn;10</th>
+                        <th data-sort="tldt_beyond_10_pct" class="num grp-tint" title="% beyond plus/minus 10 min">&gt;10</th>
                     </tr>
                 </thead>
                 <tbody id="airports-tbody">
-                    <tr><td colspan="13" class="empty-row">Loading...</td></tr>
+                    <tr><td colspan="19" class="empty-row">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -217,19 +223,19 @@
         </div>
         <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-top:0.75rem;">
             <div class="table-wrap" style="flex:1; min-width:280px;">
-                <table><thead><tr><th>Source</th><th class="num">n</th><th class="num">Median</th><th class="num">MAE</th><th class="num">&plusmn;3m</th><th class="num">&plusmn;5m</th></tr></thead>
-                <tbody id="tldt-source-tbody"><tr><td colspan="6" class="empty-row">Loading...</td></tr></tbody></table>
+                <table><thead><tr><th>Source</th><th class="num" title="Sample size">n</th><th class="num" title="Median prediction error (TLDT minus ALDT) in minutes. Positive = predicted late, negative = predicted early.">Median</th><th class="num" title="Mean Absolute Error — average magnitude of prediction errors, ignoring direction.">MAE</th><th class="num" title="Percentage of predictions within 3 minutes of actual landing time.">&plusmn;3m</th><th class="num" title="Percentage of predictions within 5 minutes of actual landing time.">&plusmn;5m</th><th class="num" title="Percentage of predictions within 10 minutes of actual landing time.">&plusmn;10m</th><th class="num" title="Percentage of predictions beyond 10 minutes of actual landing time.">&gt;10m</th></tr></thead>
+                <tbody id="tldt-source-tbody"><tr><td colspan="8" class="empty-row">Loading...</td></tr></tbody></table>
             </div>
             <div class="table-wrap" style="flex:1; min-width:280px;">
-                <table><thead><tr><th>Airport</th><th class="num">n</th><th class="num">Median</th><th class="num">MAE</th><th class="num">&plusmn;3m</th><th class="num">&plusmn;5m</th></tr></thead>
-                <tbody id="tldt-airport-tbody"><tr><td colspan="6" class="empty-row">Loading...</td></tr></tbody></table>
+                <table><thead><tr><th>Airport</th><th class="num">n</th><th class="num">Median</th><th class="num">MAE</th><th class="num">&plusmn;3m</th><th class="num">&plusmn;5m</th><th class="num">&plusmn;10m</th><th class="num">&gt;10m</th></tr></thead>
+                <tbody id="tldt-airport-tbody"><tr><td colspan="8" class="empty-row">Loading...</td></tr></tbody></table>
             </div>
         </div>
         <div class="table-wrap" style="margin-top:0.75rem;">
             <table id="tldt-flights-table">
                 <thead><tr>
-                    <th>Callsign</th><th>Type</th><th>Route</th><th class="num">Dist</th><th class="num">Flt time</th>
-                    <th>ATOT</th><th>TLDT</th><th>ALDT</th><th class="num">TLDT err</th><th>Source</th>
+                    <th>Callsign</th><th>Type</th><th>Route</th><th class="num" title="Great-circle distance in nautical miles">Dist</th><th class="num" title="Actual flight time (ALDT minus ATOT)">Flt time</th>
+                    <th title="Actual Take-Off Time">ATOT</th><th title="Target Landing Time — the predicted/allocated landing slot">TLDT</th><th title="Actual Landing Time">ALDT</th><th class="num" title="TLDT minus ALDT in minutes. Positive = predicted late, negative = early.">TLDT err</th><th title="ETA source tier used at freeze time">Source</th>
                 </tr></thead>
                 <tbody id="tldt-flights-tbody">
                     <tr><td colspan="10" class="empty-row">Loading...</td></tr>
@@ -244,8 +250,8 @@
         time (AOBT minus first_seen), capped at 120 min. ELDT/TLDT err use
         median (outlier-resistant). ELDT frozen at T-90m; TLDT measures
         whether the allocator's slot decision was honoured in practice.
-        &plusmn;3 columns show the fraction within &plusmn;3 min;
-        dimmed when n &lt; 5 (statistically meaningless).
+        &plusmn;3/5/10 columns show the fraction within that tolerance;
+        &gt;10 is the outlier tail. Dimmed when n &lt; 5 (statistically meaningless).
         <div style="margin-top: 0.5rem;">
             <a href="https://github.com/skyelaird/atfm-tools">source</a>
             &middot; <a href="https://github.com/skyelaird/atfm-tools/blob/main/docs/ARCHITECTURE.md">architecture</a>
@@ -374,8 +380,8 @@ function rerender() {
     const etaGrid = $('eta-dist-grid');
     etaGrid.innerHTML = '';
     const etaDist = d.eta_source_distribution || {};
-    const tierOrder = ['FILED', 'FIR_EET', 'OBSERVED_POS', 'CALC_FILED_TAS', 'CALC_TYPE_TAS', 'CALC_DEFAULT'];
-    const tierLabels = { FILED: 'Filed ETE', FIR_EET: 'FIR EET/', OBSERVED_POS: 'Observed pos', CALC_FILED_TAS: 'Filed TAS', CALC_TYPE_TAS: 'Type TAS', CALC_DEFAULT: 'Default 430kt' };
+    const tierOrder = ['WIND_GRIB', 'FILED', 'FIR_EET', 'OBSERVED_POS', 'CALC_FILED_TAS', 'CALC_TYPE_TAS', 'CALC_DEFAULT'];
+    const tierLabels = { WIND_GRIB: 'GRIB wind', FILED: 'Filed ETE', FIR_EET: 'FIR EET/', OBSERVED_POS: 'Observed pos', CALC_FILED_TAS: 'Filed TAS', CALC_TYPE_TAS: 'Type TAS', CALC_DEFAULT: 'Default 430kt' };
     const tierTotal = Object.values(etaDist).reduce((a, b) => a + b, 0);
     for (const tier of tierOrder) {
         const n = etaDist[tier] || 0;
@@ -402,9 +408,15 @@ function rerender() {
         eldt_sample_n: r => r.eldt_sample_n,
         eldt_err_min: r => r.eldt_err_min,
         eldt_within_tolerance_pct: r => r.eldt_within_tolerance_pct,
+        eldt_within_5_pct: r => r.eldt_within_5_pct,
+        eldt_within_10_pct: r => r.eldt_within_10_pct,
+        eldt_beyond_10_pct: r => r.eldt_beyond_10_pct,
         tldt_sample_n: r => r.tldt_sample_n,
         tldt_err_min: r => r.tldt_err_min,
         tldt_within_tolerance_pct: r => r.tldt_within_tolerance_pct,
+        tldt_within_5_pct: r => r.tldt_within_5_pct,
+        tldt_within_10_pct: r => r.tldt_within_10_pct,
+        tldt_beyond_10_pct: r => r.tldt_beyond_10_pct,
     };
     const aRows = sortRowsFor('airports-table', d.airports, aAcc);
     updateSortIndicators('airports-table');
@@ -428,13 +440,19 @@ function rerender() {
             el('td', { class: 'num grp-start' + (lowN(r.eldt_sample_n) ? ' muted' : '') }, String(r.eldt_sample_n || 0)),
             el('td', { class: 'num' + (lowN(r.eldt_sample_n) ? ' muted' : '') }, fmt(r.eldt_err_min)),
             el('td', { class: 'num ' + eldtPctCls }, fmtPct(r.eldt_within_tolerance_pct)),
+            el('td', { class: 'num' + (lowN(r.eldt_sample_n) ? ' muted' : '') }, fmtPct(r.eldt_within_5_pct)),
+            el('td', { class: 'num' + (lowN(r.eldt_sample_n) ? ' muted' : '') }, fmtPct(r.eldt_within_10_pct)),
+            el('td', { class: 'num' + (lowN(r.eldt_sample_n) ? ' muted' : '') }, fmtPct(r.eldt_beyond_10_pct)),
             el('td', { class: 'num grp-start grp-tint' + (lowN(r.tldt_sample_n) ? ' muted' : '') }, String(r.tldt_sample_n || 0)),
             el('td', { class: 'num grp-tint' + (lowN(r.tldt_sample_n) ? ' muted' : '') }, fmt(r.tldt_err_min)),
-            el('td', { class: 'num grp-tint ' + tldtPctCls }, fmtPct(r.tldt_within_tolerance_pct))
+            el('td', { class: 'num grp-tint ' + tldtPctCls }, fmtPct(r.tldt_within_tolerance_pct)),
+            el('td', { class: 'num grp-tint' + (lowN(r.tldt_sample_n) ? ' muted' : '') }, fmtPct(r.tldt_within_5_pct)),
+            el('td', { class: 'num grp-tint' + (lowN(r.tldt_sample_n) ? ' muted' : '') }, fmtPct(r.tldt_within_10_pct)),
+            el('td', { class: 'num grp-tint' + (lowN(r.tldt_sample_n) ? ' muted' : '') }, fmtPct(r.tldt_beyond_10_pct))
         ));
     }
     if (aRows.length === 0) {
-        aTbody.appendChild(el('tr', {}, el('td', { colspan: '13', class: 'empty-row' }, 'No data yet.')));
+        aTbody.appendChild(el('tr', {}, el('td', { colspan: '19', class: 'empty-row' }, 'No data yet.')));
     }
 
     // Top aircraft — rebuild the header row to include per-airport columns
@@ -503,6 +521,8 @@ async function refreshTldt() {
             { lbl: 'MAE', val: ov.mae !== null ? ov.mae + 'm' : '\u2014', style: errColor(ov.mae) },
             { lbl: '\u00b13 min', val: ov.within_3 !== null ? ov.within_3 + '%' : '\u2014', style: pctColor(ov.within_3) },
             { lbl: '\u00b15 min', val: ov.within_5 !== null ? ov.within_5 + '%' : '\u2014', style: pctColor(ov.within_5) },
+            { lbl: '\u00b110 min', val: ov.within_10 !== null ? ov.within_10 + '%' : '\u2014', style: pctColor(ov.within_10) },
+            { lbl: '>10 min', val: ov.beyond_10 !== null ? ov.beyond_10 + '%' : '\u2014', style: ov.beyond_10 > 20 ? 'color:var(--alert)' : ov.beyond_10 > 10 ? 'color:var(--warn)' : 'color:var(--ok)' },
         ].map(c => '<div class="stat-card"' + dim + '><div class="lbl">' + c.lbl + '</div><div class="val mono"' + (c.style ? ' style="' + c.style + '"' : '') + '>' + c.val + '</div></div>').join('');
 
         // By source
@@ -515,9 +535,11 @@ async function refreshTldt() {
                 '</td><td class="num">' + (s.median !== null ? (s.median > 0 ? '+' : '') + s.median : '\u2014') +
                 '</td><td class="num">' + (s.mae !== null ? s.mae : '\u2014') +
                 '</td><td class="num">' + (s.within_3 !== null ? s.within_3 + '%' : '\u2014') +
-                '</td><td class="num">' + (s.within_5 !== null ? s.within_5 + '%' : '\u2014') + '</td></tr>';
+                '</td><td class="num">' + (s.within_5 !== null ? s.within_5 + '%' : '\u2014') +
+                '</td><td class="num">' + (s.within_10 !== null ? s.within_10 + '%' : '\u2014') +
+                '</td><td class="num">' + (s.beyond_10 !== null ? s.beyond_10 + '%' : '\u2014') + '</td></tr>';
         }
-        if (srcEntries.length === 0) $srcTb.innerHTML = '<tr><td colspan="6" class="empty-row">No data yet.</td></tr>';
+        if (srcEntries.length === 0) $srcTb.innerHTML = '<tr><td colspan="8" class="empty-row">No data yet.</td></tr>';
 
         // By airport
         const $aptTb = document.getElementById('tldt-airport-tbody');
@@ -529,9 +551,11 @@ async function refreshTldt() {
                 '</td><td class="num">' + (s.median !== null ? (s.median > 0 ? '+' : '') + s.median : '\u2014') +
                 '</td><td class="num">' + (s.mae !== null ? s.mae : '\u2014') +
                 '</td><td class="num">' + (s.within_3 !== null ? s.within_3 + '%' : '\u2014') +
-                '</td><td class="num">' + (s.within_5 !== null ? s.within_5 + '%' : '\u2014') + '</td></tr>';
+                '</td><td class="num">' + (s.within_5 !== null ? s.within_5 + '%' : '\u2014') +
+                '</td><td class="num">' + (s.within_10 !== null ? s.within_10 + '%' : '\u2014') +
+                '</td><td class="num">' + (s.beyond_10 !== null ? s.beyond_10 + '%' : '\u2014') + '</td></tr>';
         }
-        if (aptEntries.length === 0) $aptTb.innerHTML = '<tr><td colspan="6" class="empty-row">No data yet.</td></tr>';
+        if (aptEntries.length === 0) $aptTb.innerHTML = '<tr><td colspan="8" class="empty-row">No data yet.</td></tr>';
 
         // Flights table
         const $ftb = document.getElementById('tldt-flights-tbody');
