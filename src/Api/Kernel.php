@@ -2164,6 +2164,15 @@ final class Kernel
 
                 $flightTimeMin = round(($aldtEpoch - $atotEpoch) / 60);
 
+                // ATOT + filed ETE as naive baseline comparison
+                $filedEta = null;
+                $filedEtaErr = null;
+                if ($f->fp_enroute_time_min && $f->fp_enroute_time_min > 0) {
+                    $filedEtaEpoch = $atotEpoch + ($f->fp_enroute_time_min * 60);
+                    $filedEta = (new DateTimeImmutable('@' . $filedEtaEpoch))->format('c');
+                    $filedEtaErr = round(($filedEtaEpoch - $aldtEpoch) / 60, 1);
+                }
+
                 $records[] = [
                     'callsign'     => $f->callsign,
                     'aircraft_type'=> $f->aircraft_type,
@@ -2172,6 +2181,8 @@ final class Kernel
                     'dist_nm'      => $distNm,
                     'flight_time'  => (int) $flightTimeMin,
                     'atot'         => $f->atot->format('c'),
+                    'filed_eta'    => $filedEta,
+                    'filed_eta_err'=> $filedEtaErr,
                     'tldt'         => $f->tldt->format('c'),
                     'aldt'         => $f->aldt->format('c'),
                     'tldt_err_min' => $errMin,

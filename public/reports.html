@@ -235,10 +235,10 @@
             <table id="tldt-flights-table">
                 <thead><tr>
                     <th>Callsign</th><th>Type</th><th>Route</th><th class="num" title="Great-circle distance in nautical miles">Dist</th><th class="num" title="Actual flight time (ALDT minus ATOT)">Flt time</th>
-                    <th title="Actual Take-Off Time">ATOT</th><th title="Target Landing Time — the predicted/allocated landing slot">TLDT</th><th title="Actual Landing Time">ALDT</th><th class="num" title="TLDT minus ALDT in minutes. Positive = predicted late, negative = early.">TLDT err</th><th title="ETA source tier used at freeze time">Source</th>
+                    <th title="Actual Take-Off Time">ATOT</th><th title="ATOT + filed enroute time (SimBrief ETE). Naive baseline.">Filed ETA</th><th class="num" title="Filed ETA minus ALDT in minutes. How the filed ETE alone would have done.">ETE err</th><th title="Target Landing Time — the predicted/allocated landing slot">TLDT</th><th title="Actual Landing Time">ALDT</th><th class="num" title="TLDT minus ALDT in minutes. Positive = predicted late, negative = early.">TLDT err</th><th title="ETA source tier used at freeze time">Source</th>
                 </tr></thead>
                 <tbody id="tldt-flights-tbody">
-                    <tr><td colspan="10" class="empty-row">Loading...</td></tr>
+                    <tr><td colspan="12" class="empty-row">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -566,6 +566,8 @@ async function refreshTldt() {
         for (const f of (d.flights || [])) {
             const errCls = Math.abs(f.tldt_err_min) <= 3 ? 'ok' : Math.abs(f.tldt_err_min) <= 5 ? 'warn' : 'alert';
             const errSign = f.tldt_err_min > 0 ? '+' : '';
+            const fEtaErr = f.filed_eta_err !== null ? (f.filed_eta_err > 0 ? '+' : '') + f.filed_eta_err : '\u2014';
+            const fEtaCls = f.filed_eta_err !== null ? (Math.abs(f.filed_eta_err) <= 3 ? 'ok' : Math.abs(f.filed_eta_err) <= 5 ? 'warn' : 'alert') : '';
             $ftb.innerHTML += '<tr>' +
                 '<td class="mono">' + f.callsign + '</td>' +
                 '<td>' + (f.aircraft_type || '') + '</td>' +
@@ -573,12 +575,14 @@ async function refreshTldt() {
                 '<td class="num">' + (f.dist_nm || '\u2014') + '</td>' +
                 '<td class="num">' + f.flight_time + 'm</td>' +
                 '<td class="mono">' + fmtTime(f.atot) + '</td>' +
+                '<td class="mono">' + fmtTime(f.filed_eta) + '</td>' +
+                '<td class="num"' + (fEtaCls ? ' style="color:var(--' + fEtaCls + ')"' : '') + '>' + fEtaErr + '</td>' +
                 '<td class="mono">' + fmtTime(f.tldt) + '</td>' +
                 '<td class="mono">' + fmtTime(f.aldt) + '</td>' +
                 '<td class="num" style="color:var(--' + errCls + ')">' + errSign + f.tldt_err_min + '</td>' +
                 '<td class="mono" style="font-size:0.75rem">' + (f.eta_source || '') + '</td></tr>';
         }
-        if ((d.flights || []).length === 0) $ftb.innerHTML = '<tr><td colspan="10" class="empty-row">No TLDT data yet \u2014 need flights with ATOT + TLDT + ALDT.</td></tr>';
+        if ((d.flights || []).length === 0) $ftb.innerHTML = '<tr><td colspan="12" class="empty-row">No TLDT data yet \u2014 need flights with ATOT + TLDT + ALDT.</td></tr>';
     } catch (e) {
         console.error('TLDT refresh failed:', e);
     }
