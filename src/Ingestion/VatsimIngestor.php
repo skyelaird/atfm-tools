@@ -578,13 +578,13 @@ final class VatsimIngestor
                     // (56..60) accommodates the discreteness of 2-min ingest
                     // cycles — without it, a flight could skip past the
                     // 60-min threshold in a single cycle and never lock.
-                    // Only lock from sources with real position data.
-                    // FILED-tier locks produce garbage when pilots depart
-                    // hours after EOBT — the lock fires at T-92m of the
-                    // filed estimate, then the actual landing is 10h later.
-                    $lockableSources = ['OBSERVED_POS', 'FIR_EET'];
+                    // Only lock from OBSERVED_POS — real airborne position.
+                    // All other sources (FILED, FIR_EET, CALC_*) are
+                    // planning estimates that produce garbage locks when
+                    // pilots depart hours after EOBT. FIR_EET is dispatch-
+                    // quality but meaningless if the flight hasn't departed.
                     if ($flight->eldt_locked === null && $flight->aldt === null
-                        && in_array($est['source'], $lockableSources, true)) {
+                        && $est['source'] === 'OBSERVED_POS') {
                         $minutesToLanding = ($flight->eldt->getTimestamp() - $now->getTimestamp()) / 60;
                         if ($minutesToLanding <= self::ELDT_LOCK_HORIZON_MIN) {
                             $flight->eldt_locked        = $flight->eldt;
