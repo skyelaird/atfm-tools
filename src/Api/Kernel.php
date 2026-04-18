@@ -1251,13 +1251,31 @@ final class Kernel
             // CYVR on the left and CYHZ on the right — the natural
             // geographic reading order for Canadian airports.
             $allAirportIcaos = $airports->sortBy('longitude')->pluck('icao')->all();
-            $topTypes = Flight::selectRaw('aircraft_type, COUNT(*) as n, AVG(actual_exot_min) as avg_exot, AVG(actual_exit_min) as avg_exit')
+            // Aircraft type distribution — inbound to our 7 airports only.
+            // Total = sum of per-airport columns so numbers always add up.
+            $topTypes = Flight::selectRaw('aircraft_type, COUNT(*) as n')
                 ->whereNotNull('aircraft_type')
                 ->where('last_updated_at', '>=', $sinceStr)
+                ->whereIn('ades', $airports->pluck('icao')->all())
                 ->groupBy('aircraft_type')
                 ->orderByDesc('n')
                 ->limit(20)
                 ->get();
+
+            // Wake category lookup from approach categories
+            $wakeFile = __DIR__ . '/../../data/wake-separation.json';
+            $appCats = [];
+            if (file_exists($wakeFile)) {
+                $wd = json_decode(file_get_contents($wakeFile), true);
+                $appCats = $wd['approach_categories'] ?? [];
+            }
+            $typeToWake = [];
+            foreach ($appCats as $catInfo) {
+                $wake = $catInfo['wake'] ?? 'M';
+                foreach ($catInfo['examples'] ?? [] as $ex) {
+                    $typeToWake[$ex] = $wake;
+                }
+            }
             $topTypeNames = $topTypes->pluck('aircraft_type')->all();
 
             // Per-airport counts for those types
@@ -1274,7 +1292,7 @@ final class Kernel
                 }
             }
 
-            $typeRows = $topTypes->map(function ($r) use ($allAirportIcaos, $perAirportCounts) {
+            $typeRows = $topTypes->map(function ($r) use ($allAirportIcaos, $perAirportCounts, $typeToWake) {
                 $byAirport = [];
                 foreach ($allAirportIcaos as $icaoCode) {
                     $byAirport[$icaoCode] = $perAirportCounts[$r->aircraft_type][$icaoCode] ?? 0;
@@ -1282,8 +1300,7 @@ final class Kernel
                 return [
                     'aircraft_type' => $r->aircraft_type,
                     'count'         => (int) $r->n,
-                    'avg_exot_min'  => $r->avg_exot !== null ? round((float) $r->avg_exot, 1) : null,
-                    'avg_exit_min'  => $r->avg_exit !== null ? round((float) $r->avg_exit, 1) : null,
+                    'wake'          => $typeToWake[$r->aircraft_type] ?? '?',
                     'by_airport'    => $byAirport,
                 ];
             })->all();

@@ -199,9 +199,8 @@
                 <thead id="types-thead">
                     <tr>
                         <th data-sort="aircraft_type">Type</th>
+                        <th data-sort="wake">Wake</th>
                         <th data-sort="count" class="num">Total</th>
-                        <th data-sort="avg_exot_min" class="num" title="Average AXOT">AXOT</th>
-                        <th data-sort="avg_exit_min" class="num" title="Average AXIT">AXIT</th>
                         <!-- per-airport columns built dynamically in JS -->
                     </tr>
                 </thead>
@@ -417,9 +416,8 @@ function rerender() {
     typesThead.innerHTML = '';
     const typesHeaderRow = el('tr', {},
         el('th', { 'data-sort': 'aircraft_type' }, 'Type'),
+        el('th', { 'data-sort': 'wake' }, 'Wake'),
         el('th', { 'data-sort': 'count', class: 'num' }, 'Total'),
-        el('th', { 'data-sort': 'avg_exot_min', class: 'num' }, 'AXOT'),
-        el('th', { 'data-sort': 'avg_exit_min', class: 'num' }, 'AXIT'),
         ...airportIcaos.map(icao =>
             el('th', { 'data-sort': 'apt_' + icao, class: 'num muted' }, icao.substring(1))
         )
@@ -435,9 +433,8 @@ function rerender() {
     typesTbody.innerHTML = '';
     const tAcc = {
         aircraft_type: r => r.aircraft_type,
+        wake:          r => r.wake,
         count:         r => r.count,
-        avg_exot_min:  r => r.avg_exot_min,
-        avg_exit_min:  r => r.avg_exit_min,
     };
     // Add dynamic per-airport accessors
     for (const icao of airportIcaos) {
@@ -446,7 +443,8 @@ function rerender() {
 
     const tRows = sortRowsFor('types-table', d.top_aircraft, tAcc);
     updateSortIndicators('types-table');
-    const totalCols = 4 + airportIcaos.length;
+    const wakeCls = w => w === 'H' ? 'alert-val' : w === 'J' ? 'alert-val' : w === 'L' ? 'ok-val' : '';
+    const totalCols = 3 + airportIcaos.length;
     for (const r of tRows) {
         const airportCells = airportIcaos.map(icao => {
             const n = (r.by_airport && r.by_airport[icao]) || 0;
@@ -454,9 +452,8 @@ function rerender() {
         });
         typesTbody.appendChild(el('tr', {},
             el('td', { class: 'mono' }, r.aircraft_type),
+            el('td', { class: 'mono ' + wakeCls(r.wake) }, r.wake || '?'),
             el('td', { class: 'num' }, String(r.count)),
-            el('td', { class: 'num muted' }, fmt(r.avg_exot_min)),
-            el('td', { class: 'num muted' }, fmt(r.avg_exit_min)),
             ...airportCells
         ));
     }
