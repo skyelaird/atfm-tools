@@ -112,6 +112,15 @@ final class WindEta
         $lat = (float) $lat;
         $lon = (float) $lon;
 
+        // Reject positions outside the GRIB grid — clamping to grid edges
+        // produces wrong wind values (e.g. a flight over Europe at LON 8°E
+        // would get the wind at LON -30°). Let the cascade fall through to
+        // FILED (ATOT + SimBrief ETE) for out-of-grid flights.
+        if ($lat < self::LAT_MIN || $lat > self::LAT_MAX
+            || $lon < self::LON_MIN || $lon > self::LON_MAX) {
+            return null;
+        }
+
         $destLat = $dest['lat'];
         $destLon = $dest['lon'];
         $destElev = $dest['elev'];
