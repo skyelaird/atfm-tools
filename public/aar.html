@@ -417,6 +417,13 @@ async function computeRates(icao) {
     el(`adr-${icao}`, `${totalDep}/hr`);
     el(`total-${icao}`, `${opArr + totalDep}`);
     el(`rate-detail-${icao}`, details.join(' | '));
+
+    // Persist active rates so FSM can read the same values
+    try {
+        const saved = JSON.parse(localStorage.getItem('atfm-active-rates') || '{}');
+        saved[icao] = { arr: opArr, dep: totalDep, config: cfg?.label || null, ts: Date.now() };
+        localStorage.setItem('atfm-active-rates', JSON.stringify(saved));
+    } catch (e) {}
 }
 
 async function loadAll() {

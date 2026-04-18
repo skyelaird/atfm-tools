@@ -382,9 +382,15 @@
     }
 
     function getDeclaredRate(airport) {
-        // Declared arrival rate from the calm-wind runway config — same
-        // source as the AAR page. Falls back to base_arrival_rate if no
-        // config data is loaded.
+        // Read active rate set by AAR page (persisted in localStorage).
+        // Falls back to calm-wind declared rate if AAR page hasn't been
+        // used yet. Stale rates (>2h old) are ignored.
+        try {
+            const saved = JSON.parse(localStorage.getItem('atfm-active-rates') || '{}');
+            const r = saved[airport];
+            if (r && r.arr && (Date.now() - r.ts) < 7200000) return r.arr;
+        } catch (e) {}
+        // Fallback: calm-wind config declared rate
         const cfg = runwayConfigs[airport];
         if (cfg && cfg.calm_wind_config && cfg.configs) {
             const calm = cfg.configs.find(c => c.name === cfg.calm_wind_config);
