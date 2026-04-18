@@ -323,8 +323,9 @@
     // ---- Constants ----
     const AIRPORTS = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
     let BIN_MINUTES = 15;
-    const WINDOW_HOURS = 3;
-    let BINS_COUNT = (WINDOW_HOURS * 60) / BIN_MINUTES;
+    const PAST_HOURS = 1;
+    const FUTURE_HOURS = 3;
+    let BINS_COUNT = ((PAST_HOURS + FUTURE_HOURS) * 60) / BIN_MINUTES;
     const REFRESH_MS = 60000;
 
     // ---- DOM refs ----
@@ -408,7 +409,7 @@
     //   landed  (black) = ARRIVED / ON_RUNWAY / VACATED / TAXI_IN
     //   airborne (red)  = CRUISE / DESCENT / ARRIVING / CLIMBOUT
     //   filed  (green)  = FILED / TAXI_OUT / PREFILE / null
-    const AIRBORNE_PHASES = ['CRUISE', 'DESCENT', 'ARRIVING', 'CLIMBOUT'];
+    const AIRBORNE_PHASES = ['ENROUTE', 'CRUISE', 'DESCENT', 'ARRIVING', 'DEPARTED', 'CLIMBOUT'];
     const LANDED_PHASES   = ['ARRIVED', 'ON_RUNWAY', 'VACATED', 'TAXI_IN', 'IN_BLOCKS'];
 
     function classifyPhase(phase) {
@@ -421,7 +422,7 @@
 
     function buildBins() {
         const now = new Date();
-        const start = floorToBin(now);
+        const start = new Date(floorToBin(now).getTime() - PAST_HOURS * 3600000);
         const bins = [];
         for (let i = 0; i < BINS_COUNT; i++) {
             const t = new Date(start.getTime() + i * BIN_MINUTES * 60000);
@@ -763,7 +764,9 @@
     }
 
     function sortFlights(flights) {
-        return flights.slice().sort(function (a, b) {
+        // Filter out flights with no ELDT (FILED on ground, no ETA yet)
+        const withEldt = flights.filter(f => getEffectiveEldt(f));
+        return withEldt.slice().sort(function (a, b) {
             let va, vb;
             if (sortCol === 'eldt') {
                 va = getEffectiveEldt(a) || '';
@@ -983,7 +986,7 @@
     });
     $binSelect.addEventListener('change', function () {
         BIN_MINUTES = parseInt($binSelect.value);
-        BINS_COUNT = (WINDOW_HOURS * 60) / BIN_MINUTES;
+        BINS_COUNT = ((PAST_HOURS + FUTURE_HOURS) * 60) / BIN_MINUTES;
         render();
     });
     $refreshBtn.addEventListener('click', function () {
