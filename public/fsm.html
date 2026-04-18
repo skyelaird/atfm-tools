@@ -338,6 +338,7 @@
 
     // ---- State ----
     let airportsData = {};   // icao -> airport object
+    let runwayConfigs = {};  // icao -> runway config data (from runway-configs.json)
     let currentFlights = []; // flights for current selection
     let allFlights = {};     // icao -> flights[] for "All" mode
     let sortCol = 'eldt';
@@ -380,16 +381,28 @@
         return f.eldt_locked || f.eldt || null;
     }
 
-    function getCapacity(airport) {
-        // If there's an active restriction, use its capacity; else base rate
+    function getDeclaredRate(airport) {
+        // Declared arrival rate from the calm-wind runway config — same
+        // source as the AAR page. Falls back to base_arrival_rate if no
+        // config data is loaded.
+        const cfg = runwayConfigs[airport];
+        if (cfg && cfg.calm_wind_config && cfg.configs) {
+            const calm = cfg.configs.find(c => c.name === cfg.calm_wind_config);
+            if (calm && calm.declared_arr_rate) return calm.declared_arr_rate;
+        }
         const a = airportsData[airport];
-        if (!a) return 0;
+        return a ? (a.base_arrival_rate || 0) : 0;
+    }
+
+    function getCapacity(airport) {
+        // If there's an active restriction, use its capacity; else declared rate
+        const a = airportsData[airport];
+        if (!a) return getDeclaredRate(airport);
         const restrictions = a.restrictions || [];
         if (restrictions.length > 0) {
-            // Use the lowest active restriction capacity
-            return Math.min(...restrictions.map(r => r.capacity || a.base_arrival_rate));
+            return Math.min(...restrictions.map(r => r.capacity || getDeclaredRate(airport)));
         }
-        return a.base_arrival_rate || 0;
+        return getDeclaredRate(airport);
     }
 
     function getActiveRestriction(airport) {
@@ -400,8 +413,7 @@
     }
 
     function getBaseRate(airport) {
-        const a = airportsData[airport];
-        return a ? (a.base_arrival_rate || 0) : 0;
+        return getDeclaredRate(airport);
     }
 
     // ---- Build time bins ----
@@ -462,11 +474,15 @@
     }
 
     async function loadAirports() {
-        const data = await fetchJSON('/api/v1/airports');
+        const [aptData, cfgData] = await Promise.all([
+            fetchJSON('/api/v1/airports'),
+            fetchJSON('/api/v1/runway-configs'),
+        ]);
         airportsData = {};
-        (Array.isArray(data) ? data : []).forEach(a => {
+        (Array.isArray(aptData) ? aptData : []).forEach(a => {
             airportsData[a.icao] = a;
         });
+        runwayConfigs = cfgData || {};
     }
 
     async function loadFlights(icao) {
