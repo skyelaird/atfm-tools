@@ -210,6 +210,34 @@
         </div>
     </section>
 
+    <section>
+        <h2>TLDT accuracy <span class="muted" id="tldt-label">CTOT validation gate</span></h2>
+        <div class="totals-grid" id="tldt-stats">
+            <div class="stat-card"><div class="lbl">Loading...</div><div class="val">&mdash;</div></div>
+        </div>
+        <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-top:0.75rem;">
+            <div class="table-wrap" style="flex:1; min-width:280px;">
+                <table><thead><tr><th>Source</th><th class="num">n</th><th class="num">Median</th><th class="num">MAE</th><th class="num">&plusmn;3m</th><th class="num">&plusmn;5m</th></tr></thead>
+                <tbody id="tldt-source-tbody"><tr><td colspan="6" class="empty-row">Loading...</td></tr></tbody></table>
+            </div>
+            <div class="table-wrap" style="flex:1; min-width:280px;">
+                <table><thead><tr><th>Airport</th><th class="num">n</th><th class="num">Median</th><th class="num">MAE</th><th class="num">&plusmn;3m</th><th class="num">&plusmn;5m</th></tr></thead>
+                <tbody id="tldt-airport-tbody"><tr><td colspan="6" class="empty-row">Loading...</td></tr></tbody></table>
+            </div>
+        </div>
+        <div class="table-wrap" style="margin-top:0.75rem;">
+            <table id="tldt-flights-table">
+                <thead><tr>
+                    <th>Callsign</th><th>Type</th><th>Route</th><th class="num">Dist</th><th class="num">Flt time</th>
+                    <th>ATOT</th><th>TLDT</th><th>ALDT</th><th class="num">TLDT err</th><th>Source</th>
+                </tr></thead>
+                <tbody id="tldt-flights-tbody">
+                    <tr><td colspan="10" class="empty-row">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
     <footer>
         Data window auto-refreshes every 60 s. AXOT = ATOT minus AOBT, AXIT = AIBT minus ALDT
         per EUROCONTROL Airport CDM Manual. Dwell = median spawn-to-pushback
@@ -457,6 +485,79 @@ function rerender() {
     }
 }
 
+// ---- TLDT accuracy panel ----
+async function refreshTldt() {
+    try {
+        const r = await fetch('/api/v1/reports/tldt-accuracy?hours=' + currentHours);
+        const d = await r.json();
+        const ov = d.overall || {};
+
+        // Stats cards
+        const $stats = document.getElementById('tldt-stats');
+        const errColor = v => v === null ? '' : Math.abs(v) <= 3 ? 'color:var(--ok)' : Math.abs(v) <= 5 ? 'color:var(--warn)' : 'color:var(--alert)';
+        const pctColor = v => v === null ? '' : v >= 80 ? 'color:var(--ok)' : v >= 60 ? 'color:var(--warn)' : 'color:var(--alert)';
+        const dim = ov.n < 5 ? ' style="opacity:0.4"' : '';
+        $stats.innerHTML = [
+            { lbl: 'Flights', val: ov.n || 0 },
+            { lbl: 'Median err', val: ov.median !== null ? (ov.median > 0 ? '+' : '') + ov.median + 'm' : '\u2014', style: errColor(ov.median) },
+            { lbl: 'MAE', val: ov.mae !== null ? ov.mae + 'm' : '\u2014', style: errColor(ov.mae) },
+            { lbl: '\u00b13 min', val: ov.within_3 !== null ? ov.within_3 + '%' : '\u2014', style: pctColor(ov.within_3) },
+            { lbl: '\u00b15 min', val: ov.within_5 !== null ? ov.within_5 + '%' : '\u2014', style: pctColor(ov.within_5) },
+        ].map(c => '<div class="stat-card"' + dim + '><div class="lbl">' + c.lbl + '</div><div class="val mono"' + (c.style ? ' style="' + c.style + '"' : '') + '>' + c.val + '</div></div>').join('');
+
+        // By source
+        const $srcTb = document.getElementById('tldt-source-tbody');
+        $srcTb.innerHTML = '';
+        const srcEntries = Object.entries(d.by_source || {}).sort((a,b) => (b[1].n||0) - (a[1].n||0));
+        for (const [src, s] of srcEntries) {
+            const dim2 = s.n < 5 ? ' class="muted"' : '';
+            $srcTb.innerHTML += '<tr' + dim2 + '><td class="mono">' + src + '</td><td class="num">' + s.n +
+                '</td><td class="num">' + (s.median !== null ? (s.median > 0 ? '+' : '') + s.median : '\u2014') +
+                '</td><td class="num">' + (s.mae !== null ? s.mae : '\u2014') +
+                '</td><td class="num">' + (s.within_3 !== null ? s.within_3 + '%' : '\u2014') +
+                '</td><td class="num">' + (s.within_5 !== null ? s.within_5 + '%' : '\u2014') + '</td></tr>';
+        }
+        if (srcEntries.length === 0) $srcTb.innerHTML = '<tr><td colspan="6" class="empty-row">No data yet.</td></tr>';
+
+        // By airport
+        const $aptTb = document.getElementById('tldt-airport-tbody');
+        $aptTb.innerHTML = '';
+        const aptEntries = Object.entries(d.by_airport || {}).sort((a,b) => a[0].localeCompare(b[0]));
+        for (const [apt, s] of aptEntries) {
+            const dim2 = s.n < 5 ? ' class="muted"' : '';
+            $aptTb.innerHTML += '<tr' + dim2 + '><td class="mono">' + apt + '</td><td class="num">' + s.n +
+                '</td><td class="num">' + (s.median !== null ? (s.median > 0 ? '+' : '') + s.median : '\u2014') +
+                '</td><td class="num">' + (s.mae !== null ? s.mae : '\u2014') +
+                '</td><td class="num">' + (s.within_3 !== null ? s.within_3 + '%' : '\u2014') +
+                '</td><td class="num">' + (s.within_5 !== null ? s.within_5 + '%' : '\u2014') + '</td></tr>';
+        }
+        if (aptEntries.length === 0) $aptTb.innerHTML = '<tr><td colspan="6" class="empty-row">No data yet.</td></tr>';
+
+        // Flights table
+        const $ftb = document.getElementById('tldt-flights-tbody');
+        $ftb.innerHTML = '';
+        const fmtTime = s => s ? s.replace(/T/, ' ').replace(/\+.*/, '').slice(11, 16) : '\u2014';
+        for (const f of (d.flights || [])) {
+            const errCls = Math.abs(f.tldt_err_min) <= 3 ? 'ok' : Math.abs(f.tldt_err_min) <= 5 ? 'warn' : 'alert';
+            const errSign = f.tldt_err_min > 0 ? '+' : '';
+            $ftb.innerHTML += '<tr>' +
+                '<td class="mono">' + f.callsign + '</td>' +
+                '<td>' + (f.aircraft_type || '') + '</td>' +
+                '<td class="mono" style="font-size:0.75rem">' + (f.adep || '') + '\u2192' + (f.ades || '') + '</td>' +
+                '<td class="num">' + (f.dist_nm || '\u2014') + '</td>' +
+                '<td class="num">' + f.flight_time + 'm</td>' +
+                '<td class="mono">' + fmtTime(f.atot) + '</td>' +
+                '<td class="mono">' + fmtTime(f.tldt) + '</td>' +
+                '<td class="mono">' + fmtTime(f.aldt) + '</td>' +
+                '<td class="num" style="color:var(--' + errCls + ')">' + errSign + f.tldt_err_min + '</td>' +
+                '<td class="mono" style="font-size:0.75rem">' + (f.eta_source || '') + '</td></tr>';
+        }
+        if ((d.flights || []).length === 0) $ftb.innerHTML = '<tr><td colspan="10" class="empty-row">No TLDT data yet \u2014 need flights with ATOT + TLDT + ALDT.</td></tr>';
+    } catch (e) {
+        console.error('TLDT refresh failed:', e);
+    }
+}
+
 // Window picker
 document.querySelectorAll('#window-pills .pill').forEach(p => {
     p.addEventListener('click', () => {
@@ -464,11 +565,13 @@ document.querySelectorAll('#window-pills .pill').forEach(p => {
         p.classList.add('active');
         currentHours = Number(p.dataset.hours);
         refresh();
+        refreshTldt();
     });
 });
 
 refresh();
-setInterval(refresh, 60000);
+refreshTldt();
+setInterval(() => { refresh(); refreshTldt(); }, 60000);
 </script>
 
 </body>

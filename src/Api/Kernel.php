@@ -2081,6 +2081,132 @@ final class Kernel
             ]);
         });
 
+        // GET /api/v1/reports/tldt-accuracy — TLDT prediction accuracy for
+        // departed flights. Measures TLDT vs ALDT for flights that departed
+        // within the 90m scope window, received a TLDT, and landed.
+        // This is the gate for trusting CTOT issuance.
+        $app->get('/api/v1/reports/tldt-accuracy', function ($req, $res) {
+            $hours = max(1, min(720, (int) ($req->getQueryParams()['hours'] ?? 48)));
+            $now   = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            $since = $now->modify("-{$hours} hours");
+            $sinceStr = $since->format('Y-m-d H:i:s');
+
+            // Flights with ATOT + TLDT + ALDT (the complete lifecycle)
+            $flights = Flight::whereNotNull('atot')
+                ->whereNotNull('tldt')
+                ->whereNotNull('aldt')
+                ->where('atot', '>=', $sinceStr)
+                ->orderBy('aldt', 'desc')
+                ->get();
+
+            $records = [];
+            $errors = [];
+            $errorsBySource = [];
+            $errorsByAirport = [];
+
+            foreach ($flights as $f) {
+                $tldtEpoch = $f->tldt->getTimestamp();
+                $aldtEpoch = $f->aldt->getTimestamp();
+                $atotEpoch = $f->atot->getTimestamp();
+                $errMin = round(($tldtEpoch - $aldtEpoch) / 60, 1);
+
+                // Also compute ELDT error if we have the locked source
+                $eldtErr = null;
+                if ($f->eldt_locked !== null) {
+                    $eldtErr = round(($f->eldt_locked->getTimestamp() - $aldtEpoch) / 60, 1);
+                }
+
+                // Cap garbage errors
+                if (abs($errMin) > 120) {
+                    continue;
+                }
+
+                $source = $f->eldt_locked_source ?? $f->eta_source ?? 'UNKNOWN';
+                $distNm = null;
+                if ($f->adep && $f->ades) {
+                    $adepCoords = \Atfm\Allocator\AirportCoords::coords($f->adep);
+                    $adesCoords = \Atfm\Allocator\AirportCoords::coords($f->ades);
+                    if ($adepCoords && $adesCoords) {
+                        $distNm = (int) round(Geo::distanceNm(
+                            $adepCoords[0], $adepCoords[1],
+                            $adesCoords[0], $adesCoords[1]
+                        ));
+                    }
+                }
+
+                $flightTimeMin = round(($aldtEpoch - $atotEpoch) / 60);
+
+                $records[] = [
+                    'callsign'     => $f->callsign,
+                    'aircraft_type'=> $f->aircraft_type,
+                    'adep'         => $f->adep,
+                    'ades'         => $f->ades,
+                    'dist_nm'      => $distNm,
+                    'flight_time'  => (int) $flightTimeMin,
+                    'atot'         => $f->atot->format('c'),
+                    'tldt'         => $f->tldt->format('c'),
+                    'aldt'         => $f->aldt->format('c'),
+                    'tldt_err_min' => $errMin,
+                    'eldt_err_min' => $eldtErr,
+                    'eta_source'   => $source,
+                    'ctl_type'     => $f->ctl_type,
+                ];
+
+                $errors[] = $errMin;
+
+                if (!isset($errorsBySource[$source])) {
+                    $errorsBySource[$source] = [];
+                }
+                $errorsBySource[$source][] = $errMin;
+
+                $ades = $f->ades ?? 'UNKNOWN';
+                if (!isset($errorsByAirport[$ades])) {
+                    $errorsByAirport[$ades] = [];
+                }
+                $errorsByAirport[$ades][] = $errMin;
+            }
+
+            // Compute summary stats
+            $computeStats = function (array $errs): array {
+                if (empty($errs)) {
+                    return ['n' => 0, 'median' => null, 'mae' => null, 'within_3' => null, 'within_5' => null];
+                }
+                sort($errs);
+                $n = count($errs);
+                $median = $n % 2 === 0
+                    ? ($errs[$n/2 - 1] + $errs[$n/2]) / 2
+                    : $errs[(int) floor($n/2)];
+                $mae = array_sum(array_map('abs', $errs)) / $n;
+                $within3 = count(array_filter($errs, fn($e) => abs($e) <= 3)) / $n * 100;
+                $within5 = count(array_filter($errs, fn($e) => abs($e) <= 5)) / $n * 100;
+                return [
+                    'n' => $n,
+                    'median' => round($median, 1),
+                    'mae' => round($mae, 1),
+                    'within_3' => round($within3),
+                    'within_5' => round($within5),
+                ];
+            };
+
+            $sourceStats = [];
+            foreach ($errorsBySource as $src => $errs) {
+                $sourceStats[$src] = $computeStats($errs);
+            }
+
+            $airportStats = [];
+            foreach ($errorsByAirport as $apt => $errs) {
+                $airportStats[$apt] = $computeStats($errs);
+            }
+
+            return self::json($res, [
+                'hours' => $hours,
+                'overall' => $computeStats($errors),
+                'by_source' => $sourceStats,
+                'by_airport' => $airportStats,
+                'flights' => $records,
+            ]);
+        });
+
         // POST /api/v1/admin/wind-eldt — batch-update wind-corrected ELDT.
         // Called by the wind-shadow experiment script (bin/experiments/wind-shadow.py)
         // to write GRIB-derived ELDTs onto flight records for three-way comparison.

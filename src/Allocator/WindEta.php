@@ -10,18 +10,21 @@ use DateTimeImmutable;
 use DateTimeZone;
 
 /**
- * GRIB-based wind-corrected ELDT computation.
+ * Multi-level GRIB wind-corrected ELDT computation.
  *
- * Downloads GFS 250mb U/V winds from NOAA NOMADS (1° grid, cached 6h),
- * integrates wind along the filed route per grid cell, and produces a
- * wind-corrected ETA for each eligible airborne flight.
+ * Downloads GFS U/V winds at 250mb, 300mb, and 500mb from NOAA NOMADS
+ * (1° grid, cached 6h). Selects the pressure level closest to the
+ * flight's cruise altitude and integrates wind along the filed route
+ * per grid cell.
+ *
+ * Pressure level → approximate FL mapping:
+ *   250mb ≈ FL340  (jets at high cruise)
+ *   300mb ≈ FL300  (medium-haul jets, regional jets)
+ *   500mb ≈ FL180  (turboprops, low-altitude jets)
  *
  * Reuses Geo::parseRouteCoordinates() for 4-layer route resolution and
- * AircraftTas for TAS sanity gating. Writes eldt_wind directly to the
- * flights table (no API round-trip).
- *
- * The wind grid covers LAT 40–65, LON -130 to -30 — all Canadian FIRs
- * plus NAT tracks and European departure corridors.
+ * AircraftTas for TAS sanity gating. Authoritative in the ETA cascade
+ * as WIND_GRIB (conf 92) — feeds directly into eldt.
  */
 final class WindEta
 {
@@ -33,7 +36,14 @@ final class WindEta
 
     private const GFS_CYCLES = [0, 6, 12, 18];
     private const CACHE_TTL_SEC = 21600; // 6 hours
-    private const DESCENT_FPM = 318; // ft per nm on 3° glidepath
+
+    // Pressure levels to fetch (mb) and their approximate FL equivalents
+    private const LEVELS_MB = [250, 300, 500];
+    private const LEVEL_FL = [
+        250 => 34000,  // FL340
+        300 => 30000,  // FL300
+        500 => 18000,  // FL180
+    ];
 
     // Eligible airborne phases
     private const ELIGIBLE_PHASES = [
@@ -43,20 +53,19 @@ final class WindEta
         Flight::PHASE_DESCENT,
     ];
 
-    /** @var array{lats: float[], lons: float[], u: float[][], v: float[][]}|null */
-    private static ?array $windGrid = null;
+    /** @var array<int, array{lats: float[], lons: float[], u: float[][], v: float[][]}>|null */
+    private static ?array $windGrids = null;
 
     /**
      * Run wind computation for all eligible flights. Returns count of updated records.
      */
     public static function computeAll(): array
     {
-        $grid = self::loadWindGrid();
-        if ($grid === null) {
+        $grids = self::loadWindGrids();
+        if ($grids === null) {
             return ['computed' => 0, 'updated' => 0, 'error' => 'GRIB fetch/parse failed'];
         }
 
-        // Load airport coords indexed by ICAO
         $airports = [];
         foreach (Airport::all() as $apt) {
             if ($apt->latitude && $apt->longitude) {
@@ -68,7 +77,6 @@ final class WindEta
             }
         }
 
-        // Fetch eligible flights
         $flights = Flight::whereIn('phase', self::ELIGIBLE_PHASES)
             ->whereNotNull('last_lat')
             ->whereNotNull('last_lon')
@@ -79,12 +87,10 @@ final class WindEta
         $updated = 0;
 
         foreach ($flights as $f) {
-            $ades = $f->ades;
-            if (!isset($airports[$ades])) {
+            if (!isset($airports[$f->ades])) {
                 continue;
             }
-
-            $windEldt = self::computeForFlight($f, $grid, $airports[$ades]);
+            $windEldt = self::computeForFlight($f, $grids, $airports[$f->ades]);
             if ($windEldt !== null) {
                 $computed++;
                 $n = Flight::where('id', $f->id)
@@ -100,9 +106,10 @@ final class WindEta
     /**
      * Compute wind-corrected ELDT for a single flight.
      *
+     * @param array<int, array{lats: float[], lons: float[], u: float[][], v: float[][]}> $grids keyed by mb
      * @param array{lat: float, lon: float, elev: int} $dest
      */
-    public static function computeForFlight(Flight $f, array $grid, array $dest): ?DateTimeImmutable
+    public static function computeForFlight(Flight $f, array $grids, array $dest): ?DateTimeImmutable
     {
         $lat = $f->last_lat;
         $lon = $f->last_lon;
@@ -112,10 +119,7 @@ final class WindEta
         $lat = (float) $lat;
         $lon = (float) $lon;
 
-        // Reject positions outside the GRIB grid — clamping to grid edges
-        // produces wrong wind values (e.g. a flight over Europe at LON 8°E
-        // would get the wind at LON -30°). Let the cascade fall through to
-        // FILED (ATOT + SimBrief ETE) for out-of-grid flights.
+        // Reject positions outside the GRIB grid
         if ($lat < self::LAT_MIN || $lat > self::LAT_MAX
             || $lon < self::LON_MIN || $lon > self::LON_MAX) {
             return null;
@@ -125,12 +129,17 @@ final class WindEta
         $destLon = $dest['lon'];
         $destElev = $dest['elev'];
 
-        // TAS selection — mirrors EtaEstimator sanity gate
         $cruiseKt = self::selectTas($f);
 
         $cruiseAlt = ($f->last_altitude_ft && $f->last_altitude_ft > 10000)
             ? (int) $f->last_altitude_ft
             : (int) ($f->fp_altitude_ft ?? 35000);
+
+        // Select wind level closest to cruise altitude
+        $grid = self::selectLevel($grids, $cruiseAlt);
+        if ($grid === null) {
+            return null;
+        }
 
         // Route resolution + along-route legs
         $routeCoords = Geo::parseRouteCoordinates($f->fp_route ?? '');
@@ -180,7 +189,7 @@ final class WindEta
             }
         }
 
-        // Descent (no wind correction — 250mb wind not representative below FL100)
+        // Descent (no wind correction — low-level wind not representative)
         $descentIasHigh = AircraftTas::descentIasHigh($f->aircraft_type ?? '');
         $fl100Agl = max(0, 10000 - $destElev);
         $fl100Dist = $fl100Agl / 318.0;
@@ -193,7 +202,37 @@ final class WindEta
     }
 
     // ------------------------------------------------------------------
-    //  TAS selection (mirrors Python + PHP EtaEstimator sanity gate)
+    //  Level selection
+    // ------------------------------------------------------------------
+
+    /**
+     * Select the wind grid closest to the flight's cruise altitude.
+     *
+     * 250mb ≈ FL340 — jets at high cruise
+     * 300mb ≈ FL300 — medium jets, regional jets
+     * 500mb ≈ FL180 — turboprops, low-altitude
+     *
+     * @param array<int, array> $grids keyed by pressure level (mb)
+     */
+    private static function selectLevel(array $grids, int $altFt): ?array
+    {
+        $bestMb = null;
+        $bestDiff = PHP_INT_MAX;
+        foreach (self::LEVEL_FL as $mb => $fl) {
+            if (!isset($grids[$mb])) {
+                continue;
+            }
+            $diff = abs($altFt - $fl);
+            if ($diff < $bestDiff) {
+                $bestDiff = $diff;
+                $bestMb = $mb;
+            }
+        }
+        return $bestMb !== null ? $grids[$bestMb] : null;
+    }
+
+    // ------------------------------------------------------------------
+    //  TAS selection (mirrors EtaEstimator sanity gate)
     // ------------------------------------------------------------------
 
     private static function selectTas(Flight $f): int
@@ -201,12 +240,10 @@ final class WindEta
         $actype = $f->aircraft_type ?? '';
         $filedTas = $f->fp_cruise_tas;
 
-        // Basic range check
         if ($filedTas !== null && ($filedTas < 120 || $filedTas > 650)) {
             $filedTas = null;
         }
 
-        // Sanity gate: reject if >30% off type table
         if ($filedTas !== null && AircraftTas::known($actype)) {
             $typeTas = AircraftTas::typicalTas($actype);
             if (abs($filedTas - $typeTas) > $typeTas * 0.30) {
@@ -217,28 +254,23 @@ final class WindEta
         if ($filedTas !== null) {
             return (int) $filedTas;
         }
-
         if (AircraftTas::known($actype)) {
             return AircraftTas::typicalTas($actype);
         }
-
         $gs = $f->last_groundspeed_kts;
         if ($gs !== null && $gs > 100) {
             return (int) $gs;
         }
-
         return 450;
     }
 
     // ------------------------------------------------------------------
-    //  Route legs (mirrors Python along_route_legs)
+    //  Route legs
     // ------------------------------------------------------------------
 
     /**
-     * Build legs from aircraft through ahead-waypoints to destination.
-     *
      * @param array<array{float,float}> $routeCoords
-     * @return array<array{float,float,float,float}> legs as [fromLat, fromLon, toLat, toLon]
+     * @return array<array{float,float,float,float}>
      */
     private static function alongRouteLegs(
         float $curLat, float $curLon,
@@ -250,8 +282,6 @@ final class WindEta
         }
 
         $directDist = Geo::distanceNm($curLat, $curLon, $destLat, $destLon);
-
-        // Keep waypoints that are ahead (closer to dest than we are)
         $ahead = [];
         foreach ($routeCoords as [$wLat, $wLon]) {
             if (Geo::distanceNm($wLat, $wLon, $destLat, $destLon) < $directDist) {
@@ -270,7 +300,6 @@ final class WindEta
         $last = $ahead[count($ahead) - 1];
         $legs[] = [$last[0], $last[1], $destLat, $destLon];
 
-        // Sanity: total shouldn't exceed 1.3x direct
         $total = 0.0;
         foreach ($legs as [$fLat, $fLon, $tLat, $tLon]) {
             $total += Geo::distanceNm($fLat, $fLon, $tLat, $tLon);
@@ -286,12 +315,7 @@ final class WindEta
     //  Grid cell segmentation
     // ------------------------------------------------------------------
 
-    /**
-     * Break a leg into sub-segments at 1° grid boundaries for per-cell
-     * wind interpolation.
-     *
-     * @return array<array{float,float,float,float}>
-     */
+    /** @return array<array{float,float,float,float}> */
     private static function gridCellSegments(
         float $lat1, float $lon1,
         float $lat2, float $lon2
@@ -363,7 +387,7 @@ final class WindEta
     }
 
     // ------------------------------------------------------------------
-    //  Descent (mirrors Python + Geo::descentSegmentMinutes)
+    //  Descent
     // ------------------------------------------------------------------
 
     private static function descentSegmentMinutes(float $distNm, float $fl100DistNm, int $iasHighKt = 280): float
@@ -396,11 +420,7 @@ final class WindEta
     //  Wind interpolation
     // ------------------------------------------------------------------
 
-    /**
-     * Bilinear interpolation of U/V wind at a point.
-     *
-     * @return array{float, float} [u_kt, v_kt]
-     */
+    /** @return array{float, float} [u_kt, v_kt] */
     private static function interpolateWind(array $grid, float $lat, float $lon): array
     {
         $lats = $grid['lats'];
@@ -411,7 +431,6 @@ final class WindEta
         $lat = max($lats[0], min($lats[$nLat - 1], $lat));
         $lon = max($lons[0], min($lons[$nLon - 1], $lon));
 
-        // Find bounding indices
         $latIdx = self::searchSorted($lats, $lat);
         $latIdx = max(0, min($latIdx - 1, $nLat - 2));
         $lonIdx = self::searchSorted($lons, $lon);
@@ -434,9 +453,6 @@ final class WindEta
         return [$bilerp($grid['u']) * $msToKt, $bilerp($grid['v']) * $msToKt];
     }
 
-    /**
-     * Binary search: find index where $val would be inserted in sorted $arr.
-     */
     private static function searchSorted(array $arr, float $val): int
     {
         $lo = 0;
@@ -453,18 +469,19 @@ final class WindEta
     }
 
     // ------------------------------------------------------------------
-    //  GRIB2 fetching and parsing (pure PHP, no extensions needed)
+    //  GRIB2 fetching and parsing (multi-level)
     // ------------------------------------------------------------------
 
     /**
-     * Load wind grid, fetching GRIB if needed. Returns null on failure.
+     * Load multi-level wind grids, fetching GRIB if needed.
      *
-     * @return array{lats: float[], lons: float[], u: float[][], v: float[][]}|null
+     * @return array<int, array{lats: float[], lons: float[], u: float[][], v: float[][]}>|null
+     *         Keyed by pressure level in mb (250, 300, 500).
      */
-    public static function loadWindGrid(): ?array
+    public static function loadWindGrids(): ?array
     {
-        if (self::$windGrid !== null) {
-            return self::$windGrid;
+        if (self::$windGrids !== null) {
+            return self::$windGrids;
         }
 
         try {
@@ -474,8 +491,8 @@ final class WindEta
             if ($gribData === null) {
                 return null;
             }
-            self::$windGrid = self::parseWindGrid($gribData);
-            return self::$windGrid;
+            self::$windGrids = self::parseMultiLevelWindGrid($gribData);
+            return self::$windGrids;
         } catch (\Throwable $e) {
             error_log("[wind-eta] GRIB load failed: " . $e->getMessage());
             return null;
@@ -483,10 +500,15 @@ final class WindEta
     }
 
     /**
-     * Determine most recent GFS cycle (accounting for ~4h publication lag).
-     *
-     * @return array{string, string} [YYYYMMDD, HH]
+     * Backwards-compatible single-grid loader. Returns the 250mb grid
+     * or whichever level is available. Used by EtaEstimator integration.
      */
+    public static function loadWindGrid(): ?array
+    {
+        $grids = self::loadWindGrids();
+        return $grids[250] ?? ($grids ? reset($grids) : null);
+    }
+
     private static function latestGfsCycle(DateTimeImmutable $now): array
     {
         $adjusted = $now->modify('-4 hours');
@@ -501,7 +523,7 @@ final class WindEta
     }
 
     /**
-     * Fetch GFS 250mb GRIB2 data, cached to temp dir.
+     * Fetch GFS multi-level GRIB2 data (250mb + 300mb + 500mb).
      */
     private static function fetchGrib(string $dateStr, string $cycle): ?string
     {
@@ -509,9 +531,8 @@ final class WindEta
         if (!is_dir($cacheDir)) {
             @mkdir($cacheDir, 0755, true);
         }
-        $cacheFile = $cacheDir . "/gfs_{$dateStr}_{$cycle}z_250mb.grib2";
+        $cacheFile = $cacheDir . "/gfs_{$dateStr}_{$cycle}z_multilevel.grib2";
 
-        // Check cache
         if (file_exists($cacheFile)) {
             $age = time() - filemtime($cacheFile);
             if ($age < self::CACHE_TTL_SEC) {
@@ -519,10 +540,12 @@ final class WindEta
             }
         }
 
+        // Request all three levels in one call
+        $levParams = implode('', array_map(fn($mb) => "&lev_{$mb}_mb=on", self::LEVELS_MB));
         $url = "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl?"
             . "dir=%2Fgfs.{$dateStr}%2F{$cycle}%2Fatmos"
             . "&file=gfs.t{$cycle}z.pgrb2.1p00.anl"
-            . "&var_UGRD=on&var_VGRD=on&lev_250_mb=on"
+            . "&var_UGRD=on&var_VGRD=on" . $levParams
             . "&subregion=&toplat=" . self::LAT_MAX . "&leftlon=" . self::LON_MIN
             . "&rightlon=" . self::LON_MAX . "&bottomlat=" . self::LAT_MIN;
 
@@ -533,9 +556,13 @@ final class WindEta
         $data = @file_get_contents($url, false, $ctx);
         if ($data === false || strlen($data) < 100) {
             error_log("[wind-eta] GRIB download failed for {$dateStr}/{$cycle}z");
-            // Fall back to cached file even if stale
             if (file_exists($cacheFile)) {
                 return file_get_contents($cacheFile);
+            }
+            // Try single-level fallback (old cache file)
+            $oldCache = $cacheDir . "/gfs_{$dateStr}_{$cycle}z_250mb.grib2";
+            if (file_exists($oldCache)) {
+                return file_get_contents($oldCache);
             }
             return null;
         }
@@ -545,45 +572,57 @@ final class WindEta
     }
 
     /**
-     * Parse GFS 1° subregion GRIB2 into U/V wind arrays.
+     * Parse multi-level GRIB2 into per-level wind grids.
      *
-     * Handles simple packing (template 5.0) on a regular lat/lon grid.
-     * Returns structured array with lats, lons, u, v (2D arrays indexed
-     * [lat_idx][lon_idx]).
-     *
-     * @return array{lats: float[], lons: float[], u: float[][], v: float[][]}
+     * @return array<int, array{lats: float[], lons: float[], u: float[][], v: float[][]}>
      */
-    private static function parseWindGrid(string $data): array
+    private static function parseMultiLevelWindGrid(string $data): array
     {
         $messages = self::parseGrib2Messages($data);
 
-        $uMsg = $vMsg = null;
+        // Group by level: messages have 'level_mb', 'param' (u/v)
+        $byLevel = [];
         foreach ($messages as $msg) {
-            if ($msg['param'] === 'u') $uMsg = $msg;
-            if ($msg['param'] === 'v') $vMsg = $msg;
-        }
-        if ($uMsg === null || $vMsg === null) {
-            throw new \RuntimeException('GRIB2 missing U or V wind component');
+            $mb = $msg['level_mb'] ?? 0;
+            $param = $msg['param'];
+            if ($param !== 'u' && $param !== 'v') {
+                continue;
+            }
+            $byLevel[$mb][$param] = $msg;
         }
 
-        // Build lat/lon axes
-        $lats = [];
+        $grids = [];
+        foreach ($byLevel as $mb => $params) {
+            if (!isset($params['u']) || !isset($params['v'])) {
+                continue;
+            }
+            $grids[$mb] = self::buildGridFromMessages($params['u'], $params['v']);
+        }
+
+        if (empty($grids)) {
+            throw new \RuntimeException('GRIB2: no valid wind levels found');
+        }
+
+        return $grids;
+    }
+
+    /**
+     * Build a normalized grid (lats ascending, lons in [-180,180]) from U/V messages.
+     */
+    private static function buildGridFromMessages(array $uMsg, array $vMsg): array
+    {
         $nj = $uMsg['nj'];
         $ni = $uMsg['ni'];
-        $lat1 = $uMsg['lat1'];
-        $lat2 = $uMsg['lat2'];
-        $lon1 = $uMsg['lon1'];
-        $lon2 = $uMsg['lon2'];
 
+        $lats = [];
         for ($j = 0; $j < $nj; $j++) {
-            $lats[] = $lat1 + $j * ($lat2 - $lat1) / max(1, $nj - 1);
+            $lats[] = $uMsg['lat1'] + $j * ($uMsg['lat2'] - $uMsg['lat1']) / max(1, $nj - 1);
         }
         $lons = [];
         for ($i = 0; $i < $ni; $i++) {
-            $lons[] = $lon1 + $i * ($lon2 - $lon1) / max(1, $ni - 1);
+            $lons[] = $uMsg['lon1'] + $i * ($uMsg['lon2'] - $uMsg['lon1']) / max(1, $ni - 1);
         }
 
-        // Normalize longitudes to [-180, 180]
         $needsSort = false;
         foreach ($lons as &$l) {
             if ($l > 180) {
@@ -593,7 +632,6 @@ final class WindEta
         }
         unset($l);
 
-        // Sort lons and rearrange U/V columns if needed
         $u = $uMsg['values'];
         $v = $vMsg['values'];
 
@@ -614,7 +652,6 @@ final class WindEta
             $v = $vSorted;
         }
 
-        // Ensure lats ascending
         if ($lats[0] > $lats[$nj - 1]) {
             $lats = array_reverse($lats);
             $u = array_reverse($u);
@@ -625,12 +662,10 @@ final class WindEta
     }
 
     /**
-     * Parse GRIB2 messages from raw binary data.
+     * Parse GRIB2 messages with pressure level extraction.
      *
-     * Handles section 3 (grid definition), section 4 (product definition),
-     * section 5 (data representation), and section 7 (data).
-     *
-     * @return array<array{param: string, values: float[][], ni: int, nj: int, lat1: float, lon1: float, lat2: float, lon2: float}>
+     * Section 4 (product definition) contains the pressure level in the
+     * "first fixed surface" fields: type=100 (isobaric), scale+value.
      */
     private static function parseGrib2Messages(string $data): array
     {
@@ -650,7 +685,6 @@ final class WindEta
             }
             $discipline = ord($data[$pos + 6]);
 
-            // Total message length (8 bytes at offset 8)
             $totalLen = self::unpackUint64($data, $pos + 8);
             $msgEnd = $pos + $totalLen;
 
@@ -658,6 +692,7 @@ final class WindEta
             $ni = $nj = 0;
             $lat1 = $lon1 = $lat2 = $lon2 = 0.0;
             $paramCat = $paramNum = 0;
+            $levelMb = 0;
             $refVal = 0.0;
             $binScale = $decScale = $nbits = 0;
             $packedData = '';
@@ -668,7 +703,6 @@ final class WindEta
                 if ($secLen === 0) break;
 
                 if ($secNum === 3) {
-                    // Grid definition section
                     $ni = unpack('N', substr($data, $secPos + 30, 4))[1];
                     $nj = unpack('N', substr($data, $secPos + 34, 4))[1];
                     $lat1 = self::unpackSint32($data, $secPos + 46) / 1e6;
@@ -676,27 +710,35 @@ final class WindEta
                     $lat2 = self::unpackSint32($data, $secPos + 55) / 1e6;
                     $lon2 = self::unpackSint32($data, $secPos + 59) / 1e6;
                 } elseif ($secNum === 4) {
-                    // Product definition section
                     $paramCat = ord($data[$secPos + 9]);
                     $paramNum = ord($data[$secPos + 10]);
+                    // Extract pressure level from first fixed surface
+                    // Offset 22: type of first fixed surface (100 = isobaric in Pa)
+                    // Offset 23: scale factor
+                    // Offset 24-27: scaled value
+                    if ($secLen > 27) {
+                        $surfType = ord($data[$secPos + 22]);
+                        if ($surfType === 100) { // isobaric surface
+                            $scaleFactor = ord($data[$secPos + 23]);
+                            $scaledValue = unpack('N', substr($data, $secPos + 24, 4))[1];
+                            // Value is in Pa, convert to mb (hPa)
+                            $levelPa = $scaledValue / (10 ** $scaleFactor);
+                            $levelMb = (int) round($levelPa / 100);
+                        }
+                    }
                 } elseif ($secNum === 5) {
-                    // Data representation section
-                    $refVal = unpack('G', substr($data, $secPos + 11, 4))[1]; // IEEE 754 float big-endian
+                    $refVal = unpack('G', substr($data, $secPos + 11, 4))[1];
                     $binScale = self::unpackSint16($data, $secPos + 15);
                     $decScale = self::unpackSint16($data, $secPos + 17);
                     $nbits = ord($data[$secPos + 19]);
                 } elseif ($secNum === 7) {
-                    // Data section
                     $packedData = substr($data, $secPos + 5, $secLen - 5);
                 }
 
                 $secPos += $secLen;
             }
 
-            // Decode values
             $npts = $ni * $nj;
-            $vals = [];
-
             if ($nbits > 0 && strlen($packedData) > 0) {
                 $vals = self::unpackSimplePacking($packedData, $npts, $nbits, $refVal, $binScale, $decScale);
             } else {
@@ -704,13 +746,11 @@ final class WindEta
                 $vals = array_fill(0, $npts, $fillVal);
             }
 
-            // Reshape 1D → 2D [nj][ni]
             $values2d = [];
             for ($j = 0; $j < $nj; $j++) {
                 $values2d[] = array_slice($vals, $j * $ni, $ni);
             }
 
-            // Determine parameter name
             $param = 'unknown';
             if ($discipline === 0 && $paramCat === 2) {
                 $param = ($paramNum === 2) ? 'u' : (($paramNum === 3) ? 'v' : "c{$paramCat}n{$paramNum}");
@@ -718,6 +758,7 @@ final class WindEta
 
             $messages[] = [
                 'param' => $param,
+                'level_mb' => $levelMb,
                 'values' => $values2d,
                 'ni' => $ni,
                 'nj' => $nj,
@@ -733,13 +774,7 @@ final class WindEta
         return $messages;
     }
 
-    /**
-     * Unpack simple packing (GRIB2 template 5.0) using bit manipulation.
-     *
-     * Each value = (refVal + raw * 2^binScale) / 10^decScale
-     *
-     * @return float[]
-     */
+    /** @return float[] */
     private static function unpackSimplePacking(
         string $packed, int $npts, int $nbits,
         float $refVal, int $binScale, int $decScale
@@ -748,14 +783,12 @@ final class WindEta
         $binFactor = 2.0 ** $binScale;
         $decFactor = 10.0 ** $decScale;
 
-        // Convert packed bytes to an array of integers for bit extraction
         $byteLen = strlen($packed);
         $bitBuf = 0;
         $bitsInBuf = 0;
         $bytePos = 0;
 
         for ($i = 0; $i < $npts; $i++) {
-            // Ensure we have enough bits
             while ($bitsInBuf < $nbits && $bytePos < $byteLen) {
                 $bitBuf = ($bitBuf << 8) | ord($packed[$bytePos]);
                 $bitsInBuf += 8;
@@ -765,7 +798,6 @@ final class WindEta
             $shift = $bitsInBuf - $nbits;
             $raw = ($shift >= 0) ? ($bitBuf >> $shift) & ((1 << $nbits) - 1) : 0;
             $bitsInBuf -= $nbits;
-            // Clear consumed bits
             if ($bitsInBuf > 0) {
                 $bitBuf &= (1 << $bitsInBuf) - 1;
             } else {
@@ -784,8 +816,6 @@ final class WindEta
 
     private static function unpackUint64(string $data, int $offset): int
     {
-        // PHP unpack doesn't have unsigned 64-bit big-endian natively.
-        // For GRIB2 message lengths, the value fits in a regular int.
         $hi = unpack('N', substr($data, $offset, 4))[1];
         $lo = unpack('N', substr($data, $offset + 4, 4))[1];
         return ($hi << 32) | $lo;
@@ -794,7 +824,6 @@ final class WindEta
     private static function unpackSint32(string $data, int $offset): int
     {
         $val = unpack('N', substr($data, $offset, 4))[1];
-        // Sign extension for 32-bit signed
         if ($val >= 0x80000000) {
             $val -= 0x100000000;
         }
