@@ -298,6 +298,23 @@ be evaluated against that. If a feature doesn't improve slot allocation
 quality or operator situational awareness around inbound load, it
 probably shouldn't ship.
 
+## Versioning
+
+`src/Version.php` is bumped on every push to main so deploys are
+verifiable via `/api/v1/status`. Scheme: `MAJOR.MINOR.PATCH`.
+
+| Version | Milestone | Criteria |
+|---------|-----------|----------|
+| **0.5.x** | ETA & prediction quality | Current. GRIB wind, ETA cascade, TLDT validation, reports. |
+| **0.6.0** | CTOT issuance live | First real slots served to CDM plugin. System's reason to exist. |
+| **0.7.0** | Operational hardening | Multi-session validation, wake-mix phase 2, multi-FMP confidence. |
+| **1.0.0** | Production-ready | Running reliably during a real VATCAN event — CTOTs flowing, CDM plugin consuming, no manual intervention. |
+
+- **Patch** (0.6.1, 0.6.2…): one per push, always incremented, never skipped.
+- **Minor** (0.6 → 0.7): meaningful capability milestone, agreed before bumping.
+- **Major** (0.x → 1.0): "we trust it in production." Not before a successful
+  live event with real controllers consuming slots.
+
 ## Conventions
 
 - Use "Claude" as the author name when adding tracked changes / comments
