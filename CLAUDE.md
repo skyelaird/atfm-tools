@@ -146,12 +146,15 @@ resolved waypoints instead of 2.
 AIRAC data + PMDG SidStars. The Python `wind-shadow.py` mirrors the same
 4-layer parsing.
 
-## Wind-corrected ELDT (v0.5.64+, authoritative)
+## Wind-corrected ELDT (v0.5.66+, authoritative)
 
-`src/Allocator/WindEta.php` — pure PHP GRIB 250mb wind integration.
-Downloads GFS 1° subregion from NOAA NOMADS (cached 6h in temp dir),
-integrates wind per grid cell along the resolved route, descent segment
-uses no-wind model. Grid coverage: LAT 40-65, LON -130 to -30.
+`src/Allocator/WindEta.php` — pure PHP multi-level GRIB wind integration.
+Downloads GFS 1° subregion at **3 pressure levels** (250mb ≈ FL340,
+300mb ≈ FL300, 500mb ≈ FL180) from NOAA NOMADS in one call (cached 6h).
+Level selected by cruise altitude — turboprops at FL180 get 500mb winds,
+jets at FL380 get 250mb. Integrates wind per grid cell along the resolved
+route; descent segment uses no-wind model. Grid coverage: LAT 40-65,
+LON -130 to -30.
 
 **Authoritative in the ETA cascade**: `WIND_GRIB` is the top-priority
 airborne tier (conf 92). Computed inline during ingest by
@@ -265,15 +268,13 @@ docs/
   (deploy.sh now runs seed-airports.php after migrate on every deploy)
 - Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
 - ctot.html live testing with CDM plugin — needs a real session
-- ~~Wind-corrected ELDT~~ ✅ shipped v0.5.62
-  (pure PHP `src/Allocator/WindEta.php` + `bin/compute-wind-eldt.php`,
-  runs on WHC cron every 5 min, writes `eldt_wind` directly to DB.
-  No Python dependency. Legacy Python scripts retained for reference.)
-- TLDT accuracy validation — once TLDTs are flowing consistently,
-  add a reports panel filtered to "departed within 90m scope window
-  (ATOT set), TLDT assigned, landed (ALDT set)". Measure TLDT − ALDT
-  error by source tier, distance, airport. This is the real test:
-  are the slots we commit operationally usable (±3 min) or noise?
+- ~~Wind-corrected ELDT~~ ✅ shipped v0.5.66
+  (pure PHP multi-level GRIB: 250mb/300mb/500mb, authoritative in ETA
+  cascade as WIND_GRIB conf 92. Level selected by cruise altitude.)
+- ~~TLDT accuracy validation~~ ✅ shipped v0.5.66
+  (reports panel: ATOT + TLDT + ALDT flights, median error, MAE,
+  % within ±3m/±5m, breakdown by source tier and airport.
+  API: GET /api/v1/reports/tldt-accuracy)
 
 ## Retired ideas (don't re-propose without checking)
 
