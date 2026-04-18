@@ -34,6 +34,10 @@ final class Airport extends Model
         'is_cdm_airport',
         'arrived_geofence_nm',
         'final_threshold_nm',
+        'active_config_name',
+        'active_arr_rate',
+        'active_dep_rate',
+        'active_config_set_at',
     ];
 
     protected $casts = [
@@ -50,6 +54,8 @@ final class Airport extends Model
         'is_cdm_airport'           => 'bool',
         'arrived_geofence_nm'      => 'int',
         'final_threshold_nm'       => 'int',
+        'active_arr_rate'          => 'int',
+        'active_dep_rate'          => 'int',
     ];
 
     public function thresholds(): HasMany

@@ -63,4 +63,13 @@ else
     exit 1
 fi
 
+# Re-seed airports (idempotent — updateOrCreate on icao). Ensures base
+# rates, runway thresholds, and airport metadata stay in sync with code.
+if php bin/seed-airports.php >/tmp/atfm-deploy-seed.log 2>&1; then
+    grep -v '^$' /tmp/atfm-deploy-seed.log | head -3 | sed 's/^/[deploy]   /' || true
+else
+    echo "[deploy] $(date -u +%FT%TZ) SEED WARNING — non-fatal"
+    cat /tmp/atfm-deploy-seed.log
+fi
+
 echo "[deploy] $(date -u +%FT%TZ) done"
