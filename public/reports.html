@@ -179,16 +179,16 @@
                         <th data-sort="median_dwell_min" class="num grp-tint" title="Median spawn-to-pushback time (AOBT minus created_at) in min">Dwell</th>
                         <th data-sort="eldt_sample_n" class="num grp-start" title="ELDT sample size">n</th>
                         <th data-sort="eldt_err_min" class="num" title="Median (ALDT minus ELDT_locked) in min. Frozen at T-90m.">err</th>
-                        <th data-sort="eldt_within_tolerance_pct" class="num" title="% within plus/minus 3 min">&plusmn;3</th>
-                        <th data-sort="eldt_within_5_pct" class="num" title="% within plus/minus 5 min">&plusmn;5</th>
-                        <th data-sort="eldt_within_10_pct" class="num" title="% within plus/minus 10 min">&plusmn;10</th>
-                        <th data-sort="eldt_beyond_10_pct" class="num" title="% beyond plus/minus 10 min">&gt;10</th>
+                        <th data-sort="eldt_pct_le3" class="num" title="% with error ≤ 3 min">&le;3</th>
+                        <th data-sort="eldt_pct_3to5" class="num" title="% with error 3–5 min">3–5</th>
+                        <th data-sort="eldt_pct_5to10" class="num" title="% with error 5–10 min">5–10</th>
+                        <th data-sort="eldt_pct_gt10" class="num" title="% with error &gt; 10 min">&gt;10</th>
                         <th data-sort="tldt_sample_n" class="num grp-start grp-tint" title="TLDT sample size">n</th>
                         <th data-sort="tldt_err_min" class="num grp-tint" title="Median (ALDT minus TLDT) in min">err</th>
-                        <th data-sort="tldt_within_tolerance_pct" class="num grp-tint" title="% within plus/minus 3 min">&plusmn;3</th>
-                        <th data-sort="tldt_within_5_pct" class="num grp-tint" title="% within plus/minus 5 min">&plusmn;5</th>
-                        <th data-sort="tldt_within_10_pct" class="num grp-tint" title="% within plus/minus 10 min">&plusmn;10</th>
-                        <th data-sort="tldt_beyond_10_pct" class="num grp-tint" title="% beyond plus/minus 10 min">&gt;10</th>
+                        <th data-sort="tldt_pct_le3" class="num grp-tint" title="% with error ≤ 3 min">&le;3</th>
+                        <th data-sort="tldt_pct_3to5" class="num grp-tint" title="% with error 3–5 min">3–5</th>
+                        <th data-sort="tldt_pct_5to10" class="num grp-tint" title="% with error 5–10 min">5–10</th>
+                        <th data-sort="tldt_pct_gt10" class="num grp-tint" title="% with error &gt; 10 min">&gt;10</th>
                     </tr>
                 </thead>
                 <tbody id="airports-tbody">
@@ -223,11 +223,11 @@
         </div>
         <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-top:0.75rem;">
             <div class="table-wrap" style="flex:1; min-width:280px;">
-                <table><thead><tr><th>Source</th><th class="num" title="Sample size">n</th><th class="num" title="Median prediction error (TLDT minus ALDT) in minutes. Positive = predicted late, negative = predicted early.">Median</th><th class="num" title="Mean Absolute Error — average magnitude of prediction errors, ignoring direction.">MAE</th><th class="num" title="Percentage of predictions within 3 minutes of actual landing time.">&plusmn;3m</th><th class="num" title="Percentage of predictions within 5 minutes of actual landing time.">&plusmn;5m</th><th class="num" title="Percentage of predictions within 10 minutes of actual landing time.">&plusmn;10m</th><th class="num" title="Percentage of predictions beyond 10 minutes of actual landing time.">&gt;10m</th></tr></thead>
+                <table><thead><tr><th>Source</th><th class="num" title="Sample size">n</th><th class="num" title="Median prediction error (TLDT minus ALDT) in minutes. Positive = predicted late, negative = predicted early.">Median</th><th class="num" title="Mean Absolute Error — average magnitude of prediction errors, ignoring direction.">MAE</th><th class="num" title="% with error ≤ 3 min">&le;3m</th><th class="num" title="% with error 3–5 min">3–5m</th><th class="num" title="% with error 5–10 min">5–10m</th><th class="num" title="% with error &gt; 10 min">&gt;10m</th></tr></thead>
                 <tbody id="tldt-source-tbody"><tr><td colspan="8" class="empty-row">Loading...</td></tr></tbody></table>
             </div>
             <div class="table-wrap" style="flex:1; min-width:280px;">
-                <table><thead><tr><th>Airport</th><th class="num">n</th><th class="num">Median</th><th class="num">MAE</th><th class="num">&plusmn;3m</th><th class="num">&plusmn;5m</th><th class="num">&plusmn;10m</th><th class="num">&gt;10m</th></tr></thead>
+                <table><thead><tr><th>Airport</th><th class="num">n</th><th class="num">Median</th><th class="num">MAE</th><th class="num">&le;3m</th><th class="num">3–5m</th><th class="num">5–10m</th><th class="num">&gt;10m</th></tr></thead>
                 <tbody id="tldt-airport-tbody"><tr><td colspan="8" class="empty-row">Loading...</td></tr></tbody></table>
             </div>
         </div>
@@ -411,27 +411,25 @@ function rerender() {
         median_dwell_min: r => r.median_dwell_min,
         eldt_sample_n: r => r.eldt_sample_n,
         eldt_err_min: r => r.eldt_err_min,
-        eldt_within_tolerance_pct: r => r.eldt_within_tolerance_pct,
-        eldt_within_5_pct: r => r.eldt_within_5_pct,
-        eldt_within_10_pct: r => r.eldt_within_10_pct,
-        eldt_beyond_10_pct: r => r.eldt_beyond_10_pct,
+        eldt_pct_le3: r => r.eldt_pct_le3,
+        eldt_pct_3to5: r => r.eldt_pct_3to5,
+        eldt_pct_5to10: r => r.eldt_pct_5to10,
+        eldt_pct_gt10: r => r.eldt_pct_gt10,
         tldt_sample_n: r => r.tldt_sample_n,
         tldt_err_min: r => r.tldt_err_min,
-        tldt_within_tolerance_pct: r => r.tldt_within_tolerance_pct,
-        tldt_within_5_pct: r => r.tldt_within_5_pct,
-        tldt_within_10_pct: r => r.tldt_within_10_pct,
-        tldt_beyond_10_pct: r => r.tldt_beyond_10_pct,
+        tldt_pct_le3: r => r.tldt_pct_le3,
+        tldt_pct_3to5: r => r.tldt_pct_3to5,
+        tldt_pct_5to10: r => r.tldt_pct_5to10,
+        tldt_pct_gt10: r => r.tldt_pct_gt10,
     };
     const aRows = sortRowsFor('airports-table', d.airports, aAcc);
     updateSortIndicators('airports-table');
     for (const r of aRows) {
         const lowN = n => (n || 0) < 5;
-        const eldtPctCls = r.eldt_within_tolerance_pct == null || lowN(r.eldt_sample_n) ? 'muted'
-            : r.eldt_within_tolerance_pct >= 80 ? 'ok-val'
-            : r.eldt_within_tolerance_pct >= 50 ? 'warn-val' : 'alert-val';
-        const tldtPctCls = r.tldt_within_tolerance_pct == null || lowN(r.tldt_sample_n) ? 'muted'
-            : r.tldt_within_tolerance_pct >= 80 ? 'ok-val'
-            : r.tldt_within_tolerance_pct >= 50 ? 'warn-val' : 'alert-val';
+        const eDim = lowN(r.eldt_sample_n) ? ' muted' : '';
+        const tDim = lowN(r.tldt_sample_n) ? ' muted' : '';
+        // Color: ≤3 green if high, >10 red if high
+        const bucketCls = (v, good) => v == null ? 'muted' : good ? (v >= 60 ? 'ok-val' : v >= 30 ? 'warn-val' : 'alert-val') : (v > 20 ? 'alert-val' : v > 10 ? 'warn-val' : 'ok-val');
 
         aTbody.appendChild(el('tr', {},
             el('td', { class: 'mono' }, r.icao),
@@ -441,18 +439,18 @@ function rerender() {
             el('td', { class: 'num grp-start grp-tint' }, fmt(r.avg_exot_min)),
             el('td', { class: 'num grp-tint' }, fmt(r.avg_exit_min)),
             el('td', { class: 'num grp-tint' }, fmt(r.median_dwell_min)),
-            el('td', { class: 'num grp-start' + (lowN(r.eldt_sample_n) ? ' muted' : '') }, String(r.eldt_sample_n || 0)),
-            el('td', { class: 'num' + (lowN(r.eldt_sample_n) ? ' muted' : '') }, fmt(r.eldt_err_min)),
-            el('td', { class: 'num ' + eldtPctCls }, fmtPct(r.eldt_within_tolerance_pct)),
-            el('td', { class: 'num' + (lowN(r.eldt_sample_n) ? ' muted' : '') }, fmtPct(r.eldt_within_5_pct)),
-            el('td', { class: 'num' + (lowN(r.eldt_sample_n) ? ' muted' : '') }, fmtPct(r.eldt_within_10_pct)),
-            el('td', { class: 'num' + (lowN(r.eldt_sample_n) ? ' muted' : '') }, fmtPct(r.eldt_beyond_10_pct)),
-            el('td', { class: 'num grp-start grp-tint' + (lowN(r.tldt_sample_n) ? ' muted' : '') }, String(r.tldt_sample_n || 0)),
-            el('td', { class: 'num grp-tint' + (lowN(r.tldt_sample_n) ? ' muted' : '') }, fmt(r.tldt_err_min)),
-            el('td', { class: 'num grp-tint ' + tldtPctCls }, fmtPct(r.tldt_within_tolerance_pct)),
-            el('td', { class: 'num grp-tint' + (lowN(r.tldt_sample_n) ? ' muted' : '') }, fmtPct(r.tldt_within_5_pct)),
-            el('td', { class: 'num grp-tint' + (lowN(r.tldt_sample_n) ? ' muted' : '') }, fmtPct(r.tldt_within_10_pct)),
-            el('td', { class: 'num grp-tint' + (lowN(r.tldt_sample_n) ? ' muted' : '') }, fmtPct(r.tldt_beyond_10_pct))
+            el('td', { class: 'num grp-start' + eDim }, String(r.eldt_sample_n || 0)),
+            el('td', { class: 'num' + eDim }, fmt(r.eldt_err_min)),
+            el('td', { class: 'num ' + (eDim || bucketCls(r.eldt_pct_le3, true)) }, fmtPct(r.eldt_pct_le3)),
+            el('td', { class: 'num' + eDim }, fmtPct(r.eldt_pct_3to5)),
+            el('td', { class: 'num' + eDim }, fmtPct(r.eldt_pct_5to10)),
+            el('td', { class: 'num ' + (eDim || bucketCls(r.eldt_pct_gt10, false)) }, fmtPct(r.eldt_pct_gt10)),
+            el('td', { class: 'num grp-start grp-tint' + tDim }, String(r.tldt_sample_n || 0)),
+            el('td', { class: 'num grp-tint' + tDim }, fmt(r.tldt_err_min)),
+            el('td', { class: 'num grp-tint ' + (tDim || bucketCls(r.tldt_pct_le3, true)) }, fmtPct(r.tldt_pct_le3)),
+            el('td', { class: 'num grp-tint' + tDim }, fmtPct(r.tldt_pct_3to5)),
+            el('td', { class: 'num grp-tint' + tDim }, fmtPct(r.tldt_pct_5to10)),
+            el('td', { class: 'num grp-tint ' + (tDim || bucketCls(r.tldt_pct_gt10, false)) }, fmtPct(r.tldt_pct_gt10))
         ));
     }
     if (aRows.length === 0) {
@@ -523,10 +521,10 @@ async function refreshTldt() {
             { lbl: 'Flights', val: ov.n || 0 },
             { lbl: 'Median err', val: ov.median !== null ? (ov.median > 0 ? '+' : '') + ov.median + 'm' : '\u2014', style: errColor(ov.median) },
             { lbl: 'MAE', val: ov.mae !== null ? ov.mae + 'm' : '\u2014', style: errColor(ov.mae) },
-            { lbl: '\u00b13 min', val: ov.within_3 !== null ? ov.within_3 + '%' : '\u2014', style: pctColor(ov.within_3) },
-            { lbl: '\u00b15 min', val: ov.within_5 !== null ? ov.within_5 + '%' : '\u2014', style: pctColor(ov.within_5) },
-            { lbl: '\u00b110 min', val: ov.within_10 !== null ? ov.within_10 + '%' : '\u2014', style: pctColor(ov.within_10) },
-            { lbl: '>10 min', val: ov.beyond_10 !== null ? ov.beyond_10 + '%' : '\u2014', style: ov.beyond_10 > 20 ? 'color:var(--alert)' : ov.beyond_10 > 10 ? 'color:var(--warn)' : 'color:var(--ok)' },
+            { lbl: '\u22643 min', val: ov.pct_le3 !== null ? ov.pct_le3 + '%' : '\u2014', style: pctColor(ov.pct_le3) },
+            { lbl: '3\u20135 min', val: ov.pct_3to5 !== null ? ov.pct_3to5 + '%' : '\u2014' },
+            { lbl: '5\u201310 min', val: ov.pct_5to10 !== null ? ov.pct_5to10 + '%' : '\u2014' },
+            { lbl: '>10 min', val: ov.pct_gt10 !== null ? ov.pct_gt10 + '%' : '\u2014', style: ov.pct_gt10 > 20 ? 'color:var(--alert)' : ov.pct_gt10 > 10 ? 'color:var(--warn)' : 'color:var(--ok)' },
         ].map(c => '<div class="stat-card"' + dim + '><div class="lbl">' + c.lbl + '</div><div class="val mono"' + (c.style ? ' style="' + c.style + '"' : '') + '>' + c.val + '</div></div>').join('');
 
         // By source
@@ -538,10 +536,10 @@ async function refreshTldt() {
             $srcTb.innerHTML += '<tr' + dim2 + '><td class="mono">' + src + '</td><td class="num">' + s.n +
                 '</td><td class="num">' + (s.median !== null ? (s.median > 0 ? '+' : '') + s.median : '\u2014') +
                 '</td><td class="num">' + (s.mae !== null ? s.mae : '\u2014') +
-                '</td><td class="num">' + (s.within_3 !== null ? s.within_3 + '%' : '\u2014') +
-                '</td><td class="num">' + (s.within_5 !== null ? s.within_5 + '%' : '\u2014') +
-                '</td><td class="num">' + (s.within_10 !== null ? s.within_10 + '%' : '\u2014') +
-                '</td><td class="num">' + (s.beyond_10 !== null ? s.beyond_10 + '%' : '\u2014') + '</td></tr>';
+                '</td><td class="num">' + (s.pct_le3 !== null ? s.pct_le3 + '%' : '\u2014') +
+                '</td><td class="num">' + (s.pct_3to5 !== null ? s.pct_3to5 + '%' : '\u2014') +
+                '</td><td class="num">' + (s.pct_5to10 !== null ? s.pct_5to10 + '%' : '\u2014') +
+                '</td><td class="num">' + (s.pct_gt10 !== null ? s.pct_gt10 + '%' : '\u2014') + '</td></tr>';
         }
         if (srcEntries.length === 0) $srcTb.innerHTML = '<tr><td colspan="8" class="empty-row">No data yet.</td></tr>';
 
@@ -554,10 +552,10 @@ async function refreshTldt() {
             $aptTb.innerHTML += '<tr' + dim2 + '><td class="mono">' + apt + '</td><td class="num">' + s.n +
                 '</td><td class="num">' + (s.median !== null ? (s.median > 0 ? '+' : '') + s.median : '\u2014') +
                 '</td><td class="num">' + (s.mae !== null ? s.mae : '\u2014') +
-                '</td><td class="num">' + (s.within_3 !== null ? s.within_3 + '%' : '\u2014') +
-                '</td><td class="num">' + (s.within_5 !== null ? s.within_5 + '%' : '\u2014') +
-                '</td><td class="num">' + (s.within_10 !== null ? s.within_10 + '%' : '\u2014') +
-                '</td><td class="num">' + (s.beyond_10 !== null ? s.beyond_10 + '%' : '\u2014') + '</td></tr>';
+                '</td><td class="num">' + (s.pct_le3 !== null ? s.pct_le3 + '%' : '\u2014') +
+                '</td><td class="num">' + (s.pct_3to5 !== null ? s.pct_3to5 + '%' : '\u2014') +
+                '</td><td class="num">' + (s.pct_5to10 !== null ? s.pct_5to10 + '%' : '\u2014') +
+                '</td><td class="num">' + (s.pct_gt10 !== null ? s.pct_gt10 + '%' : '\u2014') + '</td></tr>';
         }
         if (aptEntries.length === 0) $aptTb.innerHTML = '<tr><td colspan="8" class="empty-row">No data yet.</td></tr>';
 

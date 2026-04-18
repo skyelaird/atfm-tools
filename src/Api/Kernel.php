@@ -1121,10 +1121,10 @@ final class Kernel
                 // late). Spread is the p90 of absolute values.
                 $eldtErrors = [];
                 $eldtAbsErrors = [];
-                $eldtWithinTolerance = 0;
-                $eldtWithin5 = 0;
-                $eldtWithin10 = 0;
-                $eldtBeyond10 = 0;
+                $eldtBucket3 = 0;   // |err| <= 3
+                $eldtBucket5 = 0;   // 3 < |err| <= 5
+                $eldtBucket10 = 0;  // 5 < |err| <= 10
+                $eldtBucketOver = 0; // |err| > 10
                 foreach ($arrivals as $f) {
                     if ($f->aldt && $f->eldt_locked
                         && $f->aldt->getTimestamp() !== $f->eldt_locked->getTimestamp() // exclude synthetic
@@ -1133,17 +1133,11 @@ final class Kernel
                         if (abs($err) > 120) continue; // outlier cap — beyond 2h is bad data
                         $eldtErrors[]    = $err;
                         $eldtAbsErrors[] = abs($err);
-                        if (abs($err) <= $toleranceMin) {
-                            $eldtWithinTolerance++;
-                        }
-                        if (abs($err) <= 5) {
-                            $eldtWithin5++;
-                        }
-                        if (abs($err) <= 10) {
-                            $eldtWithin10++;
-                        } else {
-                            $eldtBeyond10++;
-                        }
+                        $a = abs($err);
+                        if ($a <= 3) { $eldtBucket3++; }
+                        elseif ($a <= 5) { $eldtBucket5++; }
+                        elseif ($a <= 10) { $eldtBucket10++; }
+                        else { $eldtBucketOver++; }
                     }
                 }
 
@@ -1184,26 +1178,20 @@ final class Kernel
                 // the system's slot allocation match reality?
                 $tldtErrors = [];
                 $tldtAbsErrors = [];
-                $tldtWithinTolerance = 0;
-                $tldtWithin5 = 0;
-                $tldtWithin10 = 0;
-                $tldtBeyond10 = 0;
+                $tldtBucket3 = 0;   // |err| <= 3
+                $tldtBucket5 = 0;   // 3 < |err| <= 5
+                $tldtBucket10 = 0;  // 5 < |err| <= 10
+                $tldtBucketOver = 0; // |err| > 10
                 foreach ($arrivals as $f) {
                     if ($f->aldt && $f->tldt) {
                         $err = ($f->aldt->getTimestamp() - $f->tldt->getTimestamp()) / 60;
                         $tldtErrors[]    = $err;
                         $tldtAbsErrors[] = abs($err);
-                        if (abs($err) <= $toleranceMin) {
-                            $tldtWithinTolerance++;
-                        }
-                        if (abs($err) <= 5) {
-                            $tldtWithin5++;
-                        }
-                        if (abs($err) <= 10) {
-                            $tldtWithin10++;
-                        } else {
-                            $tldtBeyond10++;
-                        }
+                        $a = abs($err);
+                        if ($a <= 3) { $tldtBucket3++; }
+                        elseif ($a <= 5) { $tldtBucket5++; }
+                        elseif ($a <= 10) { $tldtBucket10++; }
+                        else { $tldtBucketOver++; }
                     }
                 }
 
@@ -1223,34 +1211,34 @@ final class Kernel
                     // ELDT prediction quality — median resists outliers
                     'eldt_err_min'            => self::percentile($eldtErrors, 50),
                     'eldt_p90_abs_min'         => self::percentile($eldtAbsErrors, 90),
-                    'eldt_within_tolerance_pct'=> count($eldtErrors) > 0
-                                                  ? round(100 * $eldtWithinTolerance / count($eldtErrors), 1)
+                    'eldt_pct_le3'            => count($eldtErrors) > 0
+                                                  ? round(100 * $eldtBucket3 / count($eldtErrors), 1)
                                                   : null,
-                    'eldt_within_5_pct'       => count($eldtErrors) > 0
-                                                  ? round(100 * $eldtWithin5 / count($eldtErrors), 1)
+                    'eldt_pct_3to5'           => count($eldtErrors) > 0
+                                                  ? round(100 * $eldtBucket5 / count($eldtErrors), 1)
                                                   : null,
-                    'eldt_within_10_pct'      => count($eldtErrors) > 0
-                                                  ? round(100 * $eldtWithin10 / count($eldtErrors), 1)
+                    'eldt_pct_5to10'          => count($eldtErrors) > 0
+                                                  ? round(100 * $eldtBucket10 / count($eldtErrors), 1)
                                                   : null,
-                    'eldt_beyond_10_pct'      => count($eldtErrors) > 0
-                                                  ? round(100 * $eldtBeyond10 / count($eldtErrors), 1)
+                    'eldt_pct_gt10'           => count($eldtErrors) > 0
+                                                  ? round(100 * $eldtBucketOver / count($eldtErrors), 1)
                                                   : null,
                     'eldt_sample_n'            => count($eldtErrors),
                     'eldt_by_tier'             => $tierBreakdown,
                     // TLDT slot fidelity — median resists outliers
                     'tldt_err_min'            => self::percentile($tldtErrors, 50),
                     'tldt_p90_abs_min'         => self::percentile($tldtAbsErrors, 90),
-                    'tldt_within_tolerance_pct'=> count($tldtErrors) > 0
-                                                  ? round(100 * $tldtWithinTolerance / count($tldtErrors), 1)
+                    'tldt_pct_le3'            => count($tldtErrors) > 0
+                                                  ? round(100 * $tldtBucket3 / count($tldtErrors), 1)
                                                   : null,
-                    'tldt_within_5_pct'       => count($tldtErrors) > 0
-                                                  ? round(100 * $tldtWithin5 / count($tldtErrors), 1)
+                    'tldt_pct_3to5'           => count($tldtErrors) > 0
+                                                  ? round(100 * $tldtBucket5 / count($tldtErrors), 1)
                                                   : null,
-                    'tldt_within_10_pct'      => count($tldtErrors) > 0
-                                                  ? round(100 * $tldtWithin10 / count($tldtErrors), 1)
+                    'tldt_pct_5to10'          => count($tldtErrors) > 0
+                                                  ? round(100 * $tldtBucket10 / count($tldtErrors), 1)
                                                   : null,
-                    'tldt_beyond_10_pct'      => count($tldtErrors) > 0
-                                                  ? round(100 * $tldtBeyond10 / count($tldtErrors), 1)
+                    'tldt_pct_gt10'           => count($tldtErrors) > 0
+                                                  ? round(100 * $tldtBucketOver / count($tldtErrors), 1)
                                                   : null,
                     'tldt_sample_n'            => count($tldtErrors),
                 ];
@@ -2209,7 +2197,7 @@ final class Kernel
             // Compute summary stats
             $computeStats = function (array $errs): array {
                 if (empty($errs)) {
-                    return ['n' => 0, 'median' => null, 'mae' => null, 'within_3' => null, 'within_5' => null, 'within_10' => null, 'beyond_10' => null];
+                    return ['n' => 0, 'median' => null, 'mae' => null, 'pct_le3' => null, 'pct_3to5' => null, 'pct_5to10' => null, 'pct_gt10' => null];
                 }
                 sort($errs);
                 $n = count($errs);
@@ -2217,18 +2205,19 @@ final class Kernel
                     ? ($errs[$n/2 - 1] + $errs[$n/2]) / 2
                     : $errs[(int) floor($n/2)];
                 $mae = array_sum(array_map('abs', $errs)) / $n;
-                $within3 = count(array_filter($errs, fn($e) => abs($e) <= 3)) / $n * 100;
-                $within5 = count(array_filter($errs, fn($e) => abs($e) <= 5)) / $n * 100;
-                $within10 = count(array_filter($errs, fn($e) => abs($e) <= 10)) / $n * 100;
-                $beyond10 = count(array_filter($errs, fn($e) => abs($e) > 10)) / $n * 100;
+                // Exclusive buckets: ≤3, 3-5, 5-10, >10
+                $le3  = count(array_filter($errs, fn($e) => abs($e) <= 3));
+                $b3t5 = count(array_filter($errs, fn($e) => abs($e) > 3 && abs($e) <= 5));
+                $b5t10 = count(array_filter($errs, fn($e) => abs($e) > 5 && abs($e) <= 10));
+                $gt10 = count(array_filter($errs, fn($e) => abs($e) > 10));
                 return [
                     'n' => $n,
                     'median' => round($median, 1),
                     'mae' => round($mae, 1),
-                    'within_3' => round($within3),
-                    'within_5' => round($within5),
-                    'within_10' => round($within10),
-                    'beyond_10' => round($beyond10),
+                    'pct_le3' => round(100 * $le3 / $n),
+                    'pct_3to5' => round(100 * $b3t5 / $n),
+                    'pct_5to10' => round(100 * $b5t10 / $n),
+                    'pct_gt10' => round(100 * $gt10 / $n),
                 ];
             };
 
