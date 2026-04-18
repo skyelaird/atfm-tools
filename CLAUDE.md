@@ -33,12 +33,11 @@ Not multi-region. Not a generalised flow management platform.
 
 ## Hard rules / non-goals
 
-- Wind-corrected ELDT is a **refinement column** (`eldt_wind`) — it does NOT
-  feed the allocator or replace the geometric ETA cascade. The allocator uses
-  `eldt` (from EtaEstimator) for slot allocation. `eldt_wind` is for QA
-  comparison and future use once accuracy is validated.
-  `bin/compute-wind-eldt.php` runs on WHC cron every 5 min (pure PHP, no
-  Python dependency). GRIB data cached 6h.
+- GRIB 250mb wind is **authoritative** in the ETA cascade (v0.5.64+).
+  `WindEta::computeForFlight()` runs inline during ingest — top-priority
+  airborne tier (WIND_GRIB, conf 92). `eldt_wind` column retained for
+  QA comparison on the PERTI page. `bin/compute-wind-eldt.php` also
+  available as standalone cron for batch updates. Pure PHP, no Python.
 - Never invent A-CDM milestones we can't observe (e.g. **never stamp ASAT**
   from the ingestor — it's a controller event, not a position event)
 - Never persist CTOTs across restriction lifetimes — stale CTOTs are
@@ -147,17 +146,21 @@ resolved waypoints instead of 2.
 AIRAC data + PMDG SidStars. The Python `wind-shadow.py` mirrors the same
 4-layer parsing.
 
-## Wind-corrected ELDT (v0.5.62+)
+## Wind-corrected ELDT (v0.5.64+, authoritative)
 
-`src/Allocator/WindEta.php` + `bin/compute-wind-eldt.php` — pure PHP GRIB
-250mb wind-corrected ELDT. Downloads GFS 1° subregion from NOAA NOMADS
-(cached 6h), integrates wind per grid cell along the resolved route, writes
-`eldt_wind` column on flights. Runs on WHC cron every 5 min — no Python,
-no numpy, no local machine dependency.
+`src/Allocator/WindEta.php` — pure PHP GRIB 250mb wind integration.
+Downloads GFS 1° subregion from NOAA NOMADS (cached 6h in temp dir),
+integrates wind per grid cell along the resolved route, descent segment
+uses no-wind model. Grid coverage: LAT 40-65, LON -130 to -30.
 
-Three-way comparison on PERTI page (our geometric ELDT / GRIB wind / PERTI).
-PERTI API responses cached 2-min TTL. **Not wired into the allocator** —
-`eldt_wind` is a refinement column for QA until accuracy is validated.
+**Authoritative in the ETA cascade**: `WIND_GRIB` is the top-priority
+airborne tier (conf 92). Computed inline during ingest by
+`WindEta::computeForFlight()`. Flights outside the grid fall to
+ATOT + filed ETE (conf 90), then geometric OBSERVED_POS (conf 85).
+
+`eldt_wind` column also written for three-way QA comparison on the
+PERTI page (our ELDT / GRIB wind / PERTI). `bin/compute-wind-eldt.php`
+available as standalone cron for batch updates.
 
 Legacy: `bin/compute-wind-eldt.py` (Python) and `bin/experiments/wind-shadow.py`
 (research prototype with SQLite) retained for reference.
