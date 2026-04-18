@@ -1133,10 +1133,10 @@ final class Kernel
                         if (abs($err) > 120) continue; // outlier cap — beyond 2h is bad data
                         $eldtErrors[]    = $err;
                         $eldtAbsErrors[] = abs($err);
-                        $a = abs($err);
-                        if ($a <= 3) { $eldtBucket3++; }
-                        elseif ($a <= 5) { $eldtBucket5++; }
-                        elseif ($a <= 10) { $eldtBucket10++; }
+                        $absErr = abs($err);
+                        if ($absErr <= 3) { $eldtBucket3++; }
+                        elseif ($absErr <= 5) { $eldtBucket5++; }
+                        elseif ($absErr <= 10) { $eldtBucket10++; }
                         else { $eldtBucketOver++; }
                     }
                 }
@@ -1187,10 +1187,10 @@ final class Kernel
                         $err = ($f->aldt->getTimestamp() - $f->tldt->getTimestamp()) / 60;
                         $tldtErrors[]    = $err;
                         $tldtAbsErrors[] = abs($err);
-                        $a = abs($err);
-                        if ($a <= 3) { $tldtBucket3++; }
-                        elseif ($a <= 5) { $tldtBucket5++; }
-                        elseif ($a <= 10) { $tldtBucket10++; }
+                        $absErr = abs($err);
+                        if ($absErr <= 3) { $tldtBucket3++; }
+                        elseif ($absErr <= 5) { $tldtBucket5++; }
+                        elseif ($absErr <= 10) { $tldtBucket10++; }
                         else { $tldtBucketOver++; }
                     }
                 }
