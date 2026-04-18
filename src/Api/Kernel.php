@@ -2167,11 +2167,19 @@ final class Kernel
                 // ATOT + filed ETE as naive baseline comparison
                 $filedEta = null;
                 $filedEtaErr = null;
-                if ($f->fp_enroute_time_min && $f->fp_enroute_time_min > 0) {
-                    $filedEtaEpoch = $atotEpoch + ($f->fp_enroute_time_min * 60);
+                $filedEte = $f->fp_enroute_time_min;
+                if ($filedEte && $filedEte > 0) {
+                    $filedEtaEpoch = $atotEpoch + ($filedEte * 60);
                     $filedEta = (new DateTimeImmutable('@' . $filedEtaEpoch))->format('c');
                     $filedEtaErr = round(($filedEtaEpoch - $aldtEpoch) / 60, 1);
                 }
+
+                // Mid-connect detection: we observed less than half the filed
+                // ETE, meaning the pilot connected mid-flight. These flights
+                // are shown in the table (dimmed) but excluded from accuracy
+                // stats — we never had the data to predict well.
+                $partial = $filedEte && $filedEte > 0
+                    && $flightTimeMin < ($filedEte * 0.5);
 
                 $records[] = [
                     'callsign'     => $f->callsign,
@@ -2180,6 +2188,8 @@ final class Kernel
                     'ades'         => $f->ades,
                     'dist_nm'      => $distNm,
                     'flight_time'  => (int) $flightTimeMin,
+                    'filed_ete'    => $filedEte,
+                    'partial'      => $partial,
                     'atot'         => $f->atot->format('c'),
                     'filed_eta'    => $filedEta,
                     'filed_eta_err'=> $filedEtaErr,
@@ -2190,6 +2200,11 @@ final class Kernel
                     'eta_source'   => $source,
                     'ctl_type'     => $f->ctl_type,
                 ];
+
+                // Exclude partial-observation flights from accuracy stats
+                if ($partial) {
+                    continue;
+                }
 
                 $errors[] = $errMin;
 
