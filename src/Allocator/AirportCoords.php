@@ -83,7 +83,23 @@ final class AirportCoords
         'KMSP' => [44.8820, -93.2218],
         'KBUF' => [42.9405, -78.7322],
 
-        // European ADEPs (for completeness)
+        // Caribbean / Mexico
+        'MMUN' => [21.0365, -86.8770],  // Cancun
+        'MDPC' => [18.5674, -68.3634],  // Punta Cana
+        'MKJP' => [17.9356, -76.7875],  // Kingston
+        'MYNN' => [25.0390, -77.4662],  // Nassau
+        'TBPB' => [13.0746, -59.4925],  // Barbados
+
+        // US — additional
+        'KFLL' => [26.0726, -80.1527],  // Fort Lauderdale
+        'KLAS' => [36.0840, -115.1537], // Las Vegas
+        'KSLC' => [40.7884, -111.9778], // Salt Lake City
+        'KPHX' => [33.4373, -112.0078], // Phoenix
+        'KMEM' => [35.0424, -89.9767],  // Memphis
+        'PANC' => [61.1741, -149.9962], // Anchorage
+        'PAJN' => [58.3550, -134.5763], // Juneau
+
+        // European ADEPs
         'EGLL' => [51.4700, -0.4543],
         'EGKK' => [51.1537, -0.1821],
         'EGCC' => [53.3537, -2.2750],
@@ -91,6 +107,22 @@ final class AirportCoords
         'LFPG' => [49.0097, 2.5479],
         'EHAM' => [52.3086, 4.7639],
         'EDDF' => [50.0379, 8.5622],
+        'EDDM' => [48.3537, 11.7750],  // Munich
+        'LQSA' => [43.8246, 18.3315],  // Sarajevo
+
+        // Asia-Pacific ADEPs
+        'RJTT' => [35.5533, 139.7811],  // Tokyo Haneda
+        'RJAA' => [35.7647, 140.3864],  // Tokyo Narita
+        'VHHH' => [22.3080, 113.9185],  // Hong Kong
+        'YSSY' => [-33.9461, 151.1772], // Sydney
+        'YMML' => [-37.6733, 144.8433], // Melbourne
+        'WSSS' => [1.3502, 103.9944],   // Singapore
+        'RKSI' => [37.4691, 126.4505],  // Seoul Incheon
+        'ZBAA' => [40.0799, 116.6031],  // Beijing
+        'ZSPD' => [31.1434, 121.8052],  // Shanghai Pudong
+        'VIDP' => [28.5665, 77.1031],   // Delhi
+        'OMDB' => [25.2528, 55.3644],   // Dubai
+        'OTBD' => [25.2731, 51.6081],   // Doha
     ];
 
     /** @return array{0:float,1:float}|null [latitude, longitude] or null */
