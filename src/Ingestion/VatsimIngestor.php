@@ -186,7 +186,9 @@ final class VatsimIngestor
         $adepAirport = $this->airportsByIcao[$adep] ?? null;
         $adesAirport = $this->airportsByIcao[$ades] ?? null;
 
-        $filedAltFt = $this->parseAltitude($fp['altitude'] ?? null);
+        $headerAltFt = $this->parseAltitude($fp['altitude'] ?? null);
+        $stepClimb   = $this->parseRouteStepClimbs($fp['route'] ?? null);
+        $filedAltFt  = max($headerAltFt ?? 0, $stepClimb['max_alt_ft'] ?? 0) ?: null;
         $phase = Phase::compute($lat, $lon, $altitude, $gs, $adepAirport, $adesAirport, $filedAltFt);
 
         // Parse EOBT (HHMM) into a datetime.
@@ -354,8 +356,19 @@ final class VatsimIngestor
         $flight->flight_rules   = $fp['flight_rules']   ?? $flight->flight_rules  ?? null;
         $flight->alt_icao       = strtoupper((string) ($fp['alternate'] ?? '')) ?: $flight->alt_icao;
         $flight->fp_route       = $fp['route']          ?? $flight->fp_route;
-        $flight->fp_altitude_ft = $this->parseAltitude($fp['altitude'] ?? null) ?? $flight->fp_altitude_ft;
-        $flight->fp_cruise_tas  = isset($fp['cruise_tas']) ? (int) $fp['cruise_tas'] : $flight->fp_cruise_tas;
+        $headerTas = isset($fp['cruise_tas']) ? (int) $fp['cruise_tas'] : null;
+
+        // Step-climb data was parsed once above ($stepClimb). Use the
+        // highest altitude and last TAS from mid-route changes when they
+        // exceed the header values.
+        $flight->fp_altitude_ft = max(
+            $headerAltFt ?? $flight->fp_altitude_ft ?? 0,
+            $stepClimb['max_alt_ft'] ?? 0
+        ) ?: $flight->fp_altitude_ft;
+
+        $flight->fp_cruise_tas = $stepClimb['last_tas_kt']
+            ?? $headerTas
+            ?? $flight->fp_cruise_tas;
         if ($enrouteTimeMin !== null) {
             $flight->fp_enroute_time_min = $enrouteTimeMin;
         }
@@ -883,6 +896,60 @@ final class VatsimIngestor
             return (int) $alt;
         }
         return null;
+    }
+
+    /**
+     * Extract mid-route speed/level changes from an ICAO route string.
+     *
+     * ICAO FPL format embeds step-climbs and speed changes at waypoints:
+     *   DEXIT/N0483F380   → TAS 483kt at FL380
+     *   PIKIL/M085F390    → Mach 0.85 at FL390
+     *   JANJO/N0489F400   → TAS 489kt at FL400
+     *
+     * Returns the highest altitude (ft) and the last TAS (kt) found.
+     * Pilots who file an initial low FL (e.g. FL240 for European departure)
+     * typically step-climb to their real cruise level mid-route — this
+     * extracts that real cruise so we don't rely on the garbage initial.
+     *
+     * @return array{max_alt_ft: int|null, last_tas_kt: int|null}
+     */
+    private function parseRouteStepClimbs(?string $route): array
+    {
+        if ($route === null || $route === '') {
+            return ['max_alt_ft' => null, 'last_tas_kt' => null];
+        }
+
+        $maxAlt  = null;
+        $lastTas = null;
+
+        // Match: FIX/N0489F400  or  FIX/M085F390  or  /N0483F380
+        // N = TAS in kt (4 digits), M = Mach (3 digits)
+        // F = flight level (3 digits), A = altitude in 100s ft
+        if (preg_match_all('/\/(N(\d{4})|M(\d{3}))(F(\d{3})|A(\d{3}))/', $route, $matches, PREG_SET_ORDER)) {
+            foreach ($matches as $m) {
+                // Speed: N0489 = 489kt, M085 = Mach 0.85 (approx 490kt at FL350+)
+                if (!empty($m[2])) {
+                    $lastTas = (int) $m[2];
+                } elseif (!empty($m[3])) {
+                    // Mach to TAS rough conversion: M * 580 at typical cruise alt
+                    $lastTas = (int) round(((int) $m[3]) / 100 * 580);
+                }
+                // Altitude: F390 = FL390 = 39000ft, A080 = 8000ft
+                if (!empty($m[5])) {
+                    $altFt = ((int) $m[5]) * 100;
+                    if ($maxAlt === null || $altFt > $maxAlt) {
+                        $maxAlt = $altFt;
+                    }
+                } elseif (!empty($m[6])) {
+                    $altFt = ((int) $m[6]) * 100;
+                    if ($maxAlt === null || $altFt > $maxAlt) {
+                        $maxAlt = $altFt;
+                    }
+                }
+            }
+        }
+
+        return ['max_alt_ft' => $maxAlt, 'last_tas_kt' => $lastTas];
     }
 
     private function airlineFromCallsign(string $callsign): ?string
