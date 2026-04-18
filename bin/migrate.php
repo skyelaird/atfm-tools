@@ -520,4 +520,22 @@ if ($schema->hasTable('flights') && !$schema->hasColumn('flights', 'eldt_wind'))
     echo "✓ added flights.eldt_wind (v0.5.27)\n";
 }
 
+// v0.5.44: Active runway config — single source of truth for the operational
+// rate across all pages (FSM, dashboard, allocator). Set by FMP on the AAR
+// page, read by every consumer. Replaces localStorage bridge and stale
+// base_arrival_rate values.
+if ($schema->hasTable('airports') && !$schema->hasColumn('airports', 'active_config_name')) {
+    $schema->table('airports', function (Blueprint $t) {
+        $t->string('active_config_name', 30)->nullable()->after('base_departure_rate')
+            ->comment('Currently active runway config name from runway-configs.json');
+        $t->unsignedInteger('active_arr_rate')->nullable()->after('active_config_name')
+            ->comment('Operational AAR set by FMP via AAR page');
+        $t->unsignedInteger('active_dep_rate')->nullable()->after('active_arr_rate')
+            ->comment('Operational ADR set by FMP via AAR page');
+        $t->dateTime('active_config_set_at')->nullable()->after('active_dep_rate')
+            ->comment('When the active config was last set');
+    });
+    echo "✓ added airports.active_config_name/active_arr_rate/active_dep_rate (v0.5.44)\n";
+}
+
 echo "done.\n";

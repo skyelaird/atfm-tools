@@ -1982,6 +1982,41 @@ final class Kernel
             }
         });
 
+        // POST /api/v1/active-config — set the active runway config for an airport.
+        // Called by the AAR page when the FMP selects/auto-proposes a config.
+        // Body: { "airport": "CYYZ", "config": "24 Direction", "arr_rate": 46, "dep_rate": 30 }
+        // Single source of truth: FSM, dashboard, allocator all read this.
+        $app->post('/api/v1/active-config', function ($req, $res) {
+            $body = json_decode((string) $req->getBody(), true);
+            $icao = strtoupper($body['airport'] ?? '');
+            $configName = $body['config'] ?? null;
+            $arrRate = isset($body['arr_rate']) ? (int) $body['arr_rate'] : null;
+            $depRate = isset($body['dep_rate']) ? (int) $body['dep_rate'] : null;
+
+            if (!$icao || $arrRate === null) {
+                return self::json($res->withStatus(400), ['error' => 'airport and arr_rate required']);
+            }
+
+            $airport = Airport::where('icao', $icao)->first();
+            if (!$airport) {
+                return self::json($res->withStatus(404), ['error' => 'airport not found']);
+            }
+
+            $airport->active_config_name = $configName;
+            $airport->active_arr_rate = $arrRate;
+            $airport->active_dep_rate = $depRate;
+            $airport->active_config_set_at = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->format('Y-m-d H:i:s');
+            $airport->save();
+
+            return self::json($res, [
+                'ok' => true,
+                'airport' => $icao,
+                'config' => $configName,
+                'arr_rate' => $arrRate,
+                'dep_rate' => $depRate,
+            ]);
+        });
+
         // POST /api/v1/admin/wind-eldt — batch-update wind-corrected ELDT.
         // Called by the wind-shadow experiment script (bin/experiments/wind-shadow.py)
         // to write GRIB-derived ELDTs onto flight records for three-way comparison.

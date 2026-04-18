@@ -324,7 +324,7 @@
     const AIRPORTS = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
     let BIN_MINUTES = 15;
     const PAST_HOURS = 1;
-    const FUTURE_HOURS = 3;
+    const FUTURE_HOURS = 4;
     let BINS_COUNT = ((PAST_HOURS + FUTURE_HOURS) * 60) / BIN_MINUTES;
     const REFRESH_MS = 60000;
 
@@ -382,21 +382,17 @@
     }
 
     function getDeclaredRate(airport) {
-        // Read active rate set by AAR page (persisted in localStorage).
+        // Active rate set by FMP on AAR page, persisted server-side.
         // Falls back to calm-wind declared rate if AAR page hasn't been
-        // used yet. Stale rates (>2h old) are ignored.
-        try {
-            const saved = JSON.parse(localStorage.getItem('atfm-active-rates') || '{}');
-            const r = saved[airport];
-            if (r && r.arr && (Date.now() - r.ts) < 7200000) return r.arr;
-        } catch (e) {}
+        // used yet (active_arr_rate is null).
+        const a = airportsData[airport];
+        if (a && a.active_arr_rate) return a.active_arr_rate;
         // Fallback: calm-wind config declared rate
         const cfg = runwayConfigs[airport];
         if (cfg && cfg.calm_wind_config && cfg.configs) {
             const calm = cfg.configs.find(c => c.name === cfg.calm_wind_config);
             if (calm && calm.declared_arr_rate) return calm.declared_arr_rate;
         }
-        const a = airportsData[airport];
         return a ? (a.base_arrival_rate || 0) : 0;
     }
 
