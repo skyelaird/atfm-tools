@@ -24,13 +24,13 @@ $airports = [
     // icao, name, lat, lon, elev, base_arr, base_dep, exot, exit, cdm
     // Names are plain ASCII to avoid charset issues on shared MySQL hosts
     // where the column charset may not honor the Eloquent connection charset.
-    ['CYHZ', 'Halifax Stanfield International',        44.8808,  -63.5086,  477, 24, 24, 10, 6, false],
-    ['CYOW', 'Ottawa Macdonald-Cartier International', 45.3225,  -75.6692,  374, 24, 24,  5, 8, false],
-    ['CYUL', 'Montreal Pierre Elliott Trudeau',        45.4706,  -73.7408,  118, 40, 40, 15, 10, false],
-    ['CYVR', 'Vancouver International',                49.1939, -123.1844,   14, 50, 50, 10, 8, false],
-    ['CYWG', 'Winnipeg James Armstrong Richardson',    49.9100,  -97.2399,  783, 36, 36,  8, 6, false],
-    ['CYYC', 'Calgary International',                  51.1139, -114.0203, 3557, 32, 32, 10, 8, false],
-    ['CYYZ', 'Toronto Lester B. Pearson International', 43.6772,  -79.6306,  569, 66, 66, 20, 12, false],
+    ['CYHZ', 'Halifax Stanfield International',        44.8808,  -63.5086,  477, 22, 22, 10, 6, false],
+    ['CYOW', 'Ottawa Macdonald-Cartier International', 45.3225,  -75.6692,  374, 22, 22,  5, 8, false],
+    ['CYUL', 'Montreal Pierre Elliott Trudeau',        45.4706,  -73.7408,  118, 42, 30, 15, 10, false],
+    ['CYVR', 'Vancouver International',                49.1939, -123.1844,   14, 46, 30, 10, 8, false],
+    ['CYWG', 'Winnipeg James Armstrong Richardson',    49.9100,  -97.2399,  783, 22, 22,  8, 6, false],
+    ['CYYC', 'Calgary International',                  51.1139, -114.0203, 3557, 42, 30, 10, 8, false],
+    ['CYYZ', 'Toronto Lester B. Pearson International', 43.6772,  -79.6306,  569, 46, 30, 20, 12, false],
 ];
 
 $count = 0;
