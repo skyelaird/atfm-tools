@@ -383,12 +383,12 @@ function rerender() {
     const tierPreferredOrder = ['WIND_GRIB', 'FILED', 'FIR_EET', 'OBSERVED_POS', 'CALC_FILED_TAS', 'CALC_TYPE_TAS', 'CALC_DEFAULT'];
     const tierLabels = { WIND_GRIB: 'GRIB wind', FILED: 'Filed ETE', FIR_EET: 'FIR EET/', OBSERVED_POS: 'Observed pos', CALC_FILED_TAS: 'Filed TAS', CALC_TYPE_TAS: 'Type TAS', CALC_DEFAULT: 'Default 430kt' };
     // Show only non-zero tiers, in preferred order; any unknown tiers appended at end
-    const tierTotal = Object.values(etaDist).reduce((a, b) => a + b, 0);
+    const tierTotal = Object.values(etaDist).reduce((a, b) => a + Number(b), 0);
     const seenTiers = new Set(Object.keys(etaDist));
     const orderedTiers = tierPreferredOrder.filter(t => (etaDist[t] || 0) > 0);
     for (const t of seenTiers) { if (!orderedTiers.includes(t) && etaDist[t] > 0) orderedTiers.push(t); }
     for (const tier of orderedTiers) {
-        const n = etaDist[tier] || 0;
+        const n = Number(etaDist[tier]) || 0;
         const pct = tierTotal > 0 ? (100 * n / tierTotal).toFixed(1) + '%' : '\u2014';
         etaGrid.appendChild(el('div', { class: 'stat-card' },
             el('div', { class: 'lbl' }, tierLabels[tier] || tier),
