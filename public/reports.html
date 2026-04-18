@@ -199,7 +199,6 @@
                 <thead id="types-thead">
                     <tr>
                         <th data-sort="aircraft_type">Type</th>
-                        <th data-sort="wake">Wake</th>
                         <th data-sort="count" class="num">Total</th>
                         <!-- per-airport columns built dynamically in JS -->
                     </tr>
@@ -416,7 +415,6 @@ function rerender() {
     typesThead.innerHTML = '';
     const typesHeaderRow = el('tr', {},
         el('th', { 'data-sort': 'aircraft_type' }, 'Type'),
-        el('th', { 'data-sort': 'wake' }, 'Wake'),
         el('th', { 'data-sort': 'count', class: 'num' }, 'Total'),
         ...airportIcaos.map(icao =>
             el('th', { 'data-sort': 'apt_' + icao, class: 'num muted' }, icao.substring(1))
@@ -433,7 +431,6 @@ function rerender() {
     typesTbody.innerHTML = '';
     const tAcc = {
         aircraft_type: r => r.aircraft_type,
-        wake:          r => r.wake,
         count:         r => r.count,
     };
     // Add dynamic per-airport accessors
@@ -443,8 +440,7 @@ function rerender() {
 
     const tRows = sortRowsFor('types-table', d.top_aircraft, tAcc);
     updateSortIndicators('types-table');
-    const wakeCls = w => w === 'H' ? 'alert-val' : w === 'J' ? 'alert-val' : w === 'L' ? 'ok-val' : '';
-    const totalCols = 3 + airportIcaos.length;
+    const totalCols = 2 + airportIcaos.length;
     for (const r of tRows) {
         const airportCells = airportIcaos.map(icao => {
             const n = (r.by_airport && r.by_airport[icao]) || 0;
@@ -452,7 +448,6 @@ function rerender() {
         });
         typesTbody.appendChild(el('tr', {},
             el('td', { class: 'mono' }, r.aircraft_type),
-            el('td', { class: 'mono ' + wakeCls(r.wake) }, r.wake || '?'),
             el('td', { class: 'num' }, String(r.count)),
             ...airportCells
         ));
