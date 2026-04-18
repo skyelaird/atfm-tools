@@ -594,6 +594,55 @@ def fetch_flights() -> list[dict]:
     return data.get("flights", data) if isinstance(data, dict) else data
 
 
+def _grid_cell_segments(
+    lat1: float, lon1: float, lat2: float, lon2: float,
+) -> list[tuple[float, float, float, float]]:
+    """Break a leg into sub-segments at every 1-degree grid boundary.
+
+    Traces the path from (lat1,lon1) to (lat2,lon2) and finds every
+    integer latitude and longitude crossing.  Returns a list of
+    (from_lat, from_lon, to_lat, to_lon) tuples — one per grid cell
+    the path traverses.
+
+    Uses linear interpolation in lat/lon, which is accurate enough
+    for ~60nm cell segments at these latitudes.
+    """
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+
+    # Collect parametric fractions (0..1) where path crosses grid lines
+    crossings: list[float] = [0.0, 1.0]
+
+    if abs(dlon) > 1e-9:
+        lo, hi = (lon1, lon2) if lon1 < lon2 else (lon2, lon1)
+        for lon_int in range(int(math.ceil(lo)), int(math.floor(hi)) + 1):
+            frac = (lon_int - lon1) / dlon
+            if 0 < frac < 1:
+                crossings.append(frac)
+
+    if abs(dlat) > 1e-9:
+        lo, hi = (lat1, lat2) if lat1 < lat2 else (lat2, lat1)
+        for lat_int in range(int(math.ceil(lo)), int(math.floor(hi)) + 1):
+            frac = (lat_int - lat1) / dlat
+            if 0 < frac < 1:
+                crossings.append(frac)
+
+    crossings.sort()
+
+    # Build sub-segments between consecutive crossings
+    segments = []
+    for i in range(len(crossings) - 1):
+        f1, f2 = crossings[i], crossings[i + 1]
+        if f2 - f1 < 1e-12:
+            continue
+        segments.append((
+            lat1 + f1 * dlat, lon1 + f1 * dlon,
+            lat1 + f2 * dlat, lon1 + f2 * dlon,
+        ))
+
+    return segments if segments else [(lat1, lon1, lat2, lon2)]
+
+
 def compute_wind_eta(flight: dict, grid: dict) -> dict | None:
     """For an airborne flight at cruise, compute wind-corrected ETA.
 
@@ -648,12 +697,16 @@ def compute_wind_eta(flight: dict, grid: dict) -> dict | None:
     # --- Geometric ETA (our production model, along-route distance) ---
     geo_min = eta_minutes_with_descent(dist_nm, cruise_kt, cruise_alt, dest_elev)
 
-    # --- Wind-corrected ETA: integrate wind along each route segment ---
+    # --- Wind-corrected ETA: integrate wind per grid cell along route ---
     #
-    # For each leg, sample wind at the midpoint, decompose along the
-    # leg bearing, compute effective groundspeed, accumulate cruise time.
-    # Descent segment uses the standard no-wind model (wind below FL100
-    # is much weaker and less predictable from 250mb data).
+    # Each route leg is subdivided at 1-degree grid boundaries so the
+    # wind vector changes at each cell the flight traverses. A NAT leg
+    # from 58N020W to 58N050W crosses 30 grid cells — each gets its own
+    # wind sample, its own GS (= TAS + along-track wind component), and
+    # its own transit time.
+    #
+    # Descent segment uses the standard no-wind model (250mb wind is not
+    # representative below FL100, and the speed schedule dominates).
     alt_above = max(0, cruise_alt - dest_elev)
     tod_dist = alt_above / 318.0
     cruise_remaining = max(0, dist_nm - tod_dist)
@@ -661,36 +714,42 @@ def compute_wind_eta(flight: dict, grid: dict) -> dict | None:
     wind_cruise_min = 0.0
     total_wind_along = 0.0
     total_wind_weight = 0.0
-    leg_dist_accum = 0.0
+    dist_accum = 0.0
 
     for from_lat, from_lon, to_lat, to_lon in legs:
-        leg_nm = gc_distance_nm(from_lat, from_lon, to_lat, to_lon)
-        if leg_nm < 0.1:
-            continue
+        # Split this leg at every integer lat/lon crossing (grid cell
+        # boundaries).  Between each pair of crossings the flight is in
+        # one GRIB cell, so we sample one wind vector per sub-segment.
+        cells = _grid_cell_segments(from_lat, from_lon, to_lat, to_lon)
 
-        # How much of this leg is in the cruise segment?
-        cruise_in_leg = min(leg_nm, max(0, cruise_remaining - leg_dist_accum))
-        if cruise_in_leg <= 0:
-            break  # rest is descent
+        for c_lat1, c_lon1, c_lat2, c_lon2 in cells:
+            cell_nm = gc_distance_nm(c_lat1, c_lon1, c_lat2, c_lon2)
+            if cell_nm < 0.1:
+                continue
 
-        # Sample wind at leg midpoint
-        mid_lat = (from_lat + to_lat) / 2
-        mid_lon = (from_lon + to_lon) / 2
-        u_kt, v_kt = interpolate_wind(grid, mid_lat, mid_lon)
+            cruise_in_cell = min(cell_nm, max(0, cruise_remaining - dist_accum))
+            if cruise_in_cell <= 0:
+                break  # rest is descent
 
-        # Leg bearing for wind decomposition
-        leg_bearing = bearing_deg(from_lat, from_lon, to_lat, to_lon)
-        wind_along = wind_component_along_track(u_kt, v_kt, leg_bearing)
+            # Wind at cell midpoint
+            mid_lat = (c_lat1 + c_lat2) / 2
+            mid_lon = (c_lon1 + c_lon2) / 2
+            u_kt, v_kt = interpolate_wind(grid, mid_lat, mid_lon)
 
-        # Effective speed for this segment
-        eff_kt = max(150, min(cruise_kt + wind_along, 700))
-        wind_cruise_min += (cruise_in_leg / eff_kt) * 60
+            cell_bearing = bearing_deg(c_lat1, c_lon1, c_lat2, c_lon2)
+            wind_along = wind_component_along_track(u_kt, v_kt, cell_bearing)
 
-        # Weighted average wind for reporting
-        total_wind_along += wind_along * cruise_in_leg
-        total_wind_weight += cruise_in_leg
+            # GS for this cell
+            eff_kt = max(150, min(cruise_kt + wind_along, 700))
+            wind_cruise_min += (cruise_in_cell / eff_kt) * 60
 
-        leg_dist_accum += leg_nm
+            total_wind_along += wind_along * cruise_in_cell
+            total_wind_weight += cruise_in_cell
+
+            dist_accum += cell_nm
+
+        if dist_accum >= cruise_remaining:
+            break
 
     # Add descent time (no wind correction — 250mb wind not representative
     # below FL100, and the descent speed schedule dominates)
