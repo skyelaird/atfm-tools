@@ -37,11 +37,15 @@ final class Phase
     public const NEAR_DEP_NM           = 30;
     public const LOW_ALT_AGL_FT        = 5000;
 
+    /** Altitude drop from filed cruise that indicates descent has begun. */
+    public const DESCENT_MARGIN_FT     = 3000;
+
     /**
      * Compute a phase from the raw position + airport coordinates.
      *
      * @param array|null $adepAirport Airport row (array) or null if unknown
      * @param array|null $adesAirport
+     * @param int|null   $filedAltFt  Filed cruise altitude for DESCENT detection
      */
     public static function compute(
         ?float $lat,
@@ -49,7 +53,8 @@ final class Phase
         ?int $altitudeFt,
         ?int $groundspeedKts,
         ?array $adepAirport,
-        ?array $adesAirport
+        ?array $adesAirport,
+        ?int $filedAltFt = null
     ): string {
         $gs = $groundspeedKts ?? 0;
         $airborne = $gs > self::AIRBORNE_GS_THRESHOLD;
@@ -86,6 +91,18 @@ final class Phase
                 && $altitudeFt !== null
                 && ($altitudeFt - $adepAirport['elevation_ft']) < self::LOW_ALT_AGL_FT) {
                 return Flight::PHASE_DEPARTED;
+            }
+            // Past TOD: altitude dropped well below filed cruise → DESCENT
+            // (counterpart to CLIMBOUT/DEPARTED, fills the gap between
+            // ENROUTE and ARRIVING for flights 40-150nm out descending)
+            if ($filedAltFt !== null
+                && $altitudeFt !== null
+                && $filedAltFt > 10000
+                && $altitudeFt < ($filedAltFt - self::DESCENT_MARGIN_FT)
+                && $distToAdes !== null
+                && $distToAdes > self::APPROACH_NM
+                && $distToAdes < 200) {
+                return Flight::PHASE_DESCENT;
             }
             return Flight::PHASE_ENROUTE;
         }

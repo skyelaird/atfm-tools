@@ -204,6 +204,7 @@
         .phase.TAXI_OUT   { background: rgba(250,204,21,0.15);  color: var(--warn); }
         .phase.DEPARTED   { background: rgba(96,165,250,0.15);  color: var(--info); }
         .phase.ENROUTE    { background: rgba(94,234,212,0.15);  color: var(--accent); }
+        .phase.DESCENT    { background: rgba(96,165,250,0.2);   color: var(--info); }
         .phase.ARRIVING   { background: rgba(94,234,212,0.2);   color: var(--accent); }
         .phase.FINAL      { background: rgba(74,222,128,0.15);  color: var(--ok); }
         .phase.ON_RUNWAY  { background: rgba(74,222,128,0.2);   color: var(--ok); }
@@ -423,7 +424,7 @@
     //   landed  (black) = ARRIVED / ON_RUNWAY / VACATED / TAXI_IN
     //   airborne (red)  = CRUISE / DESCENT / ARRIVING / CLIMBOUT
     //   filed  (green)  = FILED / TAXI_OUT / PREFILE / null
-    const AIRBORNE_PHASES = ['ENROUTE', 'CRUISE', 'DESCENT', 'ARRIVING', 'DEPARTED', 'CLIMBOUT'];
+    const AIRBORNE_PHASES = ['ENROUTE', 'CRUISE', 'DESCENT', 'ARRIVING', 'DEPARTED', 'CLIMBOUT', 'FINAL'];
     const LANDED_PHASES   = ['ARRIVED', 'ON_RUNWAY', 'VACATED', 'TAXI_IN', 'IN_BLOCKS'];
 
     function classifyPhase(phase) {

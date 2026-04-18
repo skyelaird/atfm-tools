@@ -33,6 +33,7 @@ final class Flight extends Model
     public const PHASE_TAXI_OUT     = 'TAXI_OUT';
     public const PHASE_DEPARTED     = 'DEPARTED';
     public const PHASE_ENROUTE      = 'ENROUTE';
+    public const PHASE_DESCENT      = 'DESCENT';
     public const PHASE_ARRIVING     = 'ARRIVING';
     public const PHASE_FINAL        = 'FINAL';
     public const PHASE_ON_RUNWAY    = 'ON_RUNWAY';
@@ -175,6 +176,7 @@ final class Flight extends Model
         return in_array($this->phase, [
             self::PHASE_DEPARTED,
             self::PHASE_ENROUTE,
+            self::PHASE_DESCENT,
             self::PHASE_ARRIVING,
             self::PHASE_FINAL,
             self::PHASE_GO_AROUND,

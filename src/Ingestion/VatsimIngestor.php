@@ -186,7 +186,8 @@ final class VatsimIngestor
         $adepAirport = $this->airportsByIcao[$adep] ?? null;
         $adesAirport = $this->airportsByIcao[$ades] ?? null;
 
-        $phase = Phase::compute($lat, $lon, $altitude, $gs, $adepAirport, $adesAirport);
+        $filedAltFt = $this->parseAltitude($fp['altitude'] ?? null);
+        $phase = Phase::compute($lat, $lon, $altitude, $gs, $adepAirport, $adesAirport, $filedAltFt);
 
         // Parse EOBT (HHMM) into a datetime.
         //
