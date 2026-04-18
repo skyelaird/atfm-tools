@@ -48,6 +48,7 @@ use DateTimeImmutable;
  */
 final class EtaEstimator
 {
+    public const SOURCE_WIND_GRIB     = 'WIND_GRIB';
     public const SOURCE_FILED         = 'FILED';
     public const SOURCE_FIR_EET       = 'FIR_EET';
     public const SOURCE_OBSERVED_POS  = 'OBSERVED_POS';
@@ -98,78 +99,56 @@ final class EtaEstimator
                 // Fall through to Tier 1 (FILED) or Tiers 3-5 below.
                 // Don't return — let the cascade continue.
             } else {
-                // At or near cruise — compute descent-aware ETA from
-                // observed position and cruise speed.
+                // --------------------------------------------------------
+                // Airborne ETA cascade (at or near cruise)
                 //
-                // Distance: prefer along-route distance when filed
-                // route contains coordinate waypoints (NAT tracks,
-                // ICAO lat/lon fixes). This corrects for jet-stream
-                // avoidance routing that inflates the actual path
-                // 10-15% beyond great-circle on westbound NAT tracks.
-                $routeCoords = !empty($flight->fp_route)
-                    ? Geo::parseRouteCoordinates($flight->fp_route)
-                    : [];
-                $distNm = !empty($routeCoords)
-                    ? Geo::alongRouteDistanceNm(
-                        (float) $flight->last_lat, (float) $flight->last_lon,
-                        (float) $destAirport->latitude, (float) $destAirport->longitude,
-                        $routeCoords
-                    )
-                    : Geo::distanceNm(
-                        (float) $flight->last_lat, (float) $flight->last_lon,
-                        (float) $destAirport->latitude, (float) $destAirport->longitude
-                    );
+                // Priority:
+                //   1. WIND_GRIB  — GRIB wind from observed position (best: position + real winds)
+                //   2. FILED      — ATOT + filed ETE (SimBrief winds, no position update)
+                //   3. OBSERVED_POS — geometric distance/TAS (no wind, position only)
+                //
+                // All three can carry the flight to the freeze horizon at T-90m.
+                // --------------------------------------------------------
 
-                // Cruise speed selection: prefer filed TAS over observed
-                // GS. GS includes wind — headwinds (common for westbound
-                // arrivals into Canada) reduce GS below TAS, inflating
-                // the cruise-segment ETE and producing a systematic late
-                // bias (+7 min mean on OBSERVED_POS). Filed TAS from
-                // SimBrief/pfpx is wind-neutral and better represents
-                // the aircraft's performance over the remaining cruise.
-                // Fall back to GS when no filed TAS exists, and to the
-                // default 430 kt last resort.
-                //
-                // Sanity gate: if filed TAS deviates >30% from the
-                // type-table TAS, the pilot filed garbage (e.g. 280kt
-                // for an A321 that does 447kt). Reject it and use the
-                // type table value instead.
-                $filedTas = ($flight->fp_cruise_tas !== null && $flight->fp_cruise_tas >= 120 && $flight->fp_cruise_tas <= 650)
-                    ? $flight->fp_cruise_tas
-                    : null;
-                if ($filedTas !== null && $flight->aircraft_type && AircraftTas::known($flight->aircraft_type)) {
-                    $typeTas = AircraftTas::typicalTas($flight->aircraft_type);
-                    if (abs($filedTas - $typeTas) > $typeTas * 0.30) {
-                        $filedTas = null; // reject obviously wrong filed TAS
+                $destLat = (float) $destAirport->latitude;
+                $destLon = (float) $destAirport->longitude;
+                $aptElev = (int) $destAirport->elevation_ft;
+
+                // --- Priority 1: GRIB wind-corrected ETA ---
+                // Compute inline from WindEta when the wind grid is available
+                // and the flight is within grid coverage (LAT 40-65, LON -130 to -30).
+                $windGrid = WindEta::loadWindGrid();
+                if ($windGrid !== null) {
+                    $destInfo = [
+                        'lat' => $destLat,
+                        'lon' => $destLon,
+                        'elev' => $aptElev,
+                    ];
+                    $windEldt = WindEta::computeForFlight($flight, $windGrid, $destInfo);
+                    if ($windEldt !== null) {
+                        $windEpoch = $windEldt->getTimestamp();
+                        $windEtaMin = ($windEpoch - $now->getTimestamp()) / 60.0;
+                        if ($windEtaMin > 0) {
+                            // Also write eldt_wind for QA comparison
+                            if ($flight->eldt_wind === null
+                                || abs($flight->eldt_wind->getTimestamp() - $windEpoch) > 60
+                            ) {
+                                Flight::where('id', $flight->id)
+                                    ->update(['eldt_wind' => $windEldt->format('Y-m-d H:i:s')]);
+                            }
+                            return [
+                                'epoch'      => $windEpoch,
+                                'source'     => self::SOURCE_WIND_GRIB,
+                                'confidence' => 92,
+                            ];
+                        }
                     }
                 }
-                $observedGs = ($flight->last_groundspeed_kts !== null && $flight->last_groundspeed_kts > 100)
-                    ? $flight->last_groundspeed_kts
-                    : null;
-                // When filed TAS is rejected, prefer type-table TAS over
-                // observed GS (GS has wind bias). Fall back to GS, then default.
-                $typeFallback = ($flight->aircraft_type && AircraftTas::known($flight->aircraft_type))
-                    ? AircraftTas::typicalTas($flight->aircraft_type)
-                    : null;
-                $cruiseKt = $filedTas ?? $typeFallback ?? $observedGs ?? Geo::DEFAULT_CRUISE_KT;
 
-                $altFt = $currentAlt;
-                $descentIas = $flight->aircraft_type
-                    ? AircraftTas::descentIasHigh($flight->aircraft_type)
-                    : AircraftTas::DEFAULT_DESCENT_IAS_HIGH;
-                $etaMin = Geo::etaMinutesWithDescent(
-                    $distNm, $cruiseKt, $altFt, (int) $destAirport->elevation_ft, $descentIas
-                );
-                $observedEpoch = $now->getTimestamp() + (int) round($etaMin * 60);
-
-                // For flights with ATOT + filed enroute time (SimBrief-quality,
-                // wind-corrected), compare against the geometric estimate.
-                // On long-haul routes (NAT westbound with 80-120kt headwind),
-                // the filed ETE is far more accurate than geometric distance/TAS
-                // which ignores wind entirely. Prefer the ATOT-anchored filed
-                // estimate when the flight has >2h remaining (where wind error
-                // dominates position error). Once closer, OBSERVED_POS wins
-                // because position trumps filed winds.
+                // --- Priority 2: ATOT + filed enroute time ---
+                // SimBrief-quality wind-corrected ETE anchored to actual
+                // takeoff time. Better than geometric for flights outside
+                // the GRIB grid (e.g. still over Europe on a NAT crossing).
                 if ($flight->atot !== null
                     && $flight->fp_enroute_time_min !== null
                     && $flight->fp_enroute_time_min > 0
@@ -177,11 +156,7 @@ final class EtaEstimator
                     $filedEpoch = $flight->atot->getTimestamp()
                                 + ($flight->fp_enroute_time_min * 60);
                     $filedEtaMin = ($filedEpoch - $now->getTimestamp()) / 60.0;
-
-                    // When >2h remaining, the filed (wind-corrected) estimate
-                    // is more trustworthy than geometric (no-wind) TAS.
-                    // Filed gets conf 90 (SimBrief quality), observed gets 85/88.
-                    if ($etaMin > 120 && $filedEtaMin > 0) {
+                    if ($filedEtaMin > 0) {
                         return [
                             'epoch'      => $filedEpoch,
                             'source'     => self::SOURCE_FILED,
@@ -190,8 +165,49 @@ final class EtaEstimator
                     }
                 }
 
+                // --- Priority 3: geometric OBSERVED_POS (no wind) ---
+                // Distance/TAS from observed position. Fallback when no
+                // GRIB grid and no filed ETE available.
+                $routeCoords = !empty($flight->fp_route)
+                    ? Geo::parseRouteCoordinates($flight->fp_route)
+                    : [];
+                $distNm = !empty($routeCoords)
+                    ? Geo::alongRouteDistanceNm(
+                        (float) $flight->last_lat, (float) $flight->last_lon,
+                        $destLat, $destLon, $routeCoords
+                    )
+                    : Geo::distanceNm(
+                        (float) $flight->last_lat, (float) $flight->last_lon,
+                        $destLat, $destLon
+                    );
+
+                // TAS selection with sanity gate
+                $filedTas = ($flight->fp_cruise_tas !== null && $flight->fp_cruise_tas >= 120 && $flight->fp_cruise_tas <= 650)
+                    ? $flight->fp_cruise_tas
+                    : null;
+                if ($filedTas !== null && $flight->aircraft_type && AircraftTas::known($flight->aircraft_type)) {
+                    $typeTas = AircraftTas::typicalTas($flight->aircraft_type);
+                    if (abs($filedTas - $typeTas) > $typeTas * 0.30) {
+                        $filedTas = null;
+                    }
+                }
+                $typeFallback = ($flight->aircraft_type && AircraftTas::known($flight->aircraft_type))
+                    ? AircraftTas::typicalTas($flight->aircraft_type)
+                    : null;
+                $observedGs = ($flight->last_groundspeed_kts !== null && $flight->last_groundspeed_kts > 100)
+                    ? $flight->last_groundspeed_kts
+                    : null;
+                $cruiseKt = $filedTas ?? $typeFallback ?? $observedGs ?? Geo::DEFAULT_CRUISE_KT;
+
+                $descentIas = $flight->aircraft_type
+                    ? AircraftTas::descentIasHigh($flight->aircraft_type)
+                    : AircraftTas::DEFAULT_DESCENT_IAS_HIGH;
+                $etaMin = Geo::etaMinutesWithDescent(
+                    $distNm, $cruiseKt, $currentAlt, $aptElev, $descentIas
+                );
+
                 return [
-                    'epoch'      => $observedEpoch,
+                    'epoch'      => $now->getTimestamp() + (int) round($etaMin * 60),
                     'source'     => self::SOURCE_OBSERVED_POS,
                     'confidence' => $filedTas !== null ? 88 : 85,
                 ];
