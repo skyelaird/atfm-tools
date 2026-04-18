@@ -1794,12 +1794,14 @@ final class Kernel
                 if ($ourEldt === null) {
                     $alt = (int) ($f->last_altitude_ft ?? 0);
                     $fpAlt = (int) ($f->fp_altitude_ft ?? 35000);
-                    if (in_array($f->phase, [Flight::PHASE_PREFILE, 'FILED'], true)) {
+                    if (in_array($f->phase, [Flight::PHASE_PREFILE, Flight::PHASE_FILED], true)) {
                         $noEldtReason = 'At gate';
                     } elseif ($f->phase === Flight::PHASE_TAXI_OUT) {
                         $noEldtReason = 'Taxiing out';
                     } elseif ($f->phase === Flight::PHASE_DEPARTED || ($f->phase === Flight::PHASE_ENROUTE && $alt < $fpAlt - 2000)) {
                         $noEldtReason = 'Climbing (FL' . round($alt / 100) . ', needs FL' . round(($fpAlt - 2000) / 100) . '+)';
+                    } elseif ($f->phase === Flight::PHASE_DESCENT) {
+                        $noEldtReason = 'Descending (no route data?)';
                     } else {
                         $noEldtReason = 'Unknown';
                     }

@@ -103,8 +103,8 @@
     <h1>atfm-tools <span class="muted">PERTI Comparison</span></h1>
     <div class="nav-pills">
         <a href="/dashboard.html" class="pill">dashboard</a>
+        <a href="/fsm.html" class="pill">FSM</a>
         <a href="/reports.html" class="pill">reports</a>
-        <a href="/map.html" class="pill">map</a>
         <span class="pill" id="status-pill">loading...</span>
     </div>
 </header>
@@ -232,19 +232,19 @@ function render(d) {
     // Post-landing accuracy: three-way comparison
     const landings = (d.recent_landings || []).filter(l => !l.synthetic);
     if (landings.length > 0) {
-        const ourErrs = landings.map(l => Math.abs(l.our_err_min));
-        const ourAvg = (ourErrs.reduce((a,b) => a+b, 0) / ourErrs.length).toFixed(1);
+        function median(arr) { if (!arr.length) return null; const s = arr.slice().sort((a,b) => a-b); const m = Math.floor(s.length/2); return s.length % 2 ? s[m] : (s[m-1]+s[m])/2; }
+        const ourMed = median(landings.map(l => Math.abs(l.our_err_min))).toFixed(1);
         const pertiLandings = landings.filter(l => l.perti_err_min !== null);
-        const pertiAvg = pertiLandings.length > 0
-            ? (pertiLandings.map(l => Math.abs(l.perti_err_min)).reduce((a,b) => a+b, 0) / pertiLandings.length).toFixed(1)
+        const pertiMed = pertiLandings.length > 0
+            ? median(pertiLandings.map(l => Math.abs(l.perti_err_min))).toFixed(1)
             : '—';
 
         const windLandings = landings.filter(l => l.wind_err_min !== null);
-        const windAvg = windLandings.length > 0
-            ? (windLandings.map(l => Math.abs(l.wind_err_min)).reduce((a,b) => a+b, 0) / windLandings.length).toFixed(1)
+        const windMed = windLandings.length > 0
+            ? median(windLandings.map(l => Math.abs(l.wind_err_min))).toFixed(1)
             : '—';
 
-        html += `<section><h2>Post-Landing Accuracy (last 2h) — ${landings.length} flights, avg |err|: us=${ourAvg}m, GRIB=${windAvg}m, PERTI=${pertiAvg}m</h2>
+        html += `<section><h2>Post-Landing Accuracy (last 2h) — ${landings.length} flights, median |err|: us=${ourMed}m, GRIB=${windMed}m, PERTI=${pertiMed}m</h2>
             <div class="table-wrap"><table>
             <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>ALDT</th><th>Our ELDT</th><th>Us err</th><th>GRIB ELDT</th><th>GRIB err</th><th>PERTI ETA</th><th>PERTI err</th></tr></thead><tbody>`;
         for (const l of landings) {
@@ -255,9 +255,9 @@ function render(d) {
                 <td class="mono">${hhmmz(l.aldt)}</td>
                 <td class="mono">${hhmmz(l.eldt_locked)}</td>
                 <td class="mono ${deltaClass(l.our_err_min)}">${l.our_err_min > 0 ? '+' : ''}${l.our_err_min}m</td>
-                <td class="mono">${hhmmz(l.eldt_wind) || '—'}</td>
+                <td class="mono">${hhmmz(l.eldt_wind)}</td>
                 <td class="mono ${l.wind_err_min !== null ? deltaClass(l.wind_err_min) : 'muted'}">${l.wind_err_min !== null ? (l.wind_err_min > 0 ? '+' : '') + l.wind_err_min + 'm' : '—'}</td>
-                <td class="mono">${hhmmz(l.eldt_perti) || '—'}</td>
+                <td class="mono">${hhmmz(l.eldt_perti)}</td>
                 <td class="mono ${l.perti_err_min !== null ? deltaClass(l.perti_err_min) : 'muted'}">${l.perti_err_min !== null ? (l.perti_err_min > 0 ? '+' : '') + l.perti_err_min + 'm' : '—'}</td>
             </tr>`;
         }
@@ -282,7 +282,7 @@ function render(d) {
     html += `<section><h2>Legend</h2>
         <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.8rem;">
             <span><span class="tag tag-simbrief">SB</span> SimBrief flight plan</span>
-            <span><span class="tag tag-frozen">FRZ</span> ELDT frozen (T-2h)</span>
+            <span><span class="tag tag-frozen">FRZ</span> ELDT frozen (T-90m)</span>
             <span><span class="tag tag-keymatch">key</span> Matched by flight_key</span>
             <span><span class="tag tag-csmatch">cs</span> Matched by callsign fallback</span>
             <span><span class="tag tag-edct">EDCT</span> PERTI departure clearance time</span>
@@ -348,14 +348,17 @@ function renderAccuracy() {
     const ourErrs = rows.filter(r => r.our_err_min !== null);
     const pertiErrs = rows.filter(r => r.perti_err_min !== null);
 
+    function medianOf(arr) { if (!arr.length) return null; const s = arr.slice().sort((a,b) => a-b); const m = Math.floor(s.length/2); return s.length % 2 ? s[m] : (s[m-1]+s[m])/2; }
     function stats(arr, key) {
-        if (!arr.length) return { n: 0, mean: null, absMean: null, w3: null, w5: null };
+        if (!arr.length) return { n: 0, median: null, absMedian: null, mean: null, absMean: null, w3: null, w5: null };
         const vals = arr.map(r => r[key]);
         const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
         const absMean = vals.reduce((a, b) => a + Math.abs(b), 0) / vals.length;
+        const med = medianOf(vals);
+        const absMed = medianOf(vals.map(v => Math.abs(v)));
         const w3 = vals.filter(v => Math.abs(v) <= 3).length;
         const w5 = vals.filter(v => Math.abs(v) <= 5).length;
-        return { n: vals.length, mean, absMean, w3: 100 * w3 / vals.length, w5: 100 * w5 / vals.length };
+        return { n: vals.length, median: med, absMedian: absMed, mean, absMean, w3: 100 * w3 / vals.length, w5: 100 * w5 / vals.length };
     }
 
     const ourS = stats(ourErrs, 'our_err_min');
@@ -368,8 +371,8 @@ function renderAccuracy() {
     html += '<div></div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">Our Model</div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">GRIB Wind</div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">PERTI</div>';
     const metricRows = [
         ['n', ourS.n, windS.n, pertiS.n],
-        ['Mean error', ourS.mean !== null ? fmtSigned(ourS.mean) + 'm' : '—', windS.mean !== null ? fmtSigned(windS.mean) + 'm' : '—', pertiS.mean !== null ? fmtSigned(pertiS.mean) + 'm' : '—'],
-        ['|Mean|', ourS.absMean !== null ? ourS.absMean.toFixed(1) + 'm' : '—', windS.absMean !== null ? windS.absMean.toFixed(1) + 'm' : '—', pertiS.absMean !== null ? pertiS.absMean.toFixed(1) + 'm' : '—'],
+        ['Median error', ourS.median !== null ? fmtSigned(ourS.median) + 'm' : '—', windS.median !== null ? fmtSigned(windS.median) + 'm' : '—', pertiS.median !== null ? fmtSigned(pertiS.median) + 'm' : '—'],
+        ['|Median|', ourS.absMedian !== null ? ourS.absMedian.toFixed(1) + 'm' : '—', windS.absMedian !== null ? windS.absMedian.toFixed(1) + 'm' : '—', pertiS.absMedian !== null ? pertiS.absMedian.toFixed(1) + 'm' : '—'],
         ['\u00b13 min', ourS.w3 !== null ? ourS.w3.toFixed(1) + '%' : '—', windS.w3 !== null ? windS.w3.toFixed(1) + '%' : '—', pertiS.w3 !== null ? pertiS.w3.toFixed(1) + '%' : '—'],
         ['\u00b15 min', ourS.w5 !== null ? ourS.w5.toFixed(1) + '%' : '—', windS.w5 !== null ? windS.w5.toFixed(1) + '%' : '—', pertiS.w5 !== null ? pertiS.w5.toFixed(1) + '%' : '—'],
     ];
@@ -388,19 +391,19 @@ function renderAccuracy() {
         if (!tiers[src]) tiers[src] = [];
         tiers[src].push(r);
     }
-    const tierOrder = ['FILED', 'OBSERVED_POS', 'CALC_FILED_TAS', 'CALC_TYPE_TAS', 'CALC_DEFAULT', 'UNKNOWN'];
+    const tierOrder = ['FILED', 'FIR_EET', 'OBSERVED_POS', 'CALC_FILED_TAS', 'CALC_TYPE_TAS', 'CALC_DEFAULT', 'UNKNOWN'];
     const tierKeys = tierOrder.filter(k => tiers[k]).concat(Object.keys(tiers).filter(k => !tierOrder.includes(k)));
 
     html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">Accuracy by ETA Source Tier</h3>';
-    html += '<div class="table-wrap"><table><thead><tr><th>Source</th><th>n</th><th>Mean err</th><th>|Mean|</th><th>\u00b13 min</th></tr></thead><tbody>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Source</th><th>n</th><th>Median err</th><th>|Median|</th><th>\u00b13 min</th></tr></thead><tbody>';
     for (const src of tierKeys) {
         const s = stats(tiers[src].filter(r => r.our_err_min !== null), 'our_err_min');
         if (!s.n) continue;
         html += `<tr>
             <td class="mono">${src}</td>
             <td class="mono">${s.n}</td>
-            <td class="mono ${deltaClass(s.mean)}">${fmtSigned(s.mean)}m</td>
-            <td class="mono">${s.absMean.toFixed(1)}m</td>
+            <td class="mono ${deltaClass(s.median)}">${fmtSigned(s.median)}m</td>
+            <td class="mono">${s.absMedian.toFixed(1)}m</td>
             <td class="mono">${s.w3.toFixed(1)}%</td>
         </tr>`;
     }
@@ -416,7 +419,7 @@ function renderAccuracy() {
     const aptKeys = Object.keys(airports).sort();
 
     html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">Accuracy by Airport</h3>';
-    html += '<div class="table-wrap"><table><thead><tr><th>Airport</th><th>n (ours)</th><th>Our mean</th><th>Our \u00b13%</th><th>n (PERTI)</th><th>PERTI mean</th><th>PERTI \u00b13%</th></tr></thead><tbody>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Airport</th><th>n (ours)</th><th>Our median</th><th>Our \u00b13%</th><th>n (PERTI)</th><th>PERTI median</th><th>PERTI \u00b13%</th></tr></thead><tbody>';
     for (const apt of aptKeys) {
         const arr = airports[apt];
         const ourA = stats(arr.filter(r => r.our_err_min !== null), 'our_err_min');
@@ -424,10 +427,10 @@ function renderAccuracy() {
         html += `<tr>
             <td class="mono">${apt}</td>
             <td class="mono">${ourA.n}</td>
-            <td class="mono ${deltaClass(ourA.mean)}">${ourA.mean !== null ? fmtSigned(ourA.mean) + 'm' : '—'}</td>
+            <td class="mono ${deltaClass(ourA.median)}">${ourA.median !== null ? fmtSigned(ourA.median) + 'm' : '—'}</td>
             <td class="mono">${ourA.w3 !== null ? ourA.w3.toFixed(1) + '%' : '—'}</td>
             <td class="mono">${pA.n || '—'}</td>
-            <td class="mono ${deltaClass(pA.mean)}">${pA.mean !== null ? fmtSigned(pA.mean) + 'm' : '—'}</td>
+            <td class="mono ${deltaClass(pA.median)}">${pA.median !== null ? fmtSigned(pA.median) + 'm' : '—'}</td>
             <td class="mono">${pA.w3 !== null ? pA.w3.toFixed(1) + '%' : '—'}</td>
         </tr>`;
     }
