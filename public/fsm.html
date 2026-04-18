@@ -715,8 +715,9 @@
             ? Math.max(...withDelay.map(f => f.delay_minutes))
             : 0;
 
+        const noEldt = flights.length - withEldt.length;
         $stats.innerHTML = [
-            { lbl: 'Inbound', val: flights.length, cls: '' },
+            { lbl: 'Inbound', val: withEldt.length + (noEldt ? ' <span style="color:var(--text-dim);font-size:0.75rem">(+' + noEldt + ' no ETA)</span>' : ''), cls: '', raw: true },
             { lbl: 'With CTOT', val: withCtot.length, cls: withCtot.length > 0 ? 'warn' : '' },
             { lbl: 'Avg delay', val: avgDelay, unit: 'min', cls: parseFloat(avgDelay) > 10 ? 'alert' : parseFloat(avgDelay) > 0 ? 'warn' : '' },
             { lbl: 'Max delay', val: maxDelay, unit: 'min', cls: maxDelay > 15 ? 'alert' : maxDelay > 0 ? 'warn' : '' },
@@ -901,7 +902,8 @@
         renderStats(flights, icao);
 
         // Table
-        document.getElementById('flight-count').textContent = flights.length;
+        const eldtCount = flights.filter(f => getEffectiveEldt(f)).length;
+        document.getElementById('flight-count').textContent = eldtCount;
         renderTableHead('table-head', COLUMNS);
         renderTable('table-body', flights, COLUMNS);
     }
@@ -927,6 +929,7 @@
             const bins = buildBins();
             populateBins(bins, flights);
 
+            const withEldtAll = flights.filter(f => getEffectiveEldt(f)).length;
             const withCtot = flights.filter(f => f.ctot).length;
             const maxBin = Math.max(...bins.map(b => b.count), 0);
             const capPerBin = cap / (60 / BIN_MINUTES);
@@ -938,7 +941,7 @@
                 '<div class="mini-header">' +
                     '<span class="icao">' + icao + '</span>' +
                     '<div class="mini-stats">' +
-                        '<span>inbound <span class="val">' + flights.length + '</span></span>' +
+                        '<span>inbound <span class="val">' + withEldtAll + '</span></span>' +
                         '<span>CTOTs <span class="val">' + withCtot + '</span></span>' +
                         '<span>rate <span class="val">' + cap + '</span>/hr</span>' +
                         (isOver ? '<span class="over">OVER CAPACITY</span>' : '') +
@@ -956,7 +959,7 @@
         });
 
         // Table
-        document.getElementById('flight-count-all').textContent = combined.length;
+        document.getElementById('flight-count-all').textContent = combined.filter(f => getEffectiveEldt(f)).length;
         renderTableHead('table-head-all', COLUMNS_ALL);
         renderTable('table-body-all', combined, COLUMNS_ALL);
     }
