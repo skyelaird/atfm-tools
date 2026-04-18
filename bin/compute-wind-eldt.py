@@ -514,7 +514,6 @@ def compute_wind_eta(flight: dict, grid: dict) -> dict | None:
     lat = pos.get("lat") or flight.get("last_lat")
     lon = pos.get("lon") or flight.get("last_lon")
     alt = pos.get("altitude_ft") or flight.get("fp_altitude_ft")
-    heading = pos.get("heading_deg")
     ades = flight.get("arrival") or flight.get("ades")
     phase = flight.get("phase", "")
     tas = flight.get("fp_cruise_tas")
@@ -523,7 +522,7 @@ def compute_wind_eta(flight: dict, grid: dict) -> dict | None:
 
     if phase not in ELIGIBLE_PHASES:
         return None
-    if lat is None or lon is None or heading is None:
+    if lat is None or lon is None:
         return None
     if ades not in AIRPORT_COORDS:
         return None
@@ -557,7 +556,7 @@ def compute_wind_eta(flight: dict, grid: dict) -> dict | None:
     legs = along_route_legs(lat, lon, dest_lat, dest_lon, route_coords)
     dist_nm = sum(gc_distance_nm(*leg) for leg in legs)
 
-    if dist_nm < 50 or dist_nm > 4000:
+    if dist_nm < 20 or dist_nm > 4000:
         return None
 
     # Wind-corrected ETA: integrate wind per grid cell along route

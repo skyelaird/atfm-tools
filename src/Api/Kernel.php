@@ -1769,9 +1769,12 @@ final class Kernel
                 if ($cs && $dest) $pertiByCsAdes[$cs . '|' . $dest] = $pf;
             }
 
-            // Load our active inbound flights
+            // Load our active inbound flights — exclude post-landing phases
             $ours = Flight::whereIn('ades', $airports)
-                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED])
+                ->whereNotIn('phase', [
+                    Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED,
+                    Flight::PHASE_ON_RUNWAY, Flight::PHASE_VACATED, Flight::PHASE_TAXI_IN,
+                ])
                 ->get();
 
             $comparisons = [];
