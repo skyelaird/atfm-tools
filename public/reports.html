@@ -164,23 +164,24 @@
             <table id="airports-table">
                 <thead>
                     <tr class="group-row">
-                        <th colspan="3">Movements</th>
-                        <th colspan="3" class="grp-start grp-tint">Taxi &amp; OBT</th>
+                        <th colspan="4">Movements</th>
+                        <th colspan="3" class="grp-start grp-tint">Taxi &amp; Dwell</th>
                         <th colspan="3" class="grp-start">ELDT prediction</th>
                         <th colspan="3" class="grp-start grp-tint">TLDT slot fidelity</th>
                     </tr>
                     <tr>
                         <th data-sort="icao">ICAO</th>
+                        <th data-sort="arr_rate" class="num" title="Active arrival rate (from AAR page or base)">Rate</th>
                         <th data-sort="arrivals" class="num">Arr</th>
                         <th data-sort="departures" class="num">Dep</th>
                         <th data-sort="avg_exot_min" class="num grp-start grp-tint" title="Average AXOT (ATOT minus AOBT) in min">AXOT</th>
                         <th data-sort="avg_exit_min" class="num grp-tint" title="Average AXIT (AIBT minus ALDT) in min">AXIT</th>
-                        <th data-sort="avg_eobt_delay_min" class="num grp-tint" title="Average (AOBT minus EOBT) in min">&Delta;OBT</th>
+                        <th data-sort="median_dwell_min" class="num grp-tint" title="Median spawn-to-pushback time (AOBT minus created_at) in min">Dwell</th>
                         <th data-sort="eldt_sample_n" class="num grp-start" title="ELDT sample size">n</th>
-                        <th data-sort="eldt_err_min" class="num" title="Mean (ALDT minus ELDT_locked) in min. Frozen at T-2h.">err</th>
+                        <th data-sort="eldt_err_min" class="num" title="Median (ALDT minus ELDT_locked) in min. Frozen at T-90m.">err</th>
                         <th data-sort="eldt_within_tolerance_pct" class="num" title="% within plus/minus 3 min">&plusmn;3</th>
                         <th data-sort="tldt_sample_n" class="num grp-start grp-tint" title="TLDT sample size">n</th>
-                        <th data-sort="tldt_err_min" class="num grp-tint" title="Mean (ALDT minus TLDT) in min">err</th>
+                        <th data-sort="tldt_err_min" class="num grp-tint" title="Median (ALDT minus TLDT) in min">err</th>
                         <th data-sort="tldt_within_tolerance_pct" class="num grp-tint" title="% within plus/minus 3 min">&plusmn;3</th>
                     </tr>
                 </thead>
@@ -213,11 +214,12 @@
 
     <footer>
         Data window auto-refreshes every 60 s. AXOT = ATOT minus AOBT, AXIT = AIBT minus ALDT
-        per EUROCONTROL Airport CDM Manual. ELDT err is measured against
-        a snapshot taken at T-60min before predicted landing; TLDT err
-        measures whether the allocator's slot decision was honoured in
-        practice. Both &plusmn;3% columns show the fraction of samples
-        within the user's trust gate (&plusmn;3 min).
+        per EUROCONTROL Airport CDM Manual. Dwell = median spawn-to-pushback
+        time (AOBT minus first_seen), capped at 120 min. ELDT/TLDT err use
+        median (outlier-resistant). ELDT frozen at T-90m; TLDT measures
+        whether the allocator's slot decision was honoured in practice.
+        &plusmn;3 columns show the fraction within &plusmn;3 min;
+        dimmed when n &lt; 5 (statistically meaningless).
         <div style="margin-top: 0.5rem;">
             <a href="https://github.com/skyelaird/atfm-tools">source</a>
             &middot; <a href="https://github.com/skyelaird/atfm-tools/blob/main/docs/ARCHITECTURE.md">architecture</a>
@@ -367,10 +369,10 @@ function rerender() {
     const aTbody = $('airports-tbody');
     aTbody.innerHTML = '';
     const aAcc = {
-        icao: r => r.icao, arrivals: r => r.arrivals, departures: r => r.departures,
+        icao: r => r.icao, arr_rate: r => r.arr_rate, arrivals: r => r.arrivals, departures: r => r.departures,
         avg_exot_min: r => r.avg_exot_min,
         avg_exit_min: r => r.avg_exit_min,
-        avg_eobt_delay_min: r => r.avg_eobt_delay_min,
+        median_dwell_min: r => r.median_dwell_min,
         eldt_sample_n: r => r.eldt_sample_n,
         eldt_err_min: r => r.eldt_err_min,
         eldt_within_tolerance_pct: r => r.eldt_within_tolerance_pct,
@@ -381,30 +383,32 @@ function rerender() {
     const aRows = sortRowsFor('airports-table', d.airports, aAcc);
     updateSortIndicators('airports-table');
     for (const r of aRows) {
-        const eldtPctCls = r.eldt_within_tolerance_pct == null ? 'muted'
+        const lowN = n => (n || 0) < 5;
+        const eldtPctCls = r.eldt_within_tolerance_pct == null || lowN(r.eldt_sample_n) ? 'muted'
             : r.eldt_within_tolerance_pct >= 80 ? 'ok-val'
             : r.eldt_within_tolerance_pct >= 50 ? 'warn-val' : 'alert-val';
-        const tldtPctCls = r.tldt_within_tolerance_pct == null ? 'muted'
+        const tldtPctCls = r.tldt_within_tolerance_pct == null || lowN(r.tldt_sample_n) ? 'muted'
             : r.tldt_within_tolerance_pct >= 80 ? 'ok-val'
             : r.tldt_within_tolerance_pct >= 50 ? 'warn-val' : 'alert-val';
 
         aTbody.appendChild(el('tr', {},
             el('td', { class: 'mono' }, r.icao),
+            el('td', { class: 'num mono' }, String(r.arr_rate || '—')),
             el('td', { class: 'num' }, String(r.arrivals)),
             el('td', { class: 'num' }, String(r.departures)),
             el('td', { class: 'num grp-start grp-tint' }, fmt(r.avg_exot_min)),
             el('td', { class: 'num grp-tint' }, fmt(r.avg_exit_min)),
-            el('td', { class: 'num grp-tint' }, fmt(r.avg_eobt_delay_min)),
-            el('td', { class: 'num muted grp-start' }, String(r.eldt_sample_n || 0)),
-            el('td', { class: 'num' }, fmt(r.eldt_err_min)),
+            el('td', { class: 'num grp-tint' }, fmt(r.median_dwell_min)),
+            el('td', { class: 'num grp-start' + (lowN(r.eldt_sample_n) ? ' muted' : '') }, String(r.eldt_sample_n || 0)),
+            el('td', { class: 'num' + (lowN(r.eldt_sample_n) ? ' muted' : '') }, fmt(r.eldt_err_min)),
             el('td', { class: 'num ' + eldtPctCls }, fmtPct(r.eldt_within_tolerance_pct)),
-            el('td', { class: 'num muted grp-start grp-tint' }, String(r.tldt_sample_n || 0)),
-            el('td', { class: 'num grp-tint' }, fmt(r.tldt_err_min)),
+            el('td', { class: 'num grp-start grp-tint' + (lowN(r.tldt_sample_n) ? ' muted' : '') }, String(r.tldt_sample_n || 0)),
+            el('td', { class: 'num grp-tint' + (lowN(r.tldt_sample_n) ? ' muted' : '') }, fmt(r.tldt_err_min)),
             el('td', { class: 'num grp-tint ' + tldtPctCls }, fmtPct(r.tldt_within_tolerance_pct))
         ));
     }
     if (aRows.length === 0) {
-        aTbody.appendChild(el('tr', {}, el('td', { colspan: '12', class: 'empty-row' }, 'No data yet.')));
+        aTbody.appendChild(el('tr', {}, el('td', { colspan: '13', class: 'empty-row' }, 'No data yet.')));
     }
 
     // Top aircraft — rebuild the header row to include per-airport columns

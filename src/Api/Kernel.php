@@ -1096,15 +1096,21 @@ final class Kernel
                 $departures = Flight::where('adep', $a->icao)
                     ->whereNotNull('atot')
                     ->where('atot', '>=', $sinceStr)
-                    ->get(['eobt', 'aobt', 'atot', 'actual_exot_min']);
+                    ->get(['eobt', 'aobt', 'atot', 'actual_exot_min', 'created_at']);
 
                 $exotValues = $departures->pluck('actual_exot_min')->filter()->values()->all();
                 $exitValues = $arrivals->pluck('actual_exit_min')->filter()->values()->all();
 
-                $eobtDelays = [];
+                // Spawn-to-pushback dwell: AOBT − created_at (minutes).
+                // Replaces EOBT delay which was proven unreliable.
+                // Capped at 120 min to exclude spawn-and-idle outliers.
+                $dwellValues = [];
                 foreach ($departures as $f) {
-                    if ($f->eobt && $f->aobt) {
-                        $eobtDelays[] = (int) round(($f->aobt->getTimestamp() - $f->eobt->getTimestamp()) / 60);
+                    if ($f->created_at && $f->aobt) {
+                        $dwell = (int) round(($f->aobt->getTimestamp() - $f->created_at->getTimestamp()) / 60);
+                        if ($dwell > 0 && $dwell <= 120) {
+                            $dwellValues[] = $dwell;
+                        }
                     }
                 }
 
@@ -1183,24 +1189,25 @@ final class Kernel
                     'icao'                 => $a->icao,
                     'name'                 => $a->name,
                     'longitude'            => (float) $a->longitude,
-                    'base_arrival_rate'    => (int) $a->base_arrival_rate,
+                    'arr_rate'             => (int) ($a->active_arr_rate ?? $a->base_arrival_rate),
                     'arrivals'             => $arrivals->count(),
                     'departures'           => $departures->count(),
                     'avg_exot_min'         => self::avg($exotValues),
                     'p90_exot_min'         => self::percentile($exotValues, 90),
                     'avg_exit_min'         => self::avg($exitValues),
                     'p90_exit_min'         => self::percentile($exitValues, 90),
-                    'avg_eobt_delay_min'   => self::avg($eobtDelays),
-                    // ELDT prediction quality
-                    'eldt_err_min'            => self::avg($eldtErrors),
+                    'median_dwell_min'     => self::percentile($dwellValues, 50),
+                    'dwell_sample_n'       => count($dwellValues),
+                    // ELDT prediction quality — median resists outliers
+                    'eldt_err_min'            => self::percentile($eldtErrors, 50),
                     'eldt_p90_abs_min'         => self::percentile($eldtAbsErrors, 90),
                     'eldt_within_tolerance_pct'=> count($eldtErrors) > 0
                                                   ? round(100 * $eldtWithinTolerance / count($eldtErrors), 1)
                                                   : null,
                     'eldt_sample_n'            => count($eldtErrors),
                     'eldt_by_tier'             => $tierBreakdown,
-                    // TLDT slot fidelity
-                    'tldt_err_min'            => self::avg($tldtErrors),
+                    // TLDT slot fidelity — median resists outliers
+                    'tldt_err_min'            => self::percentile($tldtErrors, 50),
                     'tldt_p90_abs_min'         => self::percentile($tldtAbsErrors, 90),
                     'tldt_within_tolerance_pct'=> count($tldtErrors) > 0
                                                   ? round(100 * $tldtWithinTolerance / count($tldtErrors), 1)
