@@ -288,9 +288,15 @@ final class VatsimIngestor
             $staleHours = $flight->last_updated_at
                 ? ($now->getTimestamp() - $flight->last_updated_at->getTimestamp()) / 3600
                 : 999;
-            $atGate = $atAdep && ($gs === null || $gs < 5);
+            // Inline geofence check — $atAdep is computed later (line ~459)
+            // so we can't reference it here. This is the same distance test.
+            $atGateForReset = $adepAirport !== null
+                && $lat !== null && $lon !== null
+                && \Atfm\Allocator\Geo::distanceNm($lat, $lon, $adepAirport['latitude'], $adepAirport['longitude'])
+                   <= ($adepAirport['arrived_geofence_nm'] ?? 5)
+                && ($gs === null || $gs < 5);
 
-            if (($wasTerminal || $staleHours >= 4) && $atGate) {
+            if (($wasTerminal || $staleHours >= 4) && $atGateForReset) {
                 // Reset all observed milestones — this is a fresh attempt.
                 $flight->first_seen_at    = $now;
                 $flight->aobt             = null;
@@ -531,7 +537,7 @@ final class VatsimIngestor
 
         $atCruise = in_array($phase, [Flight::PHASE_ENROUTE], true)
             && ($nearFiledAlt || $levelFlight);
-        $inApproach = $phase === Flight::PHASE_ARRIVING;
+        $inApproach = in_array($phase, [Flight::PHASE_ARRIVING, Flight::PHASE_DESCENT], true);
 
         if ($adesAirport !== null && !$atCruise && !$inApproach) {
             // Not eligible for ELDT — clear any stale value from prior code

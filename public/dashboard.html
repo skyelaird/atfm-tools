@@ -223,13 +223,17 @@
         .phase.FILED      { background: rgba(139,148,158,0.15); color: var(--text); }
         .phase.TAXI_OUT   { background: rgba(250,204,21,0.15);  color: var(--warn); }
         .phase.DEPARTED   { background: rgba(96,165,250,0.15);  color: var(--info); }
+        .phase.CLIMBOUT   { background: rgba(96,165,250,0.15);  color: var(--info); }
         .phase.ENROUTE    { background: rgba(94,234,212,0.15);  color: var(--accent); }
+        .phase.CRUISE     { background: rgba(94,234,212,0.15);  color: var(--accent); }
         .phase.DESCENT    { background: rgba(96,165,250,0.2);   color: var(--info); }
         .phase.ARRIVING   { background: rgba(94,234,212,0.2);   color: var(--accent); }
         .phase.FINAL      { background: rgba(74,222,128,0.15);  color: var(--ok); }
         .phase.ON_RUNWAY  { background: rgba(74,222,128,0.2);   color: var(--ok); }
+        .phase.LANDED     { background: rgba(74,222,128,0.2);   color: var(--ok); }
         .phase.TAXI_IN    { background: rgba(250,204,21,0.15);  color: var(--warn); }
         .phase.ARRIVED    { background: rgba(139,148,158,0.12); color: var(--text-dim); }
+        .phase.IN_BLOCKS  { background: rgba(139,148,158,0.12); color: var(--text-dim); }
         .phase.DISCONNECTED { background: rgba(248,113,113,0.15); color: var(--alert); }
         .phase.WITHDRAWN  { background: rgba(139,148,158,0.12); color: var(--text-dim); }
 
@@ -1016,6 +1020,9 @@ function flightTable(title, headers, rows, stateKey, onRowClick) {
     const wrap = el('div', { class: 'table-wrap' });
     const table = el('table');
 
+    // Tag each row with its original index so click callbacks survive sorting
+    rows.forEach((r, i) => { r._origIdx = i; });
+
     // Apply sort if any
     let sortedRows = rows;
     if (stateKey && drawerSortStates[stateKey]) {
@@ -1060,7 +1067,7 @@ function flightTable(title, headers, rows, stateKey, onRowClick) {
         const tr = el('tr');
         if (onRowClick) {
             tr.style.cursor = 'pointer';
-            tr.addEventListener('click', () => onRowClick(ri));
+            tr.addEventListener('click', () => onRowClick(row._origIdx));
         }
         for (const cell of row) {
             const td = el('td', cell.cls ? { class: cell.cls } : {});
@@ -1083,6 +1090,7 @@ function eldtSrcShort(src) {
     switch (src) {
         case 'STORED':            return 'live';
         case 'OBSERVED_POS':      return 'pos';
+        case 'FIR_EET':           return 'eet';
         case 'FILED':             return 'filed';
         case 'CALC_FILED_TAS':    return 'tas';
         case 'CALC_TYPE_TAS':     return 'type';

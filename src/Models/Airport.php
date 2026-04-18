@@ -69,10 +69,14 @@ final class Airport extends Model
     }
 
     /**
-     * Effective arrival rate: observed if sample is large enough, else base.
+     * Effective arrival rate: active (FMP-set) > observed > base.
+     * Single source of truth — same value everywhere.
      */
     public function effectiveArrivalRate(int $minSamples = 100): int
     {
+        if ($this->active_arr_rate !== null) {
+            return $this->active_arr_rate;
+        }
         if ($this->observed_arrival_rate !== null && $this->observed_rate_sample_n >= $minSamples) {
             return $this->observed_arrival_rate;
         }
