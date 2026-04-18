@@ -227,7 +227,7 @@
                 <tbody id="tldt-source-tbody"><tr><td colspan="8" class="empty-row">Loading...</td></tr></tbody></table>
             </div>
             <div class="table-wrap" style="flex:1; min-width:280px;">
-                <table><thead><tr><th>Airport</th><th class="num">n</th><th class="num">Median</th><th class="num">MAE</th><th class="num">&le;3m</th><th class="num">3–5m</th><th class="num">5–10m</th><th class="num">&gt;10m</th></tr></thead>
+                <table><thead><tr><th>Airport</th><th class="num" title="Sample size">n</th><th class="num" title="Median prediction error (TLDT minus ALDT) in minutes.">Median</th><th class="num" title="Mean Absolute Error — average magnitude of prediction errors, ignoring direction.">MAE</th><th class="num" title="% with error ≤ 3 min">&le;3m</th><th class="num" title="% with error 3–5 min">3–5m</th><th class="num" title="% with error 5–10 min">5–10m</th><th class="num" title="% with error &gt; 10 min">&gt;10m</th></tr></thead>
                 <tbody id="tldt-airport-tbody"><tr><td colspan="8" class="empty-row">Loading...</td></tr></tbody></table>
             </div>
         </div>
@@ -518,14 +518,14 @@ async function refreshTldt() {
         const pctColor = v => v === null ? '' : v >= 80 ? 'color:var(--ok)' : v >= 60 ? 'color:var(--warn)' : 'color:var(--alert)';
         const dim = ov.n < 5 ? ' style="opacity:0.4"' : '';
         $stats.innerHTML = [
-            { lbl: 'Flights', val: ov.n || 0 },
-            { lbl: 'Median err', val: ov.median !== null ? (ov.median > 0 ? '+' : '') + ov.median + 'm' : '\u2014', style: errColor(ov.median) },
-            { lbl: 'MAE', val: ov.mae !== null ? ov.mae + 'm' : '\u2014', style: errColor(ov.mae) },
-            { lbl: '\u22643 min', val: ov.pct_le3 !== null ? ov.pct_le3 + '%' : '\u2014', style: pctColor(ov.pct_le3) },
-            { lbl: '3\u20135 min', val: ov.pct_3to5 !== null ? ov.pct_3to5 + '%' : '\u2014' },
-            { lbl: '5\u201310 min', val: ov.pct_5to10 !== null ? ov.pct_5to10 + '%' : '\u2014' },
-            { lbl: '>10 min', val: ov.pct_gt10 !== null ? ov.pct_gt10 + '%' : '\u2014', style: ov.pct_gt10 > 20 ? 'color:var(--alert)' : ov.pct_gt10 > 10 ? 'color:var(--warn)' : 'color:var(--ok)' },
-        ].map(c => '<div class="stat-card"' + dim + '><div class="lbl">' + c.lbl + '</div><div class="val mono"' + (c.style ? ' style="' + c.style + '"' : '') + '>' + c.val + '</div></div>').join('');
+            { lbl: 'Flights', val: ov.n || 0, tip: 'Number of flights with ATOT + TLDT + ALDT in window' },
+            { lbl: 'Median err', val: ov.median !== null ? (ov.median > 0 ? '+' : '') + ov.median + 'm' : '\u2014', style: errColor(ov.median), tip: 'Median (TLDT minus ALDT). Positive = predicted late, negative = early.' },
+            { lbl: 'MAE', val: ov.mae !== null ? ov.mae + 'm' : '\u2014', style: errColor(ov.mae), tip: 'Mean Absolute Error \u2014 average magnitude of prediction errors, ignoring sign.' },
+            { lbl: '\u22643 min', val: ov.pct_le3 !== null ? ov.pct_le3 + '%' : '\u2014', style: pctColor(ov.pct_le3), tip: '% of predictions with absolute error \u2264 3 minutes' },
+            { lbl: '3\u20135 min', val: ov.pct_3to5 !== null ? ov.pct_3to5 + '%' : '\u2014', tip: '% of predictions with absolute error between 3 and 5 minutes' },
+            { lbl: '5\u201310 min', val: ov.pct_5to10 !== null ? ov.pct_5to10 + '%' : '\u2014', tip: '% of predictions with absolute error between 5 and 10 minutes' },
+            { lbl: '>10 min', val: ov.pct_gt10 !== null ? ov.pct_gt10 + '%' : '\u2014', style: ov.pct_gt10 > 20 ? 'color:var(--alert)' : ov.pct_gt10 > 10 ? 'color:var(--warn)' : 'color:var(--ok)', tip: '% of predictions with absolute error exceeding 10 minutes' },
+        ].map(c => '<div class="stat-card"' + dim + (c.tip ? ' title="' + c.tip + '"' : '') + '><div class="lbl">' + c.lbl + '</div><div class="val mono"' + (c.style ? ' style="' + c.style + '"' : '') + '>' + c.val + '</div></div>').join('');
 
         // By source
         const $srcTb = document.getElementById('tldt-source-tbody');
