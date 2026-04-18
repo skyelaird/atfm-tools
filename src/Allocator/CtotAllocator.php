@@ -219,6 +219,11 @@ final class CtotAllocator
             if ($hit === null) {
                 continue;
             }
+            // Skip airborne flights — a departure CTOT is meaningless once
+            // the aircraft has taken off.
+            if ($flight->atot !== null) {
+                continue;
+            }
             // Skip if we already wrote this exact CTOT in a prior run.
             if ($flight->ctot !== null
                 && $flight->ctot->getTimestamp() === $hit->ctot->getTimestamp()
@@ -332,6 +337,7 @@ final class CtotAllocator
         $flight->ctl_element        = null;
         $flight->ctl_restriction_id = null;
         $flight->delay_minutes      = null;
+        $flight->delay_status       = null;
     }
 
     /**

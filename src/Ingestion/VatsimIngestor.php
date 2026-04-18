@@ -482,6 +482,7 @@ final class VatsimIngestor
         if (in_array($phase, [
             Flight::PHASE_DEPARTED,
             Flight::PHASE_ENROUTE,
+            Flight::PHASE_DESCENT,
             Flight::PHASE_ARRIVING,
             Flight::PHASE_FINAL,
             Flight::PHASE_ON_RUNWAY,
@@ -757,7 +758,7 @@ final class VatsimIngestor
         // the past and it's still showing as inbound (ARRIVING/FINAL/ENROUTE),
         // we lost track of it. Don't fabricate milestones we didn't observe —
         // mark DISCONNECTED and let the normal cleanup handle it.
-        if (in_array($phase, [Flight::PHASE_ARRIVING, Flight::PHASE_FINAL, Flight::PHASE_ENROUTE], true)
+        if (in_array($phase, [Flight::PHASE_ARRIVING, Flight::PHASE_FINAL, Flight::PHASE_ENROUTE, Flight::PHASE_DESCENT], true)
             && $flight->eldt !== null
             && $now->getTimestamp() > $flight->eldt->getTimestamp() + (30 * 60)
         ) {

@@ -628,7 +628,7 @@
                 ctx.fillStyle = '#f87171';
                 ctx.font = '10px Consolas, monospace';
                 ctx.textAlign = 'left';
-                ctx.fillText('cap ' + capPerBin.toFixed(1) + '/15m', w - padR - 80, yPos(capPerBin) - 4);
+                ctx.fillText('cap ' + capPerBin.toFixed(1) + '/' + BIN_MINUTES + 'm', w - padR - 80, yPos(capPerBin) - 4);
             }
         }
 
@@ -647,7 +647,7 @@
                 ctx.fillStyle = '#facc15';
                 ctx.font = '10px Consolas, monospace';
                 ctx.textAlign = 'left';
-                ctx.fillText('base ' + basePerBin.toFixed(1) + '/15m', w - padR - 80, yPos(basePerBin) - 4);
+                ctx.fillText('base ' + basePerBin.toFixed(1) + '/' + BIN_MINUTES + 'm', w - padR - 80, yPos(basePerBin) - 4);
             }
         }
 
