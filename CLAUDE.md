@@ -141,6 +141,33 @@ PERTI page (our geometric ELDT / GRIB wind / PERTI). PERTI API responses
 cached 2-min TTL. **Not wired into production ETA cascade** — research
 only to quantify geometric-vs-wind accuracy gap.
 
+## Reports page KPIs
+
+**Dwell** = median spawn-to-pushback time: `AOBT − created_at` in minutes.
+Replaces the old ΔOBT (AOBT−EOBT) which was proven unreliable because
+EOBT is garbage on VATSIM. Capped at 120 min to exclude idle spawners.
+Used to validate the TOBT proxy (TOBT = max(EOBT, spawned + 20 min)).
+
+**ELDT err / TLDT err** = **median** prediction error, not mean. Median
+resists outliers (one disconnected flight producing a 400-min error
+would destroy a mean with n=9). Sample sizes < 5 are dimmed as
+statistically meaningless.
+
+**Type table** counts completed movements only (arrivals with ALDT,
+departures with ATOT) — same scope as the movements row. Per-airport
+columns sum ADES + ADEP movements. Total = sum of per-airport columns
+(always adds up, no dedup discrepancy).
+
+## Active runway configuration
+
+Server-side single source of truth on the `airports` table:
+`active_config_name`, `active_arr_rate`, `active_dep_rate`,
+`active_config_set_at`. Set by AAR page via `POST /api/v1/active-config`.
+All consumers (dashboard, FSM, reports, allocator restrictions) read
+`active_arr_rate ?? base_arrival_rate`. Physics-based rates from
+`data/runway-configs.json` feed the AAR page calculator; the AAR page
+writes the result to the DB.
+
 ## OpLevel taxonomy (PERTI-compatible)
 
 1. Steady State, 2. Localized, 3. Regional, 4. NAS-Wide.
@@ -201,13 +228,21 @@ docs/
 - ~~Add ETA accuracy breakdown by source tier to reports page~~ ✅ shipped v0.5.24
 - ~~TOBT proxy from spawn-to-movement stats~~ ✅ shipped v0.5.24
   (TOBT = max(EOBT, created_at + 20 min) — data-driven from 675 departures)
-- Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
-- ctot.html live testing with CDM plugin — needs a real session
 - ~~Navigation data + route resolution~~ ✅ shipped v0.5.31
   (4-layer parsing: coordinates, named fixes, airways, SID/STARs)
 - ~~FIR_EET tier~~ ✅ shipped v0.5.26 (dispatch-quality ETA from ICAO EET/)
+- ~~DESCENT phase~~ ✅ shipped v0.5.46 (counterpart to DEPARTED, 40–200nm)
+- ~~Active config single source of truth~~ ✅ shipped v0.5.47
+  (server-side active_arr_rate on airports table, all consumers read it)
+- ~~Reports redesign~~ ✅ shipped v0.5.48–v0.5.51
+  (dwell replaces ΔOBT, median errors, rate column, type table fixed)
+- ~~Deploy runs seed~~ ✅ shipped v0.5.47
+  (deploy.sh now runs seed-airports.php after migrate on every deploy)
+- Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
+- ctot.html live testing with CDM plugin — needs a real session
 - Wind-corrected ELDT — experimental GRIB prototype in `bin/experiments/`,
-  quantifying geometric-vs-wind accuracy gap. Not yet production.
+  per-grid-cell integration (v0.5.44+), continuous updates (v0.5.45+).
+  Quantifying geometric-vs-wind accuracy gap. Not yet production.
 
 ## Retired ideas (don't re-propose without checking)
 
@@ -239,11 +274,16 @@ probably shouldn't ship.
   separate skill, kept here as a general "stick to literal units" rule)
 - Cron picks minutes off `:00`/`:30` to avoid fleet-wide load spikes
 - **WHC deploy is automatic** via the `bin/deploy.sh` cron entry
-  (every minute, fast-forward only, runs `bin/migrate.php` after a real
-  pull, silent on no-op). Pushing to `origin/main` reaches prod within
-  ~60 s; no manual `git pull` required. If a deploy fails, cron mail
-  surfaces it because `deploy.sh` exits non-zero on dirty tree, divergent
-  history, or migration failure.
+  (every minute, fast-forward only, runs `bin/migrate.php` then
+  `bin/seed-airports.php` after a real pull, silent on no-op). Pushing
+  to `origin/main` reaches prod within ~60 s; no manual `git pull`
+  required. If a deploy fails, cron mail surfaces it because `deploy.sh`
+  exits non-zero on dirty tree, divergent history, or migration failure.
+- **Single source of truth for rates**: `active_arr_rate` on the airports
+  table (set by AAR page via `POST /api/v1/active-config`) is the
+  preferred rate everywhere. All consumers read
+  `active_arr_rate ?? base_arrival_rate`. Never store rates in
+  localStorage or in-memory JS variables.
 
 ## When in doubt
 

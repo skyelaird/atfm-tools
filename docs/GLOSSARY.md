@@ -283,6 +283,25 @@ because measuring ROT to useful precision needs sub-minute ingest
 cadence and the value didn't justify the complexity for our scope.
 The bare EUROCONTROL AXIT is the only taxi-in metric we surface now.
 
+### Dwell — Spawn-to-Pushback Time
+
+**Not an ICAO/EUROCONTROL term.** An atfm-tools internal KPI.
+
+The time between a flight first appearing on the VATSIM feed (`created_at`)
+and actual off-block (`AOBT`). Measures how long a pilot idles at the gate
+after spawning before pushing back.
+
+- **Computed by**: `src/Api/Kernel.php` reports endpoint, `AOBT − created_at`
+- **Capped**: 0–120 min. Values outside this range excluded as outliers
+  (pilots who spawn and idle for hours).
+- **Aggregated as**: **median** (not mean) — resists the long tail of
+  spawn-and-idle pilots.
+- **Replaces**: ΔOBT (`AOBT − EOBT`) which was proven unreliable because
+  VATSIM EOBT is garbage (pilots file hours before connecting, or never
+  update the filed time). See `project_tobt_design.md`.
+- **Used for**: validating the TOBT proxy (`TOBT = max(EOBT, spawned + 20 min)`),
+  understanding pilot pre-departure behaviour.
+
 ### MTTT — Minimum Turnaround Time
 Shortest plausible time between AIBT (arrival) and the next EOBT (departure)
 for the same aircraft. Relevant for turn-around planning. Not used by

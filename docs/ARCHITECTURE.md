@@ -162,12 +162,19 @@ airports
 ├── is_cdm_airport           boolean   -- runs full TOBT/TSAT/DPI protocol at the gate
 ├── arrived_geofence_nm      int default 5   -- radius for ARRIVED phase detection
 ├── final_threshold_nm       int default 10  -- distance from runway threshold = FINAL phase
+├── active_config_name       varchar null    -- current runway config (e.g. '05/14', '24L+24R')
+├── active_arr_rate          int null        -- operator-set arr rate from AAR page
+├── active_dep_rate          int null        -- operator-set dep rate from AAR page
+├── active_config_set_at     datetime null   -- when active config was last set
 ├── created_at, updated_at
 ```
 
-Seeded at install time with the 7 Canadian airports we track. Modified via
-`/api/v1/airports` admin endpoints. Rates can be edited but the historical
-values in `aar_calculations` are the source of truth when cross-checking.
+Seeded at install time with the 7 Canadian airports we track. `base_arrival_rate`
+and `base_departure_rate` are updated by `seed-airports.php` on every deploy.
+`active_arr_rate` / `active_dep_rate` are set by the AAR page via
+`POST /api/v1/active-config` and are the **preferred rate** everywhere — all
+consumers (dashboard, FSM, reports) read `active_arr_rate ?? base_arrival_rate`
+as the single source of truth for the current rate.
 
 ### 4.2 `runway_thresholds` — per-direction landing ends
 
@@ -320,8 +327,8 @@ flights
 ├── -- State machine
 ├── phase                      varchar(16) null
 │                              -- PREFILE | FILED | TAXI_OUT | DEPARTED | ENROUTE |
-│                              -- ARRIVING | FINAL | ON_RUNWAY | VACATED | TAXI_IN |
-│                              -- ARRIVED | GO_AROUND | DISCONNECTED | WITHDRAWN
+│                              -- DESCENT | ARRIVING | FINAL | ON_RUNWAY | VACATED |
+│                              -- TAXI_IN | ARRIVED | GO_AROUND | DISCONNECTED | WITHDRAWN
 ├── phase_updated_at           datetime null
 │
 ├── -- Last known position (updated in place, not historical)
@@ -659,7 +666,13 @@ enabled:
                           ┌─────────┐
                           │ ENROUTE │
                           └────┬────┘
-                               │  within 40 nm of ADES, descending
+                               │  altitude drops > 3000 ft below filed
+                               │  cruise, still > 40 nm from ADES
+                               ▼
+                          ┌─────────┐
+                          │ DESCENT │  (past TOD, 40–200 nm from ADES)
+                          └────┬────┘
+                               │  within 40 nm of ADES
                                ▼
                           ┌─────────┐
                           │ARRIVING │
