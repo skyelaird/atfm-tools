@@ -242,9 +242,15 @@ docs/
   (deploy.sh now runs seed-airports.php after migrate on every deploy)
 - Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
 - ctot.html live testing with CDM plugin — needs a real session
-- Wind-corrected ELDT — experimental GRIB prototype in `bin/experiments/`,
-  per-grid-cell integration (v0.5.44+), continuous updates (v0.5.45+).
-  Quantifying geometric-vs-wind accuracy gap. Not yet production.
+- ~~Wind-corrected ELDT~~ ✅ shipped v0.5.59
+  (production `bin/compute-wind-eldt.py`, runs in monitor scheduled task
+  every 5 min, pushes `eldt_wind` to API. Experimental script remains
+  in `bin/experiments/` for deep analysis.)
+- TLDT accuracy validation — once TLDTs are flowing consistently,
+  add a reports panel filtered to "departed within 90m scope window
+  (ATOT set), TLDT assigned, landed (ALDT set)". Measure TLDT − ALDT
+  error by source tier, distance, airport. This is the real test:
+  are the slots we commit operationally usable (±3 min) or noise?
 
 ## Retired ideas (don't re-propose without checking)
 

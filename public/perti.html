@@ -234,12 +234,12 @@ function render(d) {
     if (landings.length > 0) {
         function median(arr) { if (!arr.length) return null; const s = arr.slice().sort((a,b) => a-b); const m = Math.floor(s.length/2); return s.length % 2 ? s[m] : (s[m-1]+s[m])/2; }
         const ourMed = median(landings.map(l => Math.abs(l.our_err_min))).toFixed(1);
-        const pertiLandings = landings.filter(l => l.perti_err_min !== null);
+        const pertiLandings = landings.filter(l => l.perti_err_min !== null && Math.abs(l.perti_err_min) <= 120);
         const pertiMed = pertiLandings.length > 0
             ? median(pertiLandings.map(l => Math.abs(l.perti_err_min))).toFixed(1)
             : '—';
 
-        const windLandings = landings.filter(l => l.wind_err_min !== null);
+        const windLandings = landings.filter(l => l.wind_err_min !== null && Math.abs(l.wind_err_min) <= 120);
         const windMed = windLandings.length > 0
             ? median(windLandings.map(l => Math.abs(l.wind_err_min))).toFixed(1)
             : '—';
@@ -327,6 +327,11 @@ async function loadAccuracy() {
         // API may return { flights: [...] } or just [...]
         const flights = Array.isArray(raw) ? raw : (raw.flights || []);
         histData = flights.filter(f => !f.synthetic && (f.our_err_min === null || Math.abs(f.our_err_min) <= 120));
+        // Cap obviously garbage PERTI/GRIB errors (e.g. stale day-old PERTI ETA → -825m)
+        histData.forEach(f => {
+            if (f.perti_err_min !== null && Math.abs(f.perti_err_min) > 120) f.perti_err_min = null;
+            if (f.wind_err_min !== null && Math.abs(f.wind_err_min) > 120) f.wind_err_min = null;
+        });
         renderAccuracy();
     } catch (err) {
         el.innerHTML = '<div class="error">Failed to load accuracy: ' + err.message + '</div>';

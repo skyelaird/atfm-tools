@@ -60,6 +60,22 @@ AIRPORT_COORDS = {
 # Eligible airborne phases — must be at cruise or descending
 ELIGIBLE_PHASES = frozenset({"ENROUTE", "CRUISE", "DEPARTED", "ARRIVING", "DESCENT"})
 
+# TAS sanity gate — mirrors PHP AircraftTas::TABLE (common types only)
+# Used to reject obviously wrong filed TAS (e.g. 280kt for A321 that does 447)
+TYPE_TAS = {
+    'A319': 447, 'A320': 447, 'A321': 447, 'A20N': 447, 'A21N': 447,
+    'B737': 460, 'B738': 460, 'B739': 460, 'B37M': 460, 'B38M': 460, 'B39M': 460,
+    'B752': 470, 'B753': 470,
+    'A332': 480, 'A333': 480, 'A338': 480, 'A339': 480,
+    'A359': 488, 'A35K': 488, 'A388': 488,
+    'B762': 480, 'B763': 480, 'B764': 480,
+    'B772': 490, 'B77L': 490, 'B77W': 490,
+    'B744': 480, 'B748': 490,
+    'B788': 490, 'B789': 490, 'B78X': 490, 'MD11': 490,
+    'CRJ7': 430, 'CRJ9': 430, 'E75L': 450, 'E175': 450, 'E190': 450,
+    'DH8D': 310, 'AT76': 275,
+}
+
 # ---------------------------------------------------------------------------
 #  GRIB fetching
 # ---------------------------------------------------------------------------
@@ -514,10 +530,21 @@ def compute_wind_eta(flight: dict, grid: dict) -> dict | None:
 
     dest_lat, dest_lon, dest_elev = AIRPORT_COORDS[ades]
 
-    # TAS selection — the API already has corrected fp_cruise_tas from
-    # the ingestor (step-climb parsing + sanity gate). Trust it.
-    if tas and 120 <= tas <= 650:
-        cruise_kt = tas
+    # TAS selection — mirrors EtaEstimator sanity gate.
+    # The API returns raw fp_cruise_tas which may be garbage (e.g. 280kt
+    # for an A321 filing low initial FL for European traffic). Reject if
+    # >30% off the type table, fall back to type TAS > GS > default.
+    actype = flight.get("aircraft_short") or flight.get("aircraft_type") or ""
+    filed_tas = tas if (tas and 120 <= tas <= 650) else None
+    if filed_tas and actype in TYPE_TAS:
+        type_tas = TYPE_TAS[actype]
+        if abs(filed_tas - type_tas) > type_tas * 0.30:
+            filed_tas = None  # reject garbage filed TAS
+    type_fallback = TYPE_TAS.get(actype)
+    if filed_tas:
+        cruise_kt = filed_tas
+    elif type_fallback:
+        cruise_kt = type_fallback
     elif gs and gs > 100:
         cruise_kt = gs
     else:
