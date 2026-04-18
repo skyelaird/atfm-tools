@@ -81,6 +81,12 @@ final class EtaEstimator
             $currentAlt = $flight->last_altitude_ft ?? 0;
             $filedAlt   = $flight->fp_altitude_ft ?? 35000;
 
+            // Mitigate pilots who file an initial low FL to clear
+            // domestic EUR traffic (e.g. FL240) then climb to FL380.
+            // If the aircraft is 5000+ ft above its filed altitude,
+            // use the observed altitude as the effective cruise level.
+            $effectiveAlt = max($filedAlt, $currentAlt);
+
             // Still climbing — skip OBSERVED_POS, fall through to
             // ground tiers which use filed ETE or computed TAS.
             // "At cruise" = within 2000ft of filed altitude, OR level
@@ -88,7 +94,7 @@ final class EtaEstimator
             // by the ingestor and passed as $forceObserved). This
             // catches pilots who cruise below their filed altitude.
             $forceObserved = ($options['force_observed'] ?? false);
-            if (!$forceObserved && $currentAlt < $filedAlt - 2000) {
+            if (!$forceObserved && $currentAlt < $effectiveAlt - 2000) {
                 // Fall through to Tier 1 (FILED) or Tiers 3-5 below.
                 // Don't return — let the cascade continue.
             } else {
@@ -123,13 +129,29 @@ final class EtaEstimator
                 // the aircraft's performance over the remaining cruise.
                 // Fall back to GS when no filed TAS exists, and to the
                 // default 430 kt last resort.
+                //
+                // Sanity gate: if filed TAS deviates >30% from the
+                // type-table TAS, the pilot filed garbage (e.g. 280kt
+                // for an A321 that does 447kt). Reject it and use the
+                // type table value instead.
                 $filedTas = ($flight->fp_cruise_tas !== null && $flight->fp_cruise_tas >= 120 && $flight->fp_cruise_tas <= 650)
                     ? $flight->fp_cruise_tas
                     : null;
+                if ($filedTas !== null && $flight->aircraft_type && AircraftTas::known($flight->aircraft_type)) {
+                    $typeTas = AircraftTas::typicalTas($flight->aircraft_type);
+                    if (abs($filedTas - $typeTas) > $typeTas * 0.30) {
+                        $filedTas = null; // reject obviously wrong filed TAS
+                    }
+                }
                 $observedGs = ($flight->last_groundspeed_kts !== null && $flight->last_groundspeed_kts > 100)
                     ? $flight->last_groundspeed_kts
                     : null;
-                $cruiseKt = $filedTas ?? $observedGs ?? Geo::DEFAULT_CRUISE_KT;
+                // When filed TAS is rejected, prefer type-table TAS over
+                // observed GS (GS has wind bias). Fall back to GS, then default.
+                $typeFallback = ($flight->aircraft_type && AircraftTas::known($flight->aircraft_type))
+                    ? AircraftTas::typicalTas($flight->aircraft_type)
+                    : null;
+                $cruiseKt = $filedTas ?? $typeFallback ?? $observedGs ?? Geo::DEFAULT_CRUISE_KT;
 
                 $altFt = $currentAlt;
                 $descentIas = $flight->aircraft_type
