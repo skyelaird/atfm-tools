@@ -33,9 +33,12 @@ Not multi-region. Not a generalised flow management platform.
 
 ## Hard rules / non-goals
 
-- Never compute winds, pressure, atmosphere in production — geometric ETA only
-  (experimental GRIB wind-correction exists in `bin/experiments/` but is not
-  wired into the allocator)
+- Wind-corrected ELDT is a **refinement column** (`eldt_wind`) — it does NOT
+  feed the allocator or replace the geometric ETA cascade. The allocator uses
+  `eldt` (from EtaEstimator) for slot allocation. `eldt_wind` is for QA
+  comparison and future use once accuracy is validated.
+  `bin/compute-wind-eldt.php` runs on WHC cron every 5 min (pure PHP, no
+  Python dependency). GRIB data cached 6h.
 - Never invent A-CDM milestones we can't observe (e.g. **never stamp ASAT**
   from the ingestor — it's a controller event, not a position event)
 - Never persist CTOTs across restriction lifetimes — stale CTOTs are
@@ -135,13 +138,20 @@ resolved waypoints instead of 2.
 AIRAC data + PMDG SidStars. The Python `wind-shadow.py` mirrors the same
 4-layer parsing.
 
-## Wind-corrected ELDT experiment (v0.5.27+)
+## Wind-corrected ELDT (v0.5.62+)
 
-`bin/experiments/wind-shadow.py` — offline GRIB 250 mb wind-correction
-prototype. Writes `eldt_wind` column on flights. Three-way comparison on
-PERTI page (our geometric ELDT / GRIB wind / PERTI). PERTI API responses
-cached 2-min TTL. **Not wired into production ETA cascade** — research
-only to quantify geometric-vs-wind accuracy gap.
+`src/Allocator/WindEta.php` + `bin/compute-wind-eldt.php` — pure PHP GRIB
+250mb wind-corrected ELDT. Downloads GFS 1° subregion from NOAA NOMADS
+(cached 6h), integrates wind per grid cell along the resolved route, writes
+`eldt_wind` column on flights. Runs on WHC cron every 5 min — no Python,
+no numpy, no local machine dependency.
+
+Three-way comparison on PERTI page (our geometric ELDT / GRIB wind / PERTI).
+PERTI API responses cached 2-min TTL. **Not wired into the allocator** —
+`eldt_wind` is a refinement column for QA until accuracy is validated.
+
+Legacy: `bin/compute-wind-eldt.py` (Python) and `bin/experiments/wind-shadow.py`
+(research prototype with SQLite) retained for reference.
 
 ## Reports page KPIs
 
@@ -180,7 +190,7 @@ Derived from FIR adjacency in `src/Allocator/FirMap.php`.
 ```
 src/
   Allocator/      CtotAllocator, EtaEstimator, AircraftTas, TaxiZones,
-                  FirMap, Geo, Phase, FlightKey
+                  FirMap, Geo, Phase, FlightKey, WindEta
   Api/            Kernel.php (Slim routes — single file, all endpoints)
   Ingestion/      VatsimIngestor.php (2-min cron)
   Imports/        EventBookings, ImportedCtots
@@ -202,6 +212,7 @@ bin/
   compute-ctots.php   cron: CtotAllocator (every 2 min)
   ingest-events.php   cron: VATCAN event bookings (every 2 min)
   ingest-imports.php  cron: imported CTOTs (every 2 min)
+  compute-wind-eldt.php  cron: GRIB wind-corrected ELDT (every 5 min)
   cleanup.php         cron: daily position_scratch purge + WITHDRAWN timeout
   deploy.sh           cron: auto-deploy (every 1 min)
   migrate.php         schema migrations (idempotent)
@@ -242,10 +253,10 @@ docs/
   (deploy.sh now runs seed-airports.php after migrate on every deploy)
 - Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
 - ctot.html live testing with CDM plugin — needs a real session
-- ~~Wind-corrected ELDT~~ ✅ shipped v0.5.59
-  (production `bin/compute-wind-eldt.py`, runs in monitor scheduled task
-  every 5 min, pushes `eldt_wind` to API. Experimental script remains
-  in `bin/experiments/` for deep analysis.)
+- ~~Wind-corrected ELDT~~ ✅ shipped v0.5.62
+  (pure PHP `src/Allocator/WindEta.php` + `bin/compute-wind-eldt.php`,
+  runs on WHC cron every 5 min, writes `eldt_wind` directly to DB.
+  No Python dependency. Legacy Python scripts retained for reference.)
 - TLDT accuracy validation — once TLDTs are flowing consistently,
   add a reports panel filtered to "departed within 90m scope window
   (ATOT set), TLDT assigned, landed (ALDT set)". Measure TLDT − ALDT
