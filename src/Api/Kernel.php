@@ -1251,12 +1251,15 @@ final class Kernel
             // CYVR on the left and CYHZ on the right — the natural
             // geographic reading order for Canadian airports.
             $allAirportIcaos = $airports->sortBy('longitude')->pluck('icao')->all();
-            // Aircraft type distribution — inbound to our 7 airports only.
-            // Total = sum of per-airport columns so numbers always add up.
+            // Aircraft type distribution — flights touching our 7 airports
+            // (as ADES or ADEP). Total = sum of per-airport columns.
+            $ourIcaos = $airports->pluck('icao')->all();
             $topTypes = Flight::selectRaw('aircraft_type, COUNT(*) as n')
                 ->whereNotNull('aircraft_type')
                 ->where('last_updated_at', '>=', $sinceStr)
-                ->whereIn('ades', $airports->pluck('icao')->all())
+                ->where(function ($q) use ($ourIcaos) {
+                    $q->whereIn('ades', $ourIcaos)->orWhereIn('adep', $ourIcaos);
+                })
                 ->groupBy('aircraft_type')
                 ->orderByDesc('n')
                 ->limit(20)
@@ -1278,17 +1281,31 @@ final class Kernel
             }
             $topTypeNames = $topTypes->pluck('aircraft_type')->all();
 
-            // Per-airport counts for those types
+            // Per-airport movement counts (ADES + ADEP) for those types.
+            // A flight with ADEP=CYYZ ADES=CYVR counts once for each.
             $perAirportCounts = [];
             if (! empty($topTypeNames)) {
-                $rawCounts = Flight::selectRaw('aircraft_type, ades, COUNT(*) as cnt')
+                // Inbound (ades)
+                $rawAdes = Flight::selectRaw('aircraft_type, ades as airport, COUNT(*) as cnt')
                     ->whereIn('aircraft_type', $topTypeNames)
                     ->where('last_updated_at', '>=', $sinceStr)
                     ->whereIn('ades', $allAirportIcaos)
                     ->groupBy('aircraft_type', 'ades')
                     ->get();
-                foreach ($rawCounts as $rc) {
-                    $perAirportCounts[$rc->aircraft_type][$rc->ades] = (int) $rc->cnt;
+                foreach ($rawAdes as $rc) {
+                    $perAirportCounts[$rc->aircraft_type][$rc->airport] =
+                        ($perAirportCounts[$rc->aircraft_type][$rc->airport] ?? 0) + (int) $rc->cnt;
+                }
+                // Outbound (adep)
+                $rawAdep = Flight::selectRaw('aircraft_type, adep as airport, COUNT(*) as cnt')
+                    ->whereIn('aircraft_type', $topTypeNames)
+                    ->where('last_updated_at', '>=', $sinceStr)
+                    ->whereIn('adep', $allAirportIcaos)
+                    ->groupBy('aircraft_type', 'adep')
+                    ->get();
+                foreach ($rawAdep as $rc) {
+                    $perAirportCounts[$rc->aircraft_type][$rc->airport] =
+                        ($perAirportCounts[$rc->aircraft_type][$rc->airport] ?? 0) + (int) $rc->cnt;
                 }
             }
 
