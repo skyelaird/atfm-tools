@@ -160,8 +160,38 @@ final class EtaEstimator
                 $etaMin = Geo::etaMinutesWithDescent(
                     $distNm, $cruiseKt, $altFt, (int) $destAirport->elevation_ft, $descentIas
                 );
+                $observedEpoch = $now->getTimestamp() + (int) round($etaMin * 60);
+
+                // For flights with ATOT + filed enroute time (SimBrief-quality,
+                // wind-corrected), compare against the geometric estimate.
+                // On long-haul routes (NAT westbound with 80-120kt headwind),
+                // the filed ETE is far more accurate than geometric distance/TAS
+                // which ignores wind entirely. Prefer the ATOT-anchored filed
+                // estimate when the flight has >2h remaining (where wind error
+                // dominates position error). Once closer, OBSERVED_POS wins
+                // because position trumps filed winds.
+                if ($flight->atot !== null
+                    && $flight->fp_enroute_time_min !== null
+                    && $flight->fp_enroute_time_min > 0
+                ) {
+                    $filedEpoch = $flight->atot->getTimestamp()
+                                + ($flight->fp_enroute_time_min * 60);
+                    $filedEtaMin = ($filedEpoch - $now->getTimestamp()) / 60.0;
+
+                    // When >2h remaining, the filed (wind-corrected) estimate
+                    // is more trustworthy than geometric (no-wind) TAS.
+                    // Filed gets conf 90 (SimBrief quality), observed gets 85/88.
+                    if ($etaMin > 120 && $filedEtaMin > 0) {
+                        return [
+                            'epoch'      => $filedEpoch,
+                            'source'     => self::SOURCE_FILED,
+                            'confidence' => 90,
+                        ];
+                    }
+                }
+
                 return [
-                    'epoch'      => $now->getTimestamp() + (int) round($etaMin * 60),
+                    'epoch'      => $observedEpoch,
                     'source'     => self::SOURCE_OBSERVED_POS,
                     'confidence' => $filedTas !== null ? 88 : 85,
                 ];
