@@ -598,13 +598,15 @@ final class VatsimIngestor
                     // (56..60) accommodates the discreteness of 2-min ingest
                     // cycles — without it, a flight could skip past the
                     // 60-min threshold in a single cycle and never lock.
-                    // Only lock from OBSERVED_POS — real airborne position.
-                    // All other sources (FILED, FIR_EET, CALC_*) are
-                    // planning estimates that produce garbage locks when
-                    // pilots depart hours after EOBT. FIR_EET is dispatch-
-                    // quality but meaningless if the flight hasn't departed.
+                    // Only lock from position-based sources — WIND_GRIB or
+                    // OBSERVED_POS. Both use the aircraft's real observed
+                    // position; WIND_GRIB additionally integrates real winds
+                    // along the route and is the preferred airborne source
+                    // (v0.5.75+). Planning estimates (FILED, FIR_EET, CALC_*)
+                    // are excluded — they produce garbage locks when pilots
+                    // depart hours after EOBT.
                     if ($flight->eldt_locked === null && $flight->aldt === null
-                        && $est['source'] === 'OBSERVED_POS') {
+                        && in_array($est['source'], ['WIND_GRIB', 'OBSERVED_POS'], true)) {
                         $minutesToLanding = ($flight->eldt->getTimestamp() - $now->getTimestamp()) / 60;
                         if ($minutesToLanding <= self::ELDT_LOCK_HORIZON_MIN) {
                             $flight->eldt_locked        = $flight->eldt;
