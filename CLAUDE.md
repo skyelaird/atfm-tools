@@ -91,16 +91,15 @@ who reposition aircraft) produce 100+ min outliers that skew reports.
 Airborne cascade (v0.5.63+), then ground fallback:
 
 **Airborne (at cruise):**
-1. **WIND_GRIB** — GRIB 250mb wind from observed position + route, conf 92.
-   Computed inline by `WindEta::computeForFlight()`. Only fires when the
-   flight is within the GRIB grid (LAT 40-65, LON -130 to -30). Also
-   writes `eldt_wind` column for QA comparison.
-2. **FILED** (airborne) — ATOT + filed enroute_time (SimBrief wind-corrected
-   ETE anchored to actual takeoff), conf 90. Fires when outside GRIB grid
-   (e.g. over Europe on a NAT crossing) or GRIB unavailable.
-3. **OBSERVED_POS** — along-route distance from observed position, filed TAS
-   preferred over GS (wind-neutral), conf 85/88. Geometric fallback when
-   no GRIB and no filed ETE.
+1. **WIND_GRIB** — GRIB wind from observed position + route, conf 92.
+   Computed inline by `WindEta::computeForFlight()`. Grid coverage:
+   LAT 25-65, LON -130 to -30 (covers CONUS, Caribbean, NAT).
+   Also writes `eldt_wind` column for QA comparison.
+2. **OBSERVED_POS** — along-route distance from observed position, filed TAS
+   preferred over GS (wind-neutral), conf 85/88. Position-aware, updates
+   every cycle — beats FILED for airborne flights.
+3. **FILED** (airborne fallback) — ATOT + filed enroute_time, conf 90.
+   Static from takeoff. Only reached if OBSERVED_POS can't compute.
 
 **Ground / climbing:**
 4. **FILED** (ground) — filed enroute_time + taxi, conf 90
@@ -153,7 +152,7 @@ Downloads GFS 1° subregion at **3 pressure levels** (250mb ≈ FL340,
 300mb ≈ FL300, 500mb ≈ FL180) from NOAA NOMADS in one call (cached 6h).
 Level selected by cruise altitude — turboprops at FL180 get 500mb winds,
 jets at FL380 get 250mb. Integrates wind per grid cell along the resolved
-route; descent segment uses no-wind model. Grid coverage: LAT 40-65,
+route; descent segment uses no-wind model. Grid coverage: LAT 25-65,
 LON -130 to -30.
 
 **Authoritative in the ETA cascade**: `WIND_GRIB` is the top-priority

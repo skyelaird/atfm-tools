@@ -28,8 +28,10 @@ use DateTimeZone;
  */
 final class WindEta
 {
-    // Grid bounds (1-degree) — covers Canadian FIRs + NAT + European departures
-    private const LAT_MIN = 40;
+    // Grid bounds (1-degree) — covers Canadian FIRs, CONUS, Caribbean,
+    // NAT tracks, and European departure points. Extended to 25°N so
+    // flights 2.5h south of CYYZ get GRIB wind before the freeze horizon.
+    private const LAT_MIN = 25;
     private const LAT_MAX = 65;
     private const LON_MIN = -130;
     private const LON_MAX = -30;

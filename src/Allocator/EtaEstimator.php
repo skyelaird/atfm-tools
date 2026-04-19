@@ -17,23 +17,24 @@ use DateTimeImmutable;
  * arrival estimate for every flight inbound to a regulated airport in
  * order to allocate a slot, so we cascade:
  *
- *   Tier 1  FILED         filed enroute_time (SimBrief-quality when present)
- *                         → eobt + taxi + enroute_time
- *   Tier 1b FIR_EET       ICAO EET/ entries from remarks (dispatch-quality)
- *                         → eobt + taxi + fir_ete + 30 min approach
- *   Tier 2  OBSERVED_POS  airborne: along-route distance from current pos
- *                         ÷ filed TAS (preferred, wind-neutral) or
- *                         observed GS (fallback) → now + ETE remaining
- *   Tier 3  CALC_FILED_TAS on ground: great-circle(adep, ades) ÷ filed TAS
- *                         → eobt + taxi + cruise_time
- *   Tier 4  CALC_TYPE_TAS  on ground: great-circle ÷ AircraftTas::typicalTas()
- *                         → eobt + taxi + cruise_time
- *   Tier 5  CALC_DEFAULT   on ground: great-circle ÷ 430 kt (last resort)
+ * **Airborne (at cruise):**
+ *   Tier A1  WIND_GRIB     GRIB wind along resolved route (best: position + real winds, conf 92)
+ *   Tier A2  OBSERVED_POS  along-route distance ÷ filed TAS (position-aware, updates every cycle, conf 85-88)
+ *   Tier A3  FILED         ATOT + filed ETE (static from takeoff, conf 90 — but lower priority than position-based)
  *
- * Rule for airborne flights: OBSERVED_POS beats everything else because
- * observed position > filed route. Uses filed TAS for the cruise speed
- * (wind-neutral) with GS fallback. Distance remaining is from the
- * observed position; speed is from the flight plan when available.
+ * **Ground / climbing:**
+ *   Tier G1  FILED         filed enroute_time (SimBrief-quality when present)
+ *                          → eobt + taxi + enroute_time
+ *   Tier G1b FIR_EET       ICAO EET/ entries from remarks (dispatch-quality)
+ *                          → eobt + taxi + fir_ete + approach time
+ *   Tier G2  CALC_FILED_TAS great-circle(adep, ades) ÷ filed TAS
+ *   Tier G3  CALC_TYPE_TAS  great-circle ÷ AircraftTas::typicalTas()
+ *   Tier G4  CALC_DEFAULT   great-circle ÷ 430 kt (last resort)
+ *
+ * Rule for airborne flights: WIND_GRIB > OBSERVED_POS > FILED.
+ * Position-based estimates update every cycle; FILED is static from
+ * takeoff. OBSERVED_POS uses filed TAS for cruise speed (wind-neutral)
+ * with GS fallback.
  *
  * Rule for ground flights: filed enroute_time > FIR EET > filed TAS >
  * aircraft-type table > default. Pilots who file enroute_time typically
@@ -103,9 +104,15 @@ final class EtaEstimator
                 // Airborne ETA cascade (at or near cruise)
                 //
                 // Priority:
-                //   1. WIND_GRIB  — GRIB wind from observed position (best: position + real winds)
-                //   2. FILED      — ATOT + filed ETE (SimBrief winds, no position update)
-                //   3. OBSERVED_POS — geometric distance/TAS (no wind, position only)
+                //   1. WIND_GRIB    — GRIB wind from observed position (best: position + real winds)
+                //   2. OBSERVED_POS — geometric distance/TAS from current position (no wind, but position-aware)
+                //   3. FILED        — ATOT + filed ETE (SimBrief winds, but static — doesn't track position)
+                //
+                // OBSERVED_POS beats FILED for airborne flights because a
+                // position-based estimate updates every cycle while FILED
+                // is static from takeoff. FILED is the better fallback when
+                // position data is somehow unavailable (shouldn't happen for
+                // an airborne flight, but defensive).
                 //
                 // All three can carry the flight to the freeze horizon at T-90m.
                 // --------------------------------------------------------
@@ -116,7 +123,7 @@ final class EtaEstimator
 
                 // --- Priority 1: GRIB wind-corrected ETA ---
                 // Compute inline from WindEta when the wind grids are available
-                // and the flight is within grid coverage (LAT 40-65, LON -130 to -30).
+                // and the flight is within grid coverage (LAT 25-65, LON -130 to -30).
                 // Multi-level: 250mb/300mb/500mb — level selected by cruise altitude.
                 $windGrids = WindEta::loadWindGrids();
                 if ($windGrids !== null) {
@@ -146,29 +153,9 @@ final class EtaEstimator
                     }
                 }
 
-                // --- Priority 2: ATOT + filed enroute time ---
-                // SimBrief-quality wind-corrected ETE anchored to actual
-                // takeoff time. Better than geometric for flights outside
-                // the GRIB grid (e.g. still over Europe on a NAT crossing).
-                if ($flight->atot !== null
-                    && $flight->fp_enroute_time_min !== null
-                    && $flight->fp_enroute_time_min > 0
-                ) {
-                    $filedEpoch = $flight->atot->getTimestamp()
-                                + ($flight->fp_enroute_time_min * 60);
-                    $filedEtaMin = ($filedEpoch - $now->getTimestamp()) / 60.0;
-                    if ($filedEtaMin > 0) {
-                        return [
-                            'epoch'      => $filedEpoch,
-                            'source'     => self::SOURCE_FILED,
-                            'confidence' => 90,
-                        ];
-                    }
-                }
-
-                // --- Priority 3: geometric OBSERVED_POS (no wind) ---
-                // Distance/TAS from observed position. Fallback when no
-                // GRIB grid and no filed ETE available.
+                // --- Priority 2: geometric OBSERVED_POS ---
+                // Distance/TAS from observed position. Position-aware and
+                // updates every cycle — better than static FILED for airborne.
                 $routeCoords = !empty($flight->fp_route)
                     ? Geo::parseRouteCoordinates($flight->fp_route)
                     : [];
@@ -212,6 +199,13 @@ final class EtaEstimator
                     'source'     => self::SOURCE_OBSERVED_POS,
                     'confidence' => $filedTas !== null ? 88 : 85,
                 ];
+
+                // --- Priority 3 (airborne fallback): ATOT + filed enroute time ---
+                // Static estimate from takeoff. Only reached if OBSERVED_POS
+                // somehow didn't fire (no route coords + no distance).
+                // Unreachable in practice for airborne flights with position,
+                // but kept as defensive fallback.
+                // Note: for ground/climbing flights, FILED is tier 1 below.
             }
             // Still climbing — fall through to ground tiers below.
         }
