@@ -337,6 +337,18 @@ Per EUROCONTROL Airport CDM Implementation Manual v5.0.
     </section>
 
     <section>
+        <h2>Metering fix load <span class="muted" id="meter-label">inbound arrivals by STAR metering fix</span></h2>
+        <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem; font-size:0.8rem;">
+            <span class="muted">window:</span>
+            <span class="pill meter-pill" data-mins="30">30m</span>
+            <span class="pill meter-pill active" data-mins="60">60m</span>
+            <span class="pill meter-pill" data-mins="120">2h</span>
+            <span class="pill meter-pill" data-mins="240">4h</span>
+        </div>
+        <div id="meter-panel"><div class="muted" style="padding:0.5rem 0;">Loading...</div></div>
+    </section>
+
+    <section>
         <h2>TLDT accuracy <span class="muted" id="tldt-label">CTOT validation gate</span></h2>
         <div class="totals-grid" id="tldt-stats">
             <div class="stat-card"><div class="lbl">Loading...</div><div class="val">&mdash;</div></div>
@@ -634,6 +646,54 @@ function rerender() {
     }
 }
 
+// ---- Metering fix load panel ----
+let meterMins = 60;
+
+async function refreshMeter() {
+    const el = document.getElementById('meter-panel');
+    if (!el) return;
+    try {
+        const r = await fetch('/api/v1/metering?window=' + meterMins);
+        const d = await r.json();
+        const byApt = d.by_airport || {};
+        const airports = Object.keys(byApt).sort();
+        if (airports.length === 0) {
+            el.innerHTML = '<div class="muted" style="padding:0.5rem 0;">No inbound flights in the next ' + meterMins + ' minutes.</div>';
+            return;
+        }
+        let html = '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:0.75rem;">';
+        for (const apt of airports) {
+            const fixes = byApt[apt];
+            const fixList = Object.entries(fixes);
+            if (fixList.length === 0) continue;
+            const totalAtApt = fixList.reduce((s, [,v]) => s + v.count, 0);
+            html += '<div class="stat-card" style="align-items:stretch; padding:0.6rem;"><div class="lbl" style="display:flex;justify-content:space-between;"><span>' + apt + '</span><span class="mono">' + totalAtApt + ' inbound</span></div>';
+            html += '<table style="width:100%; margin-top:0.3rem; font-size:0.8rem;"><thead><tr><th style="text-align:left;padding:0.2rem;">Fix</th><th class="num" style="padding:0.2rem;">N</th><th style="padding:0.2rem;">Flights</th></tr></thead><tbody>';
+            for (const [fix, info] of fixList) {
+                const cs = info.flights.map(f => f.callsign).slice(0, 6).join(', ') + (info.flights.length > 6 ? ', +' + (info.flights.length - 6) : '');
+                html += '<tr><td class="mono" style="padding:0.2rem;" title="Metering fix — MIT spacing typically applied here">' + fix + '</td><td class="num mono" style="padding:0.2rem;">' + info.count + '</td><td class="mono muted" style="padding:0.2rem; font-size:0.72rem;">' + cs + '</td></tr>';
+            }
+            html += '</tbody></table></div>';
+        }
+        html += '</div>';
+        if (d.unresolved_count > 0) {
+            html += '<div class="muted" style="font-size:0.72rem; margin-top:0.5rem;">' + d.unresolved_count + ' flight(s) with no STAR match in filed route (direct-to or non-standard arrival).</div>';
+        }
+        el.innerHTML = html;
+    } catch (err) {
+        el.innerHTML = '<div class="error">Failed to load metering data: ' + err.message + '</div>';
+    }
+}
+
+document.addEventListener('click', (e) => {
+    const pill = e.target.closest('.meter-pill');
+    if (!pill) return;
+    document.querySelectorAll('.meter-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    meterMins = parseInt(pill.getAttribute('data-mins'));
+    refreshMeter();
+});
+
 // ---- TLDT accuracy panel ----
 async function refreshTldt() {
     try {
@@ -732,7 +792,8 @@ document.querySelectorAll('#window-pills .pill').forEach(p => {
 
 refresh();
 refreshTldt();
-setInterval(() => { refresh(); refreshTldt(); }, 60000);
+refreshMeter();
+setInterval(() => { refresh(); refreshTldt(); refreshMeter(); }, 60000);
 
 // Help modal
 document.getElementById('help-open').addEventListener('click', () => {
