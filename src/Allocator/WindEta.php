@@ -28,15 +28,19 @@ use DateTimeZone;
  */
 final class WindEta
 {
-    // Grid bounds (1-degree) — covers Canadian FIRs, CONUS, Caribbean,
-    // NAT tracks, European departure points, and trans-Pacific approaches.
-    // LAT 25°N: flights 2.5h south of CYYZ get GRIB wind before freeze.
-    // LON -170°: trans-Pacific (e.g. ACA64 RKSI→CYVR) gets ~2h of GRIB
-    //   wind before reaching CYVR at -123°W (~2400nm at FL340).
-    private const LAT_MIN = 25;
-    private const LAT_MAX = 65;
+    // Grid bounds (1-degree) — covers departure points for all our inbound
+    // long-haul traffic AND the entire enroute portion.
+    //   LAT 15-70°N : Canadian FIRs, CONUS, Caribbean (CYVR/CYYZ sun-dest),
+    //                 Europe down to N. Africa, polar routes
+    //   LON -170 to +30 : trans-Pacific east of dateline through CONUS,
+    //                 NAT tracks, Europe west of Urals
+    // Trans-Pacific flights west of the dateline (e.g. ACA64 at RKSI+1500nm,
+    // lon 178°E) enter the grid ~30min after crossing into negative lon —
+    // plenty of GRIB coverage before freeze at T-90min.
+    private const LAT_MIN = 15;
+    private const LAT_MAX = 70;
     private const LON_MIN = -170;
-    private const LON_MAX = -30;
+    private const LON_MAX = 30;
 
     private const GFS_CYCLES = [0, 6, 12, 18];
     private const CACHE_TTL_SEC = 21600; // 6 hours
@@ -105,6 +109,59 @@ final class WindEta
         }
 
         return ['computed' => $computed, 'updated' => $updated];
+    }
+
+    /**
+     * Classify why WIND_GRIB can't/didn't produce a value for a flight.
+     * Returns a short code suitable for UI display (or null if eligible).
+     * Pure function — no DB / no network.
+     *
+     * @param array{lat: float, lon: float, elev: int}|null $dest
+     */
+    public static function classifyMissing(Flight $f, ?array $dest = null): ?string
+    {
+        // Not airborne → ground-tier ELDT applies, GRIB not expected
+        if (!$f->isAirborne()) {
+            return 'ground';
+        }
+        if ($f->last_lat === null || $f->last_lon === null) {
+            return 'no_position';
+        }
+        $lat = (float) $f->last_lat;
+        $lon = (float) $f->last_lon;
+
+        // Grid bounds
+        if ($lat < self::LAT_MIN || $lat > self::LAT_MAX
+            || $lon < self::LON_MIN || $lon > self::LON_MAX) {
+            return 'outside_grid';
+        }
+
+        // Still climbing — GRIB would use cruise-altitude winds for a
+        // flight that isn't there yet; skip it.
+        $curAlt = (int) ($f->last_altitude_ft ?? 0);
+        $filedAlt = (int) ($f->fp_altitude_ft ?? 35000);
+        if ($curAlt > 0 && $curAlt < $filedAlt - 5000) {
+            return 'climbing';
+        }
+
+        if ($dest !== null) {
+            $routeCoords = Geo::parseRouteCoordinates($f->fp_route ?? '');
+            $legs = self::alongRouteLegs(
+                $lat, $lon,
+                (float) $dest['lat'], (float) $dest['lon'],
+                $routeCoords
+            );
+            $distNm = 0.0;
+            foreach ($legs as [$fLat, $fLon, $tLat, $tLon]) {
+                $distNm += Geo::distanceNm($fLat, $fLon, $tLat, $tLon);
+            }
+            if ($distNm < 20.0) return 'too_close';
+            if ($distNm > 4000.0) return 'too_far';
+        }
+
+        // Should have been eligible — if we got here but eldt_wind is still
+        // null, the most likely cause is GRIB data not loaded this cycle.
+        return 'grib_unavailable';
     }
 
     /**

@@ -93,7 +93,8 @@ Airborne cascade (v0.5.63+), then ground fallback:
 **Airborne (at cruise):**
 1. **WIND_GRIB** — GRIB wind from observed position + route, conf 92.
    Computed inline by `WindEta::computeForFlight()`. Grid coverage:
-   LAT 25-65, LON -170 to -30 (covers CONUS, Caribbean, NAT, trans-Pacific).
+   LAT 15-70, LON -170 to +30 (covers CONUS, Caribbean, NAT, Europe,
+   trans-Pacific east of dateline).
    Also writes `eldt_wind` column for QA comparison.
 2. **OBSERVED_POS** — along-route distance from observed position, filed TAS
    preferred over GS (wind-neutral), conf 91/88. Position-aware, updates

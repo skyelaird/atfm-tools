@@ -340,6 +340,7 @@ final class Kernel
                 ->limit(500)
                 ->get()
                 ->map(function (Flight $f) {
+                    $meter = \Atfm\Allocator\MeteringFix::resolve($f);
                     return [
                         // --- PERTI SWIM v1 compatible fields ---
                         'callsign'       => $f->callsign,
@@ -395,6 +396,11 @@ final class Kernel
                         'ctl_restriction_id' => $f->ctl_restriction_id,
                         'delay_minutes'      => $f->delay_minutes,
 
+                        // Arrival metering (derived from fp_route + star-catalog.json)
+                        'star'              => $meter['star'] ?? null,
+                        'metering_fix'      => $meter['metering_fix'] ?? null,
+                        'filed_transition'  => $meter['filed_transition'] ?? null,
+
                         // Position
                         'position' => [
                             'lat'            => $f->last_lat,
@@ -420,6 +426,83 @@ final class Kernel
                     'phase'     => $phases,
                 ],
                 'flights'      => $flights,
+            ]);
+        });
+
+        // --- Arrival metering fix summary ---
+        //
+        // For each scope airport, show the current inbound load grouped by
+        // STAR metering fix. Used by the reports page (and future dashboard
+        // widget) to surface MIT pressure before it becomes a regulation.
+        //
+        // ?window=60 : minutes ahead (by ELDT) to include. Default 60.
+        // ?airport=CYYZ : limit to one airport. Optional.
+        $app->get('/api/v1/metering', function ($req, $res) {
+            $params = $req->getQueryParams();
+            $windowMin = max(15, min(240, (int) ($params['window'] ?? 60)));
+            $airport = isset($params['airport']) ? strtoupper((string) $params['airport']) : null;
+
+            $scope = ['CYHZ', 'CYOW', 'CYUL', 'CYVR', 'CYWG', 'CYYC', 'CYYZ'];
+            if ($airport !== null && in_array($airport, $scope, true)) {
+                $scope = [$airport];
+            }
+
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            $horizon = $now->modify("+{$windowMin} minutes");
+
+            $flights = Flight::whereIn('ades', $scope)
+                ->whereNotNull('eldt')
+                ->where('eldt', '<=', $horizon->format('Y-m-d H:i:s'))
+                ->whereNotIn('phase', [
+                    Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED,
+                    Flight::PHASE_ON_RUNWAY, Flight::PHASE_VACATED, Flight::PHASE_TAXI_IN,
+                ])
+                ->get();
+
+            // Group by airport → metering_fix → [{callsign, eldt, star, transition}]
+            $grouped = [];
+            $unresolved = [];
+            foreach ($flights as $f) {
+                $r = \Atfm\Allocator\MeteringFix::resolve($f);
+                $apt = $f->ades;
+                $grouped[$apt] ??= [];
+                if (!$r || !$r['metering_fix']) {
+                    $unresolved[] = [
+                        'callsign' => $f->callsign,
+                        'ades' => $apt,
+                        'eldt' => $f->eldt?->format('c'),
+                        'phase' => $f->phase,
+                    ];
+                    continue;
+                }
+                $fix = $r['metering_fix'];
+                $grouped[$apt][$fix] ??= ['count' => 0, 'flights' => []];
+                $grouped[$apt][$fix]['count']++;
+                $grouped[$apt][$fix]['flights'][] = [
+                    'callsign'       => $f->callsign,
+                    'aircraft_type'  => $f->aircraft_type,
+                    'adep'           => $f->adep,
+                    'eldt'           => $f->eldt?->format('c'),
+                    'phase'          => $f->phase,
+                    'star'           => $r['star'],
+                    'transition'     => $r['filed_transition'],
+                ];
+            }
+
+            // Sort each airport's fixes by count desc
+            foreach ($grouped as $apt => &$fixes) {
+                uasort($fixes, fn($a, $b) => $b['count'] <=> $a['count']);
+            }
+            unset($fixes);
+
+            return self::json($res, [
+                'generated_at' => $now->format('c'),
+                'version'      => \Atfm\Version::STRING,
+                'window_min'   => $windowMin,
+                'horizon_utc'  => $horizon->format('c'),
+                'by_airport'   => $grouped,
+                'unresolved'   => $unresolved,
+                'unresolved_count' => count($unresolved),
             ]);
         });
     }
@@ -1448,16 +1531,28 @@ final class Kernel
             $days = min((int) ($params['days'] ?? 7), 30);
             $since = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify("-{$days} days");
 
-            $flights = Flight::whereNotNull('eldt_locked')
-                ->whereNotNull('aldt')
+            // Include any flight with ALDT that has at least one predicted
+            // ETA (ours locked, PERTI's, GRIB wind, or SimBrief). Previously
+            // we required eldt_locked, which under-sampled PERTI accuracy:
+            // PERTI publishes ETAs for flights we may not have frozen, and
+            // those should count toward PERTI-vs-ALDT stats independently.
+            $flights = Flight::whereNotNull('aldt')
                 ->where('aldt', '>=', $since->format('Y-m-d H:i:s'))
+                ->where(function ($q) {
+                    $q->whereNotNull('eldt_locked')
+                      ->orWhereNotNull('eldt_perti')
+                      ->orWhereNotNull('eldt_wind')
+                      ->orWhereNotNull('eldt_simbrief');
+                })
                 ->orderBy('aldt', 'desc')
-                ->limit(500)
+                ->limit(1000)
                 ->get();
 
             $rows = $flights->map(function (Flight $f) {
                 $aldt = $f->aldt->getTimestamp();
-                $ourErr = round(($aldt - $f->eldt_locked->getTimestamp()) / 60);
+                $ourErr = $f->eldt_locked
+                    ? round(($aldt - $f->eldt_locked->getTimestamp()) / 60)
+                    : null;
                 $pertiErr = $f->eldt_perti
                     ? round(($aldt - $f->eldt_perti->getTimestamp()) / 60)
                     : null;
@@ -1467,14 +1562,14 @@ final class Kernel
                 $windErr = $f->eldt_wind
                     ? round(($aldt - $f->eldt_wind->getTimestamp()) / 60)
                     : null;
-                $synthetic = $f->aldt->getTimestamp() === $f->eldt_locked->getTimestamp();
+                $synthetic = $f->eldt_locked && $f->aldt->getTimestamp() === $f->eldt_locked->getTimestamp();
                 return [
                     'callsign'      => $f->callsign,
                     'aircraft_type' => $f->aircraft_type,
                     'adep'          => $f->adep,
                     'ades'          => $f->ades,
                     'aldt'          => $f->aldt->format('c'),
-                    'eldt_locked'   => $f->eldt_locked->format('c'),
+                    'eldt_locked'   => $f->eldt_locked?->format('c'),
                     'eldt_perti'    => $f->eldt_perti?->format('c'),
                     'eldt_simbrief' => $f->eldt_simbrief?->format('c'),
                     'eldt_wind'     => $f->eldt_wind?->format('c'),
@@ -1488,11 +1583,22 @@ final class Kernel
                 ];
             })->values()->all();
 
-            // Stats excluding synthetic and extreme outliers (>2h error = bad data)
-            $real = array_filter($rows, fn($r) => !$r['synthetic'] && abs($r['our_err_min']) <= 120);
-            $ourErrs = array_map(fn($r) => $r['our_err_min'], $real);
-            $pertiErrs = array_values(array_filter(array_map(fn($r) => $r['perti_err_min'], $real), fn($v) => $v !== null));
-            $windErrs = array_values(array_filter(array_map(fn($r) => $r['wind_err_min'], $real), fn($v) => $v !== null));
+            // Stats excluding synthetic and extreme outliers (>2h error = bad data).
+            // Each error source has its own sample — a PERTI row with no
+            // frozen ELDT from us still counts toward PERTI stats.
+            $real = array_filter($rows, fn($r) => !$r['synthetic']);
+            $ourErrs = array_values(array_filter(
+                array_map(fn($r) => $r['our_err_min'], $real),
+                fn($v) => $v !== null && abs($v) <= 120
+            ));
+            $pertiErrs = array_values(array_filter(
+                array_map(fn($r) => $r['perti_err_min'], $real),
+                fn($v) => $v !== null && abs($v) <= 120
+            ));
+            $windErrs = array_values(array_filter(
+                array_map(fn($r) => $r['wind_err_min'], $real),
+                fn($v) => $v !== null && abs($v) <= 120
+            ));
 
             return self::json($res, [
                 'days'          => $days,
@@ -1805,6 +1911,16 @@ final class Kernel
                 ])
                 ->get();
 
+            // Lookup destination coords for wind_reason classification
+            $aptCoords = [];
+            foreach (Airport::whereIn('icao', $airports)->get() as $apt) {
+                $aptCoords[$apt->icao] = [
+                    'lat' => (float) $apt->latitude,
+                    'lon' => (float) $apt->longitude,
+                    'elev' => (int) ($apt->elevation_ft ?? 0),
+                ];
+            }
+
             $comparisons = [];
             $matched = 0;
             $unmatched = 0;
@@ -1838,6 +1954,16 @@ final class Kernel
                     }
                 }
 
+                // Why no eldt_wind? (classify so the UI can show a hint
+                // instead of blank — "outside grid", "climbing", etc.)
+                $windReason = null;
+                if ($f->eldt_wind === null) {
+                    $windReason = \Atfm\Allocator\WindEta::classifyMissing(
+                        $f,
+                        $aptCoords[$f->ades] ?? null
+                    );
+                }
+
                 $comparisons[] = [
                     'callsign'      => $f->callsign,
                     'aircraft_type' => $f->aircraft_type,
@@ -1848,6 +1974,7 @@ final class Kernel
                     'perti_phase'   => $pf['phase'] ?? null,
                     'our_eldt'      => $f->eldt?->format('c'),
                     'eldt_wind'     => $f->eldt_wind?->format('c'),
+                    'wind_reason'   => $windReason,
                     'perti_eta'     => $pf['eta_utc'] ?? null,
                     'eta_delta_min' => $etaDelta,
                     'no_eldt_reason'=> $noEldtReason,

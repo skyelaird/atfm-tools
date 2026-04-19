@@ -123,7 +123,7 @@ final class EtaEstimator
 
                 // --- Priority 1: GRIB wind-corrected ETA ---
                 // Compute inline from WindEta when the wind grids are available
-                // and the flight is within grid coverage (LAT 25-65, LON -170 to -30).
+                // and the flight is within grid coverage (LAT 15-70, LON -170 to +30).
                 // Multi-level: 250mb/300mb/500mb — level selected by cruise altitude.
                 $windGrids = WindEta::loadWindGrids();
                 if ($windGrids !== null) {

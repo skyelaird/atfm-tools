@@ -122,6 +122,19 @@ function hhmmz(iso) {
     return iso.substring(11, 16);
 }
 
+function windReasonLabel(code) {
+    const map = {
+        ground:           '<span class="muted" title="Flight is on the ground — GRIB applies to airborne cruise only">— ground</span>',
+        no_position:      '<span class="muted" title="No position data yet">— no pos</span>',
+        outside_grid:     '<span class="muted" title="Position outside GRIB grid (LAT 15-70, LON -170 to +30)">— outside grid</span>',
+        climbing:         '<span class="muted" title="Still climbing &gt;5000ft below filed altitude">— climbing</span>',
+        too_close:        '<span class="muted" title="Under 20 nm from destination — descent model applies">— too close</span>',
+        too_far:          '<span class="muted" title="Over 4000 nm from destination — typically means route didn\'t resolve or wrong ADES">— too far</span>',
+        grib_unavailable: '<span class="muted" title="GRIB data not loaded this cycle (NOAA fetch failed or cache miss)">— grib n/a</span>',
+    };
+    return map[code] || '<span class="muted">—</span>';
+}
+
 function deltaClass(d) {
     if (d === null) return 'muted';
     const abs = Math.abs(d);
@@ -196,7 +209,7 @@ function render(d) {
                 <td class="mono muted">${c.aircraft_type || '?'}</td>
                 <td class="mono">${c.adep || '?'} → ${c.ades}</td>
                 <td class="mono">${hhmmz(c.our_eldt)}</td>
-                <td class="mono" style="color:var(--accent);">${hhmmz(c.eldt_wind)}</td>
+                <td class="mono" style="color:var(--accent);">${c.eldt_wind ? hhmmz(c.eldt_wind) : windReasonLabel(c.wind_reason)}</td>
                 <td class="mono">${hhmmz(c.perti_eta)}</td>
                 <td class="mono ${deltaClass(c.eta_delta_min)}">${c.eta_delta_min > 0 ? '+' : ''}${c.eta_delta_min}m</td>
                 <td>${tags.join(' ')}</td>
