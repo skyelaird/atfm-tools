@@ -96,10 +96,11 @@ Airborne cascade (v0.5.63+), then ground fallback:
    LAT 25-65, LON -130 to -30 (covers CONUS, Caribbean, NAT).
    Also writes `eldt_wind` column for QA comparison.
 2. **OBSERVED_POS** — along-route distance from observed position, filed TAS
-   preferred over GS (wind-neutral), conf 85/88. Position-aware, updates
+   preferred over GS (wind-neutral), conf 91/88. Position-aware, updates
    every cycle — beats FILED for airborne flights.
-3. **FILED** (airborne fallback) — ATOT + filed enroute_time, conf 90.
-   Static from takeoff. Only reached if OBSERVED_POS can't compute.
+3. **FILED** (airborne fallback) — ATOT + filed enroute_time.
+   Static from takeoff. Unreachable in practice (OBSERVED_POS always fires
+   first for airborne flights with position).
 
 **Ground / climbing:**
 4. **FILED** (ground) — filed enroute_time + taxi, conf 90
@@ -243,6 +244,7 @@ src/
 public/
   dashboard.html  FMP view + airport detail right-docked drawer
   reports.html    per-airport KPIs + ELDT/TLDT accuracy + aircraft mix
+  guide.html      FMP training manual / reference guide
   map.html        live map (disabled — no operational use yet, shows FIR boundaries only)
 data/
   taxizones.txt   apron polygons x runway -> taxi time (from vIFF CDM config)
@@ -252,7 +254,7 @@ data/
   procedures.json 61 SID/STAR procedures for the 7 Canadian airports
 bin/
   ingest-vatsim.php   cron: VatsimIngestor (every 2 min)
-  compute-ctots.php   cron: CtotAllocator (every 2 min)
+  compute-ctots.php   cron: CtotAllocator (every 2 min). --shadow for dry-run
   ingest-events.php   cron: VATCAN event bookings (every 2 min)
   ingest-imports.php  cron: imported CTOTs (every 2 min)
   compute-wind-eldt.php  cron: GRIB wind-corrected ELDT (every 5 min)
