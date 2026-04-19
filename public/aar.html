@@ -238,6 +238,9 @@ function renderCard(icao) {
     const aptCfgData = configsByApt[icao];
     const hasLahsoConfigs = (aptCfgData?.configs || []).some(c => c.mode === 'lahso');
     const lahso = hasLahsoConfigs && !st.wet && (st.rules === 'VFR' || st.rules === 'MVFR');
+    const lahsoReason = !lahso && hasLahsoConfigs
+        ? (st.wet && !(st.rules === 'VFR' || st.rules === 'MVFR') ? 'Requires VMC + dry runway'
+           : st.wet ? 'Requires dry runway' : 'Requires VMC') : '';
 
     // Group into reciprocal pairs for 2-row display.
     // Uses global reciprocalIdent() — same physical strip.
@@ -292,7 +295,7 @@ function renderCard(icao) {
             <span class="apt-icao">${icao}</span>
             <span class="badge ${wxCls}">${st.rules}</span>
             <span class="badge ${st.wet ? 'badge-wet' : 'badge-dry'}">${st.wet ? 'WET' : 'DRY'}</span>
-            ${hasLahsoConfigs ? (lahso ? '<span class="badge badge-lahso">LAHSO</span>' : '<span class="badge badge-nolahso">no LAHSO</span>') : ''}
+            ${hasLahsoConfigs ? (lahso ? '<span class="badge badge-lahso">LAHSO</span>' : '<span class="badge badge-nolahso" title="' + lahsoReason + '">no LAHSO</span>') : ''}
             <button class="propose-btn" onclick="propose('${icao}')">Auto</button>
         </div>
         <div class="wind-line"><span class="val">${st.windDir}°M/${st.effectiveWind}kt</span>${st.gustSpd > st.windSpd ? ` G${st.gustSpd}` : ''} ${st.configName ? '| ' + st.configName : ''}</div>
