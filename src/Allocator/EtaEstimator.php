@@ -19,8 +19,8 @@ use DateTimeImmutable;
  *
  * **Airborne (at cruise):**
  *   Tier A1  WIND_GRIB     GRIB wind along resolved route (best: position + real winds, conf 92)
- *   Tier A2  OBSERVED_POS  along-route distance ÷ filed TAS (position-aware, updates every cycle, conf 85-88)
- *   Tier A3  FILED         ATOT + filed ETE (static from takeoff, conf 90 — but lower priority than position-based)
+ *   Tier A2  OBSERVED_POS  along-route distance ÷ filed TAS (position-aware, updates every cycle, conf 88-91)
+ *   Tier A3  FILED         ATOT + filed ETE (static from takeoff — defensive fallback, unreachable in practice)
  *
  * **Ground / climbing:**
  *   Tier G1  FILED         filed enroute_time (SimBrief-quality when present)
@@ -197,7 +197,7 @@ final class EtaEstimator
                 return [
                     'epoch'      => $now->getTimestamp() + (int) round($etaMin * 60),
                     'source'     => self::SOURCE_OBSERVED_POS,
-                    'confidence' => $filedTas !== null ? 88 : 85,
+                    'confidence' => $filedTas !== null ? 91 : 88,
                 ];
 
                 // --- Priority 3 (airborne fallback): ATOT + filed enroute time ---

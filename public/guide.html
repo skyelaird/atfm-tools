@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>atfm-tools — FMP Guide</title>
+    <style>
+        :root {
+            --bg: #0f1419; --bg-elev: #1a2028; --bg-elev-hi: #242c38;
+            --border: #2a3340;
+            --text: #d7dee8; --text-dim: #8a94a3; --text-bright: #f0f4fa;
+            --accent: #5eead4; --accent-dim: #2a6b5f;
+            --warn: #facc15; --warn-dim: #5e4a0f;
+            --alert: #f87171; --alert-dim: #5e1f1f;
+            --ok: #4ade80; --ok-dim: #1e4a2e;
+            --info: #60a5fa; --info-dim: #1e3a5f;
+            --mono: "SF Mono", Consolas, Monaco, monospace;
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.6; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+        header { position: sticky; top: 0; z-index: 100; background: var(--bg-elev); border-bottom: 1px solid var(--border); padding: 0.65rem 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+        .pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px; background: var(--bg-elev-hi); border: 1px solid var(--border); font-size: 0.75rem; color: var(--text-dim); text-decoration: none; }
+        .pill:hover { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+
+        main { max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2.5rem 0 0.75rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+        h3 { color: var(--text-bright); font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
+        h4 { color: var(--text); font-size: 0.95rem; margin: 1.2rem 0 0.4rem; }
+
+        p, li { color: var(--text); line-height: 1.65; }
+        ul, ol { padding-left: 1.3rem; }
+        li { margin-bottom: 0.3rem; }
+
+        code { font-family: var(--mono); background: var(--bg-elev-hi); padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.9em; color: var(--accent); }
+
+        table { width: 100%; border-collapse: collapse; margin: 0.8rem 0 1.2rem; font-size: 0.88rem; }
+        th { text-align: left; padding: 0.5rem; background: var(--bg-elev-hi); border: 1px solid var(--border); color: var(--text-bright); font-weight: 600; }
+        td { padding: 0.5rem; border: 1px solid var(--border); vertical-align: top; }
+        tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+        .toc { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.5rem; margin: 1rem 0 2rem; }
+        .toc h3 { margin-top: 0; color: var(--text-bright); }
+        .toc ol { padding-left: 1.2rem; }
+        .toc li { margin-bottom: 0.2rem; }
+        .toc a { color: var(--accent); font-size: 0.9rem; }
+
+        .callout { background: var(--bg-elev); border-left: 3px solid var(--accent); padding: 0.7rem 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+        .callout.warn { border-left-color: var(--warn); }
+        .callout.alert { border-left-color: var(--alert); }
+        .callout strong { color: var(--text-bright); }
+
+        .badge { display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 600; vertical-align: middle; }
+        .b-arr { background: var(--accent-dim); color: var(--accent); }
+        .b-dep { background: var(--info-dim); color: var(--info); }
+        .b-phase { background: var(--bg-elev-hi); color: var(--text-dim); border: 1px solid var(--border); }
+
+        .diagram { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin: 1rem 0; font-family: var(--mono); font-size: 0.82rem; line-height: 1.5; white-space: pre; overflow-x: auto; color: var(--text-dim); }
+        .diagram .hl { color: var(--accent); }
+        .diagram .dim { color: #555; }
+
+        @media (max-width: 640px) { main { padding: 1rem 0.5rem 3rem; } }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>atfm-tools <span style="color:var(--text-dim); font-weight:400;">FMP Guide</span></h1>
+    <div style="display:flex; gap:0.5rem; margin-left:auto; align-items:center;">
+        <a href="/dashboard.html" class="pill">&larr; dashboard</a>
+        <a href="/aar.html" class="pill">AAR</a>
+        <a href="/reports.html" class="pill">reports</a>
+        <a href="/perti.html" class="pill">perti</a>
+    </div>
+</header>
+
+<main>
+<h2 style="margin-top:1rem; border:none; padding:0;">FMP Operations Guide</h2>
+<p>Reference manual for Flow Management Position operators using atfm-tools at the seven Canadian scope airports. Covers system concepts, page-by-page workflows, and operational procedures.</p>
+
+<div class="toc">
+<h3>Contents</h3>
+<ol>
+    <li><a href="#overview">System Overview</a></li>
+    <li><a href="#concepts">Core Concepts</a></li>
+    <li><a href="#dashboard">Dashboard Page</a></li>
+    <li><a href="#aar">AAR / Runway Page</a></li>
+    <li><a href="#reports">Reports Page</a></li>
+    <li><a href="#perti">PERTI Page</a></li>
+    <li><a href="#ctot">CTOT Allocation</a></li>
+    <li><a href="#milestones">A-CDM Milestones</a></li>
+    <li><a href="#phases">Flight Lifecycle</a></li>
+    <li><a href="#eta">ETA Cascade</a></li>
+    <li><a href="#wind">Wind-Corrected ELDT</a></li>
+    <li><a href="#ops">Operational Procedures</a></li>
+    <li><a href="#abbrev">Abbreviations</a></li>
+</ol>
+</div>
+
+<!-- ================================================================== -->
+<h2 id="overview">1. System Overview</h2>
+
+<p>atfm-tools is a rate-based tactical CTOT allocator for VATSIM Canadian airports. It ingests live data from the VATSIM data feed every 2 minutes, estimates arrival times using a multi-tier cascade, and allocates arrival slots against a declared acceptance rate.</p>
+
+<h3>Scope</h3>
+<p>Seven airports: <code>CYHZ</code> <code>CYOW</code> <code>CYUL</code> <code>CYVR</code> <code>CYWG</code> <code>CYYC</code> <code>CYYZ</code>.</p>
+
+<h3>Architecture</h3>
+<ul>
+    <li><strong>Ingestor</strong> &mdash; polls VATSIM every 2 min, updates flight positions, stamps milestones, runs ETA estimation</li>
+    <li><strong>Allocator</strong> &mdash; runs every 2 min, evaluates active restrictions, assigns CTOTs to inbound flights</li>
+    <li><strong>Dashboard</strong> &mdash; real-time FMP situational awareness (this portal)</li>
+    <li><strong>CDM Plugin</strong> &mdash; EuroScope plugin consumes CTOT data via <code>/api/v1/restricted</code></li>
+</ul>
+
+<div class="callout">
+<strong>Data freshness:</strong> All data is at most 2 minutes old (one ingest cycle). The dashboard auto-refreshes every 30 seconds.
+</div>
+
+<!-- ================================================================== -->
+<h2 id="concepts">2. Core Concepts</h2>
+
+<h3>Acceptance Rate (AAR)</h3>
+<p>The maximum number of arrivals an airport can accept per hour. Derived from runway configuration, wake-mix, and wind conditions. Set by the FMP on the AAR page and consumed by the allocator.</p>
+
+<h3>CTOT (Calculated Take-Off Time)</h3>
+<p>A departure slot assigned to manage arrival flow. Equivalent to the FAA EDCT. The allocator issues CTOTs when a restriction is active and inbound demand exceeds the declared rate.</p>
+
+<h3>ELDT (Estimated Landing Time)</h3>
+<p>The system's best estimate of when a flight will land. Computed by the ETA cascade from wind data, position, filed flight plan, or aircraft performance. The ELDT drives slot allocation.</p>
+
+<h3>TLDT (Target Landing Time)</h3>
+<p>The frozen ELDT &mdash; locked at T-90 minutes before predicted landing. Once frozen, the TLDT becomes the committed slot time. Target accuracy: &plusmn;3 minutes.</p>
+
+<h3>OpLevel</h3>
+<p>Operational severity level (PERTI-compatible):</p>
+<table>
+    <tr><th>Level</th><th>Name</th><th>Scope</th></tr>
+    <tr><td>1</td><td>Steady State</td><td>Normal operations, no restrictions</td></tr>
+    <tr><td>2</td><td>Localized</td><td>Single airport affected</td></tr>
+    <tr><td>3</td><td>Regional</td><td>Adjacent FIRs affected</td></tr>
+    <tr><td>4</td><td>NAS-Wide</td><td>Multiple regions</td></tr>
+</table>
+
+<!-- ================================================================== -->
+<h2 id="dashboard">3. Dashboard Page</h2>
+
+<p>The primary FMP view. Shows all tracked flights organized by airport with real-time status.</p>
+
+<h3>Header Pills</h3>
+<ul>
+    <li><strong>Departures / Arrivals / Overflights</strong> &mdash; live counts across scope</li>
+    <li><strong>Ingest age</strong> &mdash; time since last successful data feed poll. Should always be &lt; 3 min</li>
+    <li><strong>Version</strong> &mdash; running software version</li>
+</ul>
+
+<h3>Airport Cards</h3>
+<p>Each airport card shows:</p>
+<ul>
+    <li><strong>Active config</strong> &mdash; runway configuration and arrival rate (from AAR page)</li>
+    <li><strong>Restriction badge</strong> &mdash; shows when a CTOT restriction is active</li>
+    <li><strong>Inbound list</strong> &mdash; flights sorted by ELDT, showing callsign, type, origin, ETA, phase, and any assigned CTOT</li>
+    <li><strong>Departure list</strong> &mdash; flights at the airport awaiting pushback or taxi</li>
+</ul>
+
+<h3>Right-Docked Drawer</h3>
+<p>Click any flight to open the detail drawer showing:</p>
+<ul>
+    <li>Full flight plan (route, altitude, filed TAS, equipment)</li>
+    <li>Milestone timeline (EOBT, TOBT, TSAT, AOBT, ATOT, ELDT, ALDT, AIBT)</li>
+    <li>ETA source and confidence tier</li>
+    <li>Position data (lat/lon, altitude, groundspeed)</li>
+</ul>
+
+<div class="callout warn">
+<strong>DISCONNECTED flights</strong> are hidden from the dashboard. They appear only in reports. A flight is marked DISCONNECTED after 3 consecutive missed ingest cycles (~6 minutes).
+</div>
+
+<!-- ================================================================== -->
+<h2 id="aar">4. AAR / Runway Page</h2>
+
+<p>Sets the active runway configuration and acceptance rate for each airport. This is the <strong>single source of truth</strong> for rates &mdash; the value set here is what the allocator uses.</p>
+
+<h3>Wind Data</h3>
+<p>Fetched from METAR. For each runway, the page computes:</p>
+<ul>
+    <li><strong>Headwind (HW)</strong> &mdash; component along the runway. Positive = headwind, negative = tailwind</li>
+    <li><strong>Crosswind (XW)</strong> &mdash; component across the runway. Shown as absolute value</li>
+</ul>
+
+<h3>Runway Availability</h3>
+<p>A runway is marked unavailable (red) when:</p>
+<ul>
+    <li>Tailwind exceeds 5 kt (NAV CANADA MATS limit)</li>
+    <li>Crosswind exceeds 30 kt dry / 20 kt wet</li>
+</ul>
+
+<h3>Auto-Propose</h3>
+<p>The system automatically proposes the best configuration using a composite score:</p>
+<pre class="diagram">score = declared_rate + headwind_bonus + ILS_bonus
+
+headwind_bonus = max(0, headwind) &times; 0.5
+ILS_bonus      = 3 (only in IFR/LIFR conditions, for ILS-equipped runways)</pre>
+<p>Dual-parallel configs (rate 42+) dominate single-runway. Exceptional configs (e.g. CYYZ 15/33) are only selected when all preferred configs are out of tolerance.</p>
+
+<h3>LAHSO</h3>
+<p>Land and Hold Short Operations. Available only when:</p>
+<ul>
+    <li>Weather is VMC (VFR or MVFR)</li>
+    <li>Runway surface is dry</li>
+</ul>
+<p>When unavailable, the tooltip shows the specific reason.</p>
+
+<h3>Setting the Rate</h3>
+<ol>
+    <li>Review the auto-proposed config and adjust runway roles if needed</li>
+    <li>Click <strong>Set Active Config</strong> to commit</li>
+    <li>The rate is immediately visible on the dashboard and used by the allocator</li>
+</ol>
+
+<div class="callout">
+<strong>Config persistence:</strong> The active config is stored server-side on the <code>airports</code> table. It persists across page refreshes and is visible to all connected users.
+</div>
+
+<!-- ================================================================== -->
+<h2 id="reports">5. Reports Page</h2>
+
+<p>Historical performance metrics over a selectable time window (6h / 12h / 24h / 48h / 7d).</p>
+
+<h3>Stat Cards</h3>
+<table>
+    <tr><th>Card</th><th>What it shows</th></tr>
+    <tr><td>Arrivals</td><td>Completed arrivals (flights with ALDT) in the window</td></tr>
+    <tr><td>Departures</td><td>Completed departures (flights with ATOT) in the window</td></tr>
+    <tr><td>Dwell</td><td>Median spawn-to-pushback time (AOBT &minus; created_at). Capped at 120 min</td></tr>
+    <tr><td>ELDT err</td><td>Median ELDT prediction error at departure (ELDT &minus; ALDT). Positive = late prediction</td></tr>
+    <tr><td>TLDT err</td><td>Median frozen-ETA error (TLDT &minus; ALDT). Should be &plusmn;3 min</td></tr>
+</table>
+
+<div class="callout warn">
+<strong>Small samples:</strong> When n &lt; 5, error metrics are dimmed. Median values with very few observations are statistically unreliable.
+</div>
+
+<h3>Per-Airport Table</h3>
+<table>
+    <tr><th>Column</th><th>Meaning</th></tr>
+    <tr><td>Airport</td><td>ICAO code + name</td></tr>
+    <tr><td>Rate</td><td>Active arrival rate (from AAR page)</td></tr>
+    <tr><td>Arr / Dep</td><td>Completed movements in window</td></tr>
+    <tr><td>Dwell</td><td>Median spawn-to-pushback (departure quality metric)</td></tr>
+    <tr><td>ELDT err</td><td>Median arrival prediction error</td></tr>
+    <tr><td>TLDT err</td><td>Median frozen-ETA error</td></tr>
+</table>
+
+<h3>ETA Source Distribution</h3>
+<p>Breakdown of which ETA cascade tier produced the final estimate for each arrival. Helps assess data quality:</p>
+<ul>
+    <li>High WIND_GRIB percentage = good (position + real winds)</li>
+    <li>High CALC_DEFAULT = poor (no flight plan data available)</li>
+</ul>
+
+<h3>TLDT Accuracy Panel</h3>
+<p>Detailed validation of the frozen ETA (TLDT) against actual landing (ALDT):</p>
+<ul>
+    <li>Median error, MAE (Mean Absolute Error)</li>
+    <li>Percentage within &plusmn;3 min and &plusmn;5 min targets</li>
+    <li>Breakdown by ETA source tier and by airport</li>
+</ul>
+
+<h3>Aircraft Type Table</h3>
+<p>Movement counts by aircraft type. Counts completed movements only (arrivals with ALDT, departures with ATOT). Per-airport columns sum ADES + ADEP movements.</p>
+
+<!-- ================================================================== -->
+<h2 id="perti">6. PERTI Page</h2>
+
+<p>Detailed per-flight view compatible with the PERTI milestone format. Shows the full A-CDM milestone chain for each flight at a selected airport.</p>
+
+<h3>Three-Way ELDT Comparison</h3>
+<p>For flights with GRIB wind data, the PERTI page shows:</p>
+<ul>
+    <li><strong>ELDT</strong> &mdash; the system's primary estimate (from the ETA cascade)</li>
+    <li><strong>ELDT (wind)</strong> &mdash; the GRIB wind-corrected estimate (QA comparison)</li>
+    <li><strong>PERTI</strong> &mdash; the PERTI system's estimate (when available)</li>
+</ul>
+
+<!-- ================================================================== -->
+<h2 id="ctot">7. CTOT Allocation</h2>
+
+<h3>How Slots Are Assigned</h3>
+<ol>
+    <li>The allocator runs every 2 minutes</li>
+    <li>For each airport with an active restriction, it examines all inbound flights with ELDT within the restriction window</li>
+    <li>Flights are sorted by ELDT and assigned to rate-limited slots</li>
+    <li>A CTOT is the departure time that would place the aircraft in its assigned arrival slot</li>
+</ol>
+
+<h3>CTOT Lifecycle</h3>
+<div class="diagram"><span class="hl">CANDIDATE</span> &rarr; <span class="hl">ISSUED</span> &rarr; <span class="hl">FROZEN</span> &rarr; <span class="hl">COMPLIANT / EXPIRED</span>
+    &uarr;              &uarr;
+    reissued       released (restriction lifted)</div>
+
+<ul>
+    <li><strong>Candidate</strong> &mdash; flight identified as needing a slot</li>
+    <li><strong>Issued</strong> &mdash; CTOT assigned and communicated to CDM plugin</li>
+    <li><strong>Frozen</strong> &mdash; CTOT locked at T-90 min, not subject to revision</li>
+    <li><strong>Released</strong> &mdash; restriction lifted, CTOT cleared</li>
+    <li><strong>Reissued</strong> &mdash; CTOT revised due to updated ELDT or rate change</li>
+</ul>
+
+<div class="callout alert">
+<strong>Stale CTOT protection:</strong> CTOTs are never persisted across restriction lifetimes. At the start of every allocator run, any CTOT from a no-longer-active restriction is automatically released.
+</div>
+
+<h3>Shadow Mode</h3>
+<p>The allocator can run in shadow (dry-run) mode via <code>bin/compute-ctots.php --shadow</code>. In this mode, the full allocation logic executes but no database writes occur. The output shows what WOULD have happened &mdash; useful for validating restriction parameters before going live.</p>
+
+<!-- ================================================================== -->
+<h2 id="milestones">8. A-CDM Milestones</h2>
+
+<p>The system uses ICAO A-CDM milestone vocabulary internally, translating at display edges for PERTI compatibility.</p>
+
+<h3>Naming Convention</h3>
+<p><code>S*</code> = Scheduled, <code>E*</code> = Estimated, <code>T*</code> = Target, <code>C*</code> = Calculated (regulation), <code>A*</code> = Actual.</p>
+
+<h3>Key Milestones</h3>
+<table>
+    <tr><th>Milestone</th><th>Meaning</th><th>How Observed</th></tr>
+    <tr><td><code>EOBT</code></td><td>Estimated Off-Block Time</td><td>From flight plan <code>deptime</code> + DOF</td></tr>
+    <tr><td><code>TOBT</code></td><td>Target Off-Block Time</td><td>Proxy: max(EOBT, spawned + 20 min)</td></tr>
+    <tr><td><code>AOBT</code></td><td>Actual Off-Block (pushback)</td><td>First cycle with GS &gt; 0 at departure geofence</td></tr>
+    <tr><td><code>ATOT</code></td><td>Actual Take-Off Time</td><td>First cycle in DEPARTED phase</td></tr>
+    <tr><td><code>ELDT</code></td><td>Estimated Landing Time</td><td>ETA cascade (multi-tier)</td></tr>
+    <tr><td><code>TLDT</code></td><td>Target Landing (frozen ELDT)</td><td>Frozen at T-90 min</td></tr>
+    <tr><td><code>ALDT</code></td><td>Actual Landing Time</td><td>First cycle in ON_RUNWAY / TAXI_IN / ARRIVED</td></tr>
+    <tr><td><code>AIBT</code></td><td>Actual In-Block Time</td><td>Second consecutive ARRIVED cycle</td></tr>
+    <tr><td><code>CTOT</code></td><td>Calculated Take-Off Time</td><td>Allocator output (departure slot)</td></tr>
+</table>
+
+<div class="callout alert">
+<strong>ASAT is never stamped.</strong> Actual Start-Up Approval is a controller event with no VATSIM signal. The system never fabricates milestones it cannot observe.
+</div>
+
+<h3>Taxi Time Milestones</h3>
+<table>
+    <tr><th>Planning</th><th>Actual</th><th>Formula</th></tr>
+    <tr><td>EXOT (Estimated Taxi-Out)</td><td>AXOT (Actual Taxi-Out)</td><td>ATOT &minus; AOBT, capped 1&ndash;60 min</td></tr>
+    <tr><td>EXIT (Estimated Taxi-In)</td><td>AXIT (Actual Taxi-In)</td><td>AIBT &minus; ALDT</td></tr>
+</table>
+
+<!-- ================================================================== -->
+<h2 id="phases">9. Flight Lifecycle</h2>
+
+<h3>Phase Taxonomy</h3>
+<div class="diagram"><span class="dim">Departure:</span>  <span class="b-phase">PREFILE</span> &rarr; <span class="b-phase">FILED</span> &rarr; <span class="b-phase">TAXI_OUT</span> &rarr; <span class="b-phase">CLIMBOUT</span>
+<span class="dim">Enroute:</span>    <span class="b-phase">DEPARTED</span> &rarr; <span class="b-phase">CRUISE</span>
+<span class="dim">Arrival:</span>    <span class="b-phase">DESCENT</span> &rarr; <span class="b-phase">ARRIVING</span>
+<span class="dim">Terminal:</span>   <span class="b-phase">ON_RUNWAY</span> &rarr; <span class="b-phase">VACATED</span> &rarr; <span class="b-phase">TAXI_IN</span> &rarr; <span class="b-phase">ARRIVED</span></div>
+
+<h3>Geofence Thresholds</h3>
+<table>
+    <tr><th>Transition</th><th>Trigger</th></tr>
+    <tr><td>FILED &rarr; TAXI_OUT</td><td>GS &gt; 0 within departure geofence</td></tr>
+    <tr><td>TAXI_OUT &rarr; CLIMBOUT</td><td>Altitude &gt; field + 500 ft</td></tr>
+    <tr><td>CLIMBOUT &rarr; DEPARTED</td><td>Distance from ADEP &gt; 40 nm</td></tr>
+    <tr><td>DEPARTED &rarr; CRUISE</td><td>Within 2000 ft of filed altitude</td></tr>
+    <tr><td>CRUISE &rarr; DESCENT</td><td>Descending, altitude drops &gt; 2000 ft below filed</td></tr>
+    <tr><td>DESCENT &rarr; ARRIVING</td><td>Within 40 nm of destination</td></tr>
+    <tr><td>ARRIVING &rarr; ON_RUNWAY</td><td>Below field + 200 ft, within 5 nm</td></tr>
+    <tr><td>ARRIVED</td><td>GS &lt; 5 kt within airport geofence</td></tr>
+</table>
+
+<h3>ELDT Eligibility</h3>
+<p>ELDT is only computed for flights at cruise altitude (within 2000 ft of filed altitude) or in ARRIVING phase. Flights in FILED, CLIMBOUT, or early DEPARTED phases show no ELDT &mdash; ground-tier estimates from filed ETE are used instead.</p>
+
+<!-- ================================================================== -->
+<h2 id="eta">10. ETA Cascade</h2>
+
+<p>The ETA cascade determines the best available arrival estimate for each flight. Higher-priority tiers are tried first; the first one that fires produces the ELDT.</p>
+
+<h3>Airborne Tiers (at cruise)</h3>
+<table>
+    <tr><th>Priority</th><th>Tier</th><th>Source</th><th>Confidence</th></tr>
+    <tr><td>1</td><td><code>WIND_GRIB</code></td><td>GRIB 250/300/500mb wind along resolved route</td><td>92</td></tr>
+    <tr><td>2</td><td><code>OBSERVED_POS</code></td><td>Along-route distance &divide; filed TAS (or GS)</td><td>91 / 88</td></tr>
+    <tr><td>3</td><td><code>FILED</code></td><td>ATOT + filed ETE (defensive fallback)</td><td>85</td></tr>
+</table>
+
+<h3>Ground Tiers</h3>
+<table>
+    <tr><th>Priority</th><th>Tier</th><th>Source</th><th>Confidence</th></tr>
+    <tr><td>1</td><td><code>FILED</code></td><td>EOBT + taxi + filed enroute time</td><td>90</td></tr>
+    <tr><td>1b</td><td><code>FIR_EET</code></td><td>ICAO EET/ from remarks + approach time</td><td>80</td></tr>
+    <tr><td>2</td><td><code>CALC_FILED_TAS</code></td><td>Great-circle &divide; filed TAS</td><td>70</td></tr>
+    <tr><td>3</td><td><code>CALC_TYPE_TAS</code></td><td>Great-circle &divide; aircraft type TAS</td><td>55</td></tr>
+    <tr><td>4</td><td><code>CALC_DEFAULT</code></td><td>Great-circle &divide; 430 kt</td><td>40</td></tr>
+</table>
+
+<h3>Why This Order?</h3>
+<ul>
+    <li><strong>WIND_GRIB</strong> is best: real winds along the actual route from the observed position. Updates every cycle.</li>
+    <li><strong>OBSERVED_POS</strong> uses the aircraft's current position and filed TAS (wind-neutral). Position-aware and updates every cycle &mdash; better than static FILED.</li>
+    <li><strong>FILED</strong> (airborne) is static from takeoff. SimBrief winds are good at departure but stale after hours en route.</li>
+    <li>Ground tiers use planning estimates anchored to EOBT, improving as more flight plan data is available.</li>
+</ul>
+
+<h3>ELDT Freeze</h3>
+<p>At T-90 minutes before predicted landing, the ELDT is frozen and becomes the TLDT. This is aligned with the CTOT scope &mdash; candidates have ETE &le; 1:30, so the allocator lookahead and freeze horizon are the same clock.</p>
+
+<!-- ================================================================== -->
+<h2 id="wind">11. Wind-Corrected ELDT</h2>
+
+<p>The WIND_GRIB tier uses GFS 1&deg; GRIB data from NOAA NOMADS at three pressure levels:</p>
+
+<table>
+    <tr><th>Level</th><th>Approx FL</th><th>Used For</th></tr>
+    <tr><td>250 mb</td><td>FL340</td><td>High-altitude jets (FL340+)</td></tr>
+    <tr><td>300 mb</td><td>FL300</td><td>Mid-level jets (FL280&ndash;FL340)</td></tr>
+    <tr><td>500 mb</td><td>FL180</td><td>Turboprops (below FL280)</td></tr>
+</table>
+
+<h3>How It Works</h3>
+<ol>
+    <li>Resolve the filed route to a coordinate waypoint array (4-layer parsing)</li>
+    <li>For each grid cell along the route from the current position to destination, interpolate wind U/V components</li>
+    <li>Compute headwind/tailwind component and adjust ground speed per segment</li>
+    <li>Sum segment times; add descent time using the no-wind model</li>
+</ol>
+
+<h3>Grid Coverage</h3>
+<p>LAT 25&ndash;65&deg;N, LON 130&ndash;30&deg;W. Covers CONUS, Caribbean, and eastern Atlantic to catch transatlantic traffic. Flights outside the grid fall back to OBSERVED_POS or FILED tiers.</p>
+
+<h3>Route Resolution</h3>
+<p>Filed routes (e.g. <code>SSM V300 YVV DCT TONNY BOXUM7</code>) are resolved to coordinate arrays via a 4-layer pipeline:</p>
+<ol>
+    <li><strong>Coordinate waypoints</strong> &mdash; <code>49N050W</code>, <code>5530N02030W</code></li>
+    <li><strong>Named fixes</strong> &mdash; lookup in 124,684-fix database</li>
+    <li><strong>Airway segments</strong> &mdash; expanded via adjacency graph (4,654 airways)</li>
+    <li><strong>SID/STAR procedures</strong> &mdash; terminal procedures for the 7 Canadian airports</li>
+</ol>
+
+<!-- ================================================================== -->
+<h2 id="ops">12. Operational Procedures</h2>
+
+<h3>Starting a Session</h3>
+<ol>
+    <li>Open the <a href="/aar.html">AAR page</a> and verify/set the runway configuration for your airport(s)</li>
+    <li>Confirm the arrival rate is appropriate for current conditions</li>
+    <li>Open the <a href="/dashboard.html">Dashboard</a> to monitor inbound traffic</li>
+    <li>The system runs autonomously &mdash; CTOTs are assigned automatically when restrictions are active</li>
+</ol>
+
+<h3>Setting a Restriction</h3>
+<p>When demand exceeds capacity:</p>
+<ol>
+    <li>Verify the AAR is set correctly on the AAR page</li>
+    <li>Create an arrival restriction for the airport (via the dashboard or API)</li>
+    <li>The allocator will begin issuing CTOTs to inbound flights within scope</li>
+    <li>Monitor the dashboard for compliance and adjust the rate as conditions change</li>
+</ol>
+
+<h3>Changing the Rate</h3>
+<p>If weather deteriorates or runway configuration changes:</p>
+<ol>
+    <li>Update the configuration on the AAR page</li>
+    <li>The new rate takes effect immediately</li>
+    <li>Existing CTOTs will be reissued on the next allocator run if the rate change affects them</li>
+    <li>Frozen CTOTs (T-90m) are not revised &mdash; only unfrozen CTOTs adjust</li>
+</ol>
+
+<h3>Airport-Specific Notes</h3>
+<table>
+    <tr><th>Airport</th><th>Notes</th></tr>
+    <tr><td><code>CYHZ</code></td><td>Runway 14 has ILS (preferred arrival in IMC). 05/23 longer for heavy departures. Dependent configs available.</td></tr>
+    <tr><td><code>CYOW</code></td><td>07/25 for E-W alignment. 32 noise-preferred for arrivals despite no HSE (heavy brake to taxiway D).</td></tr>
+    <tr><td><code>CYVR</code></td><td>North runway (08R/26L) normally used for arrivals. South complex for departures. LAHSO available in VMC dry.</td></tr>
+    <tr><td><code>CYYZ</code></td><td>Dual parallel (05s/06s or 23s/24s). Highest capacity in scope. 15/33 exceptional only.</td></tr>
+    <tr><td><code>CYUL</code></td><td>06L/24R primary. 10/28 crosswind runway.</td></tr>
+    <tr><td><code>CYYC</code></td><td>Parallel 17L/R or 35L/R. Single-runway configs for low traffic.</td></tr>
+    <tr><td><code>CYWG</code></td><td>18/36 or 13/31. Single-runway operations typical.</td></tr>
+</table>
+
+<!-- ================================================================== -->
+<h2 id="abbrev">13. Abbreviations</h2>
+
+<table>
+    <tr><th>Abbrev</th><th>Meaning</th></tr>
+    <tr><td>AAR</td><td>Airport Acceptance Rate (arrivals/hour)</td></tr>
+    <tr><td>ADR</td><td>Airport Departure Rate (departures/hour)</td></tr>
+    <tr><td>A-CDM</td><td>Airport Collaborative Decision Making</td></tr>
+    <tr><td>AIBT</td><td>Actual In-Block Time</td></tr>
+    <tr><td>ALDT</td><td>Actual Landing Time</td></tr>
+    <tr><td>AOBT</td><td>Actual Off-Block Time</td></tr>
+    <tr><td>ASAT</td><td>Actual Start-Up Approval Time</td></tr>
+    <tr><td>ATOT</td><td>Actual Take-Off Time</td></tr>
+    <tr><td>AXOT</td><td>Actual Taxi-Out Time</td></tr>
+    <tr><td>AXIT</td><td>Actual Taxi-In Time</td></tr>
+    <tr><td>CDM</td><td>Collaborative Decision Making</td></tr>
+    <tr><td>CTOT</td><td>Calculated Take-Off Time (= FAA EDCT)</td></tr>
+    <tr><td>EDCT</td><td>Expected Departure Clearance Time (FAA term for CTOT)</td></tr>
+    <tr><td>ELDT</td><td>Estimated Landing Time</td></tr>
+    <tr><td>EOBT</td><td>Estimated Off-Block Time</td></tr>
+    <tr><td>EXOT</td><td>Estimated Taxi-Out Time</td></tr>
+    <tr><td>EXIT</td><td>Estimated Taxi-In Time</td></tr>
+    <tr><td>FIR</td><td>Flight Information Region</td></tr>
+    <tr><td>FMP</td><td>Flow Management Position</td></tr>
+    <tr><td>GS</td><td>Groundspeed</td></tr>
+    <tr><td>GRIB</td><td>GRIdded Binary (weather data format)</td></tr>
+    <tr><td>HW</td><td>Headwind</td></tr>
+    <tr><td>ILS</td><td>Instrument Landing System</td></tr>
+    <tr><td>LAHSO</td><td>Land and Hold Short Operations</td></tr>
+    <tr><td>MAE</td><td>Mean Absolute Error</td></tr>
+    <tr><td>MATS</td><td>Manual of Air Traffic Services (NAV CANADA)</td></tr>
+    <tr><td>ROT</td><td>Runway Occupancy Time</td></tr>
+    <tr><td>TAS</td><td>True Airspeed</td></tr>
+    <tr><td>TLDT</td><td>Target Landing Time (frozen ELDT)</td></tr>
+    <tr><td>TOBT</td><td>Target Off-Block Time</td></tr>
+    <tr><td>TSAT</td><td>Target Start-Up Approval Time</td></tr>
+    <tr><td>TTOT</td><td>Target Take-Off Time</td></tr>
+    <tr><td>XW</td><td>Crosswind</td></tr>
+</table>
+
+</main>
+</body>
+</html>

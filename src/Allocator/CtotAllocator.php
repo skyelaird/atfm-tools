@@ -32,11 +32,22 @@ use Illuminate\Database\Capsule\Manager as Capsule;
  *        d. CASA-sort ground inbound within tier, issue new CTOTs >= 5 min delay
  *        e. Skip flights beyond tier
  *   3. Write audit row to `allocation_runs`
+ *
+ * Shadow mode (--shadow): runs the full algorithm but does NOT persist any
+ * changes to the flights table or create audit rows. Instead, logs what it
+ * WOULD do to stdout. Used for dry-run validation before going live.
  */
 final class CtotAllocator
 {
-    public function run(): array
+    private bool $shadowMode = false;
+
+    /** @var array<int, array<string, mixed>> Shadow log of what would be written */
+    private array $shadowLog = [];
+
+    public function run(bool $shadowMode = false): array
     {
+        $this->shadowMode = $shadowMode;
+        $this->shadowLog  = [];
         $start   = microtime(true);
         $runUuid = self::generateUuid();
         $now     = new DateTimeImmutable('now', new DateTimeZone('UTC'));
@@ -79,15 +90,11 @@ final class CtotAllocator
             ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
             ->get();
         foreach ($stale as $flight) {
-            $flight->tldt               = null;
-            $flight->tldt_assigned_at   = null;
-            $flight->ctot               = null;
-            $flight->ctl_type           = null;
-            $flight->ctl_element        = null;
-            $flight->ctl_restriction_id = null;
-            $flight->delay_minutes      = null;
-            $flight->delay_status       = null;
-            $flight->save();
+            $this->clearAllocation($flight);
+            $flight->delay_status = null;
+            $this->persistFlight($flight, 'release_stale', [
+                'reason' => 'restriction no longer active',
+            ]);
             $stats['ctots_released']++;
         }
 
@@ -101,21 +108,29 @@ final class CtotAllocator
         }
 
         $elapsedMs = (int) round((microtime(true) - $start) * 1000);
-        AllocationRun::create([
-            'run_uuid'            => $runUuid,
-            'started_at'          => $now,
-            'finished_at'         => new DateTimeImmutable('now', new DateTimeZone('UTC')),
-            'airports_considered' => $stats['airports_considered'],
-            'restrictions_active' => $stats['restrictions_active'],
-            'flights_evaluated'   => $stats['flights_evaluated'],
-            'ctots_frozen_kept'   => $stats['ctots_frozen_kept'],
-            'ctots_issued'        => $stats['ctots_issued'],
-            'ctots_released'      => $stats['ctots_released'],
-            'ctots_reissued'      => $stats['ctots_reissued'],
-            'elapsed_ms'          => $elapsedMs,
-        ]);
 
-        return [...$stats, 'elapsed_ms' => $elapsedMs, 'run_uuid' => $runUuid];
+        if (! $this->shadowMode) {
+            AllocationRun::create([
+                'run_uuid'            => $runUuid,
+                'started_at'          => $now,
+                'finished_at'         => new DateTimeImmutable('now', new DateTimeZone('UTC')),
+                'airports_considered' => $stats['airports_considered'],
+                'restrictions_active' => $stats['restrictions_active'],
+                'flights_evaluated'   => $stats['flights_evaluated'],
+                'ctots_frozen_kept'   => $stats['ctots_frozen_kept'],
+                'ctots_issued'        => $stats['ctots_issued'],
+                'ctots_released'      => $stats['ctots_released'],
+                'ctots_reissued'      => $stats['ctots_reissued'],
+                'elapsed_ms'          => $elapsedMs,
+            ]);
+        }
+
+        $result = [...$stats, 'elapsed_ms' => $elapsedMs, 'run_uuid' => $runUuid];
+        if ($this->shadowMode) {
+            $result['shadow_mode']  = true;
+            $result['shadow_log']   = $this->shadowLog;
+        }
+        return $result;
     }
 
     /**
@@ -174,7 +189,9 @@ final class CtotAllocator
             if ($flight->phase === Flight::PHASE_DISCONNECTED) {
                 $this->clearAllocation($flight);
                 $flight->delay_status = Flight::DELAY_WITHDRAWN;
-                $flight->save();
+                $this->persistFlight($flight, 'release_disconnected', [
+                    'airport' => $airport->icao,
+                ]);
                 $stats['ctots_released']++;
                 continue;
             }
@@ -186,7 +203,10 @@ final class CtotAllocator
                 $flight->delay_status = ($drift >= -$earlyMin * 60 && $drift <= $lateMin * 60)
                     ? Flight::DELAY_COMPLIANT_DEPARTED
                     : Flight::DELAY_NON_COMPLIANT;
-                $flight->save();
+                $this->persistFlight($flight, 'compliance_check', [
+                    'airport' => $airport->icao,
+                    'drift_sec' => $drift,
+                ]);
             }
 
             // Ground flight that missed its CTOT compliance window:
@@ -197,7 +217,9 @@ final class CtotAllocator
             ) {
                 $this->clearAllocation($flight);
                 $flight->delay_status = Flight::DELAY_NON_COMPLIANT;
-                $flight->save();
+                $this->persistFlight($flight, 'release_non_compliant', [
+                    'airport' => $airport->icao,
+                ]);
                 $stats['ctots_reissued']++;
                 continue;
             }
@@ -252,7 +274,13 @@ final class CtotAllocator
             );
             $flight->delay_minutes  = max(0, $delay);
             $flight->delay_status   = $delay > 0 ? Flight::DELAY_DELAYED : Flight::DELAY_ON_TIME;
-            $flight->save();
+            $this->persistFlight($flight, 'imported_ctot', [
+                'airport' => $airport->icao,
+                'ctot'    => $flight->ctot->format('H:i'),
+                'tldt'    => $flight->tldt->format('H:i'),
+                'delay'   => $flight->delay_minutes,
+                'source'  => $hit->source_file ?? 'unknown',
+            ]);
 
             $takenSlots[$slotStart] = $flight->id;
             $stats['ctots_issued']++;
@@ -319,6 +347,38 @@ final class CtotAllocator
                 $flight->delay_status = Flight::DELAY_ON_TIME;
             }
 
+            $this->persistFlight($flight, 'slot_allocated', [
+                'airport'  => $airport->icao,
+                'eldt'     => date('H:i', $etaEpoch),
+                'tldt'     => $flight->tldt->format('H:i'),
+                'delay'    => $flight->delay_minutes,
+                'ctot'     => $flight->ctot?->format('H:i'),
+                'airborne' => $flight->atot !== null,
+            ]);
+        }
+    }
+
+    /**
+     * Persist flight changes — or log them in shadow mode.
+     *
+     * @param string $action  Human-readable action label for the shadow log
+     * @param array  $context Extra context fields for the log entry
+     */
+    private function persistFlight(Flight $flight, string $action, array $context = []): void
+    {
+        if ($this->shadowMode) {
+            $this->shadowLog[] = [
+                'action'     => $action,
+                'callsign'   => $flight->callsign,
+                'flight_id'  => $flight->id,
+                'phase'      => $flight->phase,
+                'ctot'       => $flight->ctot?->format('H:i'),
+                'tldt'       => $flight->tldt?->format('H:i'),
+                'delay_min'  => $flight->delay_minutes,
+                'delay_stat' => $flight->delay_status,
+                ...$context,
+            ];
+        } else {
             $flight->save();
         }
     }
