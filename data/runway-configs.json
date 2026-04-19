@@ -65,7 +65,34 @@
         "primary_arr": "14",
         "primary_dep": "14",
         "declared_arr_rate": 18,
-        "declared_dep_rate": 18
+        "declared_dep_rate": 18,
+        "ils": true
+      },
+      {
+        "name": "14-05dep",
+        "label": "14 Arr / 05 Dep (dependent)",
+        "mode": "dependent",
+        "_note": "14 has ILS — preferred arrival in IMC. 05 for heavy departures (longer runway).",
+        "runways": {
+          "14": { "role": "A", "hdg": 143 },
+          "05": { "role": "D", "hdg": 53 }
+        },
+        "primary_arr": "14", "primary_dep": "05",
+        "declared_arr_rate": 22, "declared_dep_rate": 22,
+        "ils": true
+      },
+      {
+        "name": "14-23dep",
+        "label": "14 Arr / 23 Dep (dependent)",
+        "mode": "dependent",
+        "_note": "14 has ILS. 23 opposite end of main runway for departures.",
+        "runways": {
+          "14": { "role": "A", "hdg": 143 },
+          "23": { "role": "D", "hdg": 233 }
+        },
+        "primary_arr": "14", "primary_dep": "23",
+        "declared_arr_rate": 22, "declared_dep_rate": 22,
+        "ils": true
       },
       {
         "name": "32",
@@ -78,6 +105,17 @@
         "primary_dep": "32",
         "declared_arr_rate": 18,
         "declared_dep_rate": 18
+      },
+      {
+        "name": "32-05dep",
+        "label": "32 Arr / 05 Dep (dependent)",
+        "mode": "dependent",
+        "runways": {
+          "32": { "role": "A", "hdg": 323 },
+          "05": { "role": "D", "hdg": 53 }
+        },
+        "primary_arr": "32", "primary_dep": "05",
+        "declared_arr_rate": 22, "declared_dep_rate": 22
       }
     ]
   },

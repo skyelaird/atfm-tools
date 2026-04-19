@@ -188,13 +188,20 @@ function autoPropose(icao) {
         // config is out of tolerance — they are not allowed to win on a
         // headwind tiebreak against the preferred direction.
         const pick = (pool) => {
-            let best = null, bestRate = 0, bestHw = -999;
+            // Composite score: declared rate + headwind bonus (0.5 per kt).
+            // This lets a well-aligned lower-rate config beat a poorly-aligned
+            // higher-rate config. E.g. CYHZ 14 (ILS, 17kt HW, rate 22)
+            // scores 30.5 vs 05 (1kt HW, rate 22) at 22.5.
+            // Dual-parallel configs (rate 42+) still dominate single-runway.
+            let best = null, bestScore = -999;
             for (const cfg of pool) {
                 if (cfg.requires) { if (cfg.requires.dry && st.wet) continue; if (cfg.requires.vmc && !vmc) continue; }
                 const arrRwy = st.runways[cfg.primary_arr]; if (!arrRwy || !arrRwy.avail) continue;
                 if (cfg.primary_dep !== cfg.primary_arr) { const d = st.runways[cfg.primary_dep]; if (!d || !d.avail) continue; }
-                const rate = cfg.declared_arr_rate || 0, hw = arrRwy.hw;
-                if (rate > bestRate || (rate === bestRate && hw > bestHw)) { bestRate = rate; bestHw = hw; best = cfg; }
+                const rate = cfg.declared_arr_rate || 0;
+                const hwBonus = Math.max(0, arrRwy.hw) * 0.5;
+                const score = rate + hwBonus;
+                if (score > bestScore) { bestScore = score; best = cfg; }
             }
             return best;
         };

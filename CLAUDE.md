@@ -195,6 +195,35 @@ All consumers (dashboard, FSM, reports, allocator restrictions) read
 `data/runway-configs.json` feed the AAR page calculator; the AAR page
 writes the result to the DB.
 
+## AAR page (`public/aar.html`)
+
+Wind-aware runway configuration selector. Fetches live METAR from AVWX,
+computes headwind/crosswind per runway, proposes optimal config.
+
+**Magnetic variation**: `Mag = True + MAG_VAR` where MAG_VAR is positive
+for West variation (eastern Canada) and negative for East variation
+(western Canada). Values from NOAA NCEI WMM, epoch ~2025. AVWX returns
+true wind; runway headings in DB are magnetic.
+
+**Wind limits**: MAX_TAILWIND 5kt, MAX_XW_DRY 30kt (MATS), MAX_XW_WET 15kt.
+
+**Auto-propose scoring**: composite `score = declared_rate + max(0, hw) * 0.5`.
+Headwind bonus lets a well-aligned lower-rate config beat a poorly-aligned
+higher-rate config (e.g. CYHZ 14 ILS with 17kt HW beats 05 with 1kt HW
+despite similar declared rates). Dual-parallel configs (rate 42+) still
+dominate. Exceptional configs (CYYZ 15/33) tried only if no preferred
+config is available.
+
+**LAHSO**: shown when airport has LAHSO configs in `runway-configs.json`,
+conditions are VMC + dry. "no LAHSO" badge has tooltip explaining why
+(Requires VMC / Requires dry runway).
+
+**Airport-specific notes**:
+- CYHZ: 14 has ILS (preferred arrival in IMC), 05/23 longer for heavy deps
+- CYOW: crossing runways 07/25 + 14/32 — dependent configs available
+- CYWG: crossing runways 18/36 + 13/31 — dependent + LAHSO configs
+- CYVR: north runway (08R/26L) normally arrivals, south (08L/26R) departures
+
 ## OpLevel taxonomy (PERTI-compatible)
 
 1. Steady State, 2. Localized, 3. Regional, 4. NAS-Wide.
