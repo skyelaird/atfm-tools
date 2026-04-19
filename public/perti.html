@@ -468,6 +468,10 @@ function renderAccuracy() {
     html += '</tbody></table></div></div>';
 
     // --- Full flight table (sortable) ---
+    // Show one row per flight, but group by "what prediction(s) landed".
+    // A flight with only PERTI (no Our ELDT) still shows — the PERTI cell
+    // is populated, the Our cell is a dim em-dash. This keeps the table
+    // aligned with the broader sample used for per-source stats.
     let sorted = [...rows];
     if (histSortCol !== null) {
         sorted.sort((a, b) => {
@@ -479,7 +483,10 @@ function renderAccuracy() {
         });
     }
 
-    html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">All Flights (' + sorted.length + ')</h3>';
+    const nOur = rows.filter(r => r.our_err_min !== null).length;
+    const nWind = rows.filter(r => r.wind_err_min !== null).length;
+    const nPerti = rows.filter(r => r.perti_err_min !== null).length;
+    html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">All Flights (' + sorted.length + ') <span class="muted" style="font-weight:400;font-size:0.75rem;"> — sample coverage: ours ' + nOur + ' / GRIB ' + nWind + ' / PERTI ' + nPerti + '</span></h3>';
     html += '<div class="table-wrap"><table id="hist-table"><thead><tr>';
     const cols = [
         { key: 'callsign', label: 'Callsign' },
