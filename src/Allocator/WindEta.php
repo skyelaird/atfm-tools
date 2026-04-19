@@ -535,7 +535,10 @@ final class WindEta
         if (!is_dir($cacheDir)) {
             @mkdir($cacheDir, 0755, true);
         }
-        $cacheFile = $cacheDir . "/gfs_{$dateStr}_{$cycle}z_multilevel.grib2";
+        // Include grid bounds in cache key so an extension (e.g. LON_MIN
+        // westward expansion) doesn't serve stale narrower-region data.
+        $bounds = self::LAT_MIN . 'x' . self::LAT_MAX . '_' . self::LON_MIN . 'x' . self::LON_MAX;
+        $cacheFile = $cacheDir . "/gfs_{$dateStr}_{$cycle}z_multilevel_{$bounds}.grib2";
 
         if (file_exists($cacheFile)) {
             $age = time() - filemtime($cacheFile);

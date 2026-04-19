@@ -216,7 +216,36 @@ function autoPropose(icao) {
     const supplementary = new Set(aptCfg?._supplementary || []);
     let bestRwy = null, bestHw2 = -999;
     for (const [id, r] of Object.entries(st.runways)) { if (r.avail && r.hw > bestHw2 && !supplementary.has(id)) { bestHw2 = r.hw; bestRwy = id; } }
-    if (bestRwy) { st.runways[bestRwy].role = 'A/D'; st.configName = bestRwy + ' (auto)'; }
+    if (bestRwy) { st.runways[bestRwy].role = 'A/D'; st.configName = bestRwy + ' (auto)'; return; }
+
+    // Last resort: all runways fail the hard wind limits. Can't close an
+    // airport over a few knots of extra crosswind — pick the "least worst"
+    // runway. Score: minimize tailwind + crosswind excess over limits.
+    // Skip supplementary/exceptional runways first, then fall back to any.
+    const xwLimit = st.wet ? MAX_XW_WET : MAX_XW_DRY;
+    const scoreRwy = (r) => {
+        const tailwindExcess = Math.max(0, -r.hw - MAX_TAILWIND); // kt over 5kt tailwind
+        const xwExcess = Math.max(0, r.xwAbs - xwLimit);          // kt over crosswind limit
+        return tailwindExcess * 2 + xwExcess; // tailwind weighted 2x (worse for stopping)
+    };
+    let leastWorst = null, leastScore = 999;
+    for (const [id, r] of Object.entries(st.runways)) {
+        if (supplementary.has(id)) continue;
+        const s = scoreRwy(r);
+        if (s < leastScore) { leastScore = s; leastWorst = id; }
+    }
+    // If no primary runway usable, consider supplementary as last resort
+    if (!leastWorst) {
+        for (const [id, r] of Object.entries(st.runways)) {
+            const s = scoreRwy(r);
+            if (s < leastScore) { leastScore = s; leastWorst = id; }
+        }
+    }
+    if (leastWorst) {
+        st.runways[leastWorst].role = 'A/D';
+        st.configName = leastWorst + ' (over limits)';
+        st.overLimits = true;
+    }
 }
 
 function hwClass(hw) {
