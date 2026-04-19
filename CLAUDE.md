@@ -93,7 +93,7 @@ Airborne cascade (v0.5.63+), then ground fallback:
 **Airborne (at cruise):**
 1. **WIND_GRIB** — GRIB wind from observed position + route, conf 92.
    Computed inline by `WindEta::computeForFlight()`. Grid coverage:
-   LAT 25-65, LON -130 to -30 (covers CONUS, Caribbean, NAT).
+   LAT 25-65, LON -170 to -30 (covers CONUS, Caribbean, NAT, trans-Pacific).
    Also writes `eldt_wind` column for QA comparison.
 2. **OBSERVED_POS** — along-route distance from observed position, filed TAS
    preferred over GS (wind-neutral), conf 91/88. Position-aware, updates
@@ -154,7 +154,7 @@ Downloads GFS 1° subregion at **3 pressure levels** (250mb ≈ FL340,
 Level selected by cruise altitude — turboprops at FL180 get 500mb winds,
 jets at FL380 get 250mb. Integrates wind per grid cell along the resolved
 route; descent segment uses no-wind model. Grid coverage: LAT 25-65,
-LON -130 to -30.
+LON -170 to -30.
 
 **Authoritative in the ETA cascade**: `WIND_GRIB` is the top-priority
 airborne tier (conf 92). Computed inline during ingest by

@@ -29,11 +29,13 @@ use DateTimeZone;
 final class WindEta
 {
     // Grid bounds (1-degree) — covers Canadian FIRs, CONUS, Caribbean,
-    // NAT tracks, and European departure points. Extended to 25°N so
-    // flights 2.5h south of CYYZ get GRIB wind before the freeze horizon.
+    // NAT tracks, European departure points, and trans-Pacific approaches.
+    // LAT 25°N: flights 2.5h south of CYYZ get GRIB wind before freeze.
+    // LON -170°: trans-Pacific (e.g. ACA64 RKSI→CYVR) gets ~2h of GRIB
+    //   wind before reaching CYVR at -123°W (~2400nm at FL340).
     private const LAT_MIN = 25;
     private const LAT_MAX = 65;
-    private const LON_MIN = -130;
+    private const LON_MIN = -170;
     private const LON_MAX = -30;
 
     private const GFS_CYCLES = [0, 6, 12, 18];
