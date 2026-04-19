@@ -220,7 +220,7 @@ function render(d) {
                 <td class="mono muted">${c.aircraft_type || '?'}</td>
                 <td class="mono">${c.adep || '?'} → ${c.ades}</td>
                 <td class="mono">${hhmmz(c.our_eldt)}</td>
-                <td class="mono" style="color:var(--accent);">${c.eldt_wind ? hhmmz(c.eldt_wind) : windReasonLabel(c.wind_reason)}</td>
+                <td class="mono" style="${c.our_frozen ? 'color:var(--accent);' : ''}" title="${c.our_frozen ? 'TLDT — frozen at T-90m' : 'ELDT — live estimate, not yet frozen'}">${c.eldt_wind ? hhmmz(c.eldt_wind) : windReasonLabel(c.wind_reason)}</td>
                 <td class="mono">${hhmmz(c.perti_eta)}</td>
                 <td class="mono ${deltaClass(c.eta_delta_min)}">${c.eta_delta_min > 0 ? '+' : ''}${c.eta_delta_min}m</td>
                 <td>${tags.join(' ')}</td>

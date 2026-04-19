@@ -1111,6 +1111,101 @@ final class Kernel
             return self::json($res, ['ok' => true]);
         });
 
+        // Allocator preview — shadow-run the allocator with a hypothetical
+        // restriction and return what CTOTs WOULD be issued, without any
+        // persisted change. Wraps everything in a DB transaction rolled
+        // back at the end so the temp restriction never touches real data.
+        //
+        // POST body: { airport, capacity, duration_min?, op_level?, reason? }
+        // Response: { capacity, duration_min, summary, flights: [{callsign, ades, adep, aircraft_type, eldt, ctot, delay_min, delay_stat, phase, action}, ...] }
+        $app->post('/api/v1/allocator/preview', function ($req, $res) {
+            $body = (array) $req->getParsedBody();
+            $icao = strtoupper((string) ($body['airport'] ?? ''));
+            $apt  = Airport::where('icao', $icao)->first();
+            if (! $apt) {
+                return self::json($res->withStatus(404), ['error' => 'airport not found']);
+            }
+
+            $durationMin = max(15, min(480, (int) ($body['duration_min'] ?? 60)));
+            $capacity    = (int) ($body['capacity'] ?? ($apt->active_arr_rate ?? $apt->base_arrival_rate));
+
+            $db = \Illuminate\Database\Capsule\Manager::connection();
+            $db->beginTransaction();
+
+            $log = [];
+            $error = null;
+            try {
+                $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+                $end = $now->modify("+{$durationMin} minutes");
+
+                $r = new AirportRestriction();
+                $r->restriction_id = AirportRestriction::generateId($icao);
+                $r->airport_id     = $apt->id;
+                $r->capacity       = $capacity;
+                $r->reason         = (string) ($body['reason'] ?? 'ATC_CAPACITY');
+                $r->op_level       = max(1, min(4, (int) ($body['op_level'] ?? 2)));
+                $r->type           = 'ARR';
+                $r->tier_minutes   = (int) ($body['tier_minutes'] ?? 120);
+                $r->compliance_window_early_min = 5;
+                $r->compliance_window_late_min  = 5;
+                $r->start_utc      = $now->format('Hi');
+                $r->end_utc        = $end->format('Hi');
+                $r->active_from    = $now;
+                $r->expires_at     = $end;
+                $r->save();
+
+                $result = (new \Atfm\Allocator\CtotAllocator())->run(true);
+                $log = $result['shadow_log'] ?? [];
+            } catch (\Throwable $e) {
+                $error = $e->getMessage();
+            } finally {
+                // ALWAYS rollback — this is a preview, nothing persists
+                $db->rollBack();
+            }
+
+            if ($error) {
+                return self::json($res->withStatus(500), ['error' => $error]);
+            }
+
+            // Filter to this airport and keep only actions that affect the FMP
+            $relevant = array_values(array_filter($log, function ($e) use ($icao) {
+                return ($e['ades'] ?? null) === $icao
+                    && in_array($e['action'] ?? '', [
+                        'slot_allocated', 'imported_ctot',
+                        'release_stale', 'release_non_compliant', 'compliance_check',
+                    ], true);
+            }));
+            // Sort by TLDT/eldt
+            usort($relevant, fn($a, $b) => strcmp(($a['tldt'] ?? $a['eldt'] ?? ''), ($b['tldt'] ?? $b['eldt'] ?? '')));
+
+            $issuedCount  = 0;
+            $maxDelay     = 0;
+            $totalDelay   = 0;
+            foreach ($relevant as $e) {
+                if ($e['action'] === 'slot_allocated' && !empty($e['delay_min'])) {
+                    $issuedCount++;
+                    $maxDelay   = max($maxDelay, (int) $e['delay_min']);
+                    $totalDelay += (int) $e['delay_min'];
+                }
+            }
+
+            return self::json($res, [
+                'airport'       => $icao,
+                'capacity'      => $capacity,
+                'duration_min'  => $durationMin,
+                'op_level'      => $r->op_level,
+                'start_utc'     => $r->start_utc,
+                'end_utc'       => $r->end_utc,
+                'flights'       => $relevant,
+                'summary'       => [
+                    'affected_flights'  => count($relevant),
+                    'ctots_would_issue' => $issuedCount,
+                    'max_delay_min'     => $maxDelay,
+                    'avg_delay_min'     => $issuedCount ? round($totalDelay / $issuedCount, 1) : 0,
+                ],
+            ]);
+        });
+
         // Event sources
         $app->get('/api/v1/event-sources', function ($req, $res) {
             return self::json($res, EventSource::orderBy('event_code')->get()->toArray());

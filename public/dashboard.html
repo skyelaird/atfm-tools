@@ -407,6 +407,42 @@
         }
         .modal-body .table-wrap { background: var(--bg); }
         .modal-body table { font-size: 0.78rem; }
+
+        /* Regulation panel */
+        .reg-panel { border: 1px solid var(--border); border-radius: 6px; padding: 0.75rem; }
+        .reg-panel.active { border-color: var(--warn); background: rgba(250,204,21,0.04); }
+        .reg-row { display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: end; }
+        .reg-row > div { display: flex; flex-direction: column; gap: 0.2rem; }
+        .reg-row label { font-size: 0.68rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; }
+        .reg-row input[type=number], .reg-row input[type=text], .reg-row select {
+            background: var(--bg); color: var(--text); border: 1px solid var(--border);
+            border-radius: 4px; padding: 0.35rem 0.5rem; font-family: Consolas, monospace;
+            font-size: 0.85rem; min-width: 80px;
+        }
+        .reg-row input[type=text] { min-width: 160px; }
+        .reg-btn {
+            background: var(--bg-elev-hi); color: var(--text-bright); border: 1px solid var(--border);
+            border-radius: 4px; padding: 0.45rem 0.9rem; cursor: pointer; font-size: 0.82rem;
+            font-weight: 600;
+        }
+        .reg-btn:hover { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+        .reg-btn.primary { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+        .reg-btn.primary:hover { filter: brightness(1.1); }
+        .reg-btn.danger { background: var(--alert-dim); color: var(--alert); border-color: var(--alert); }
+        .reg-btn.danger:hover { background: var(--alert); color: var(--bg); }
+        .reg-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .reg-preview { margin-top: 0.75rem; border-top: 1px dashed var(--border); padding-top: 0.6rem; }
+        .reg-summary {
+            display: flex; gap: 0.75rem; flex-wrap: wrap; font-size: 0.78rem;
+            font-family: Consolas, monospace; margin-bottom: 0.4rem;
+        }
+        .reg-summary .chip {
+            padding: 0.15rem 0.55rem; border-radius: 4px; background: var(--bg-elev-hi);
+            border: 1px solid var(--border);
+        }
+        .reg-summary .chip.good { border-color: var(--ok-dim); color: var(--ok); }
+        .reg-summary .chip.warn { border-color: var(--warn-dim); color: var(--warn); }
+        .reg-summary .chip.alert { border-color: var(--alert-dim); color: var(--alert); }
     </style>
 </head>
 <body>
@@ -824,6 +860,216 @@ document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && $('modal-backdrop').classList.contains('open')) closeModal();
 });
 
+// Build the Regulate/Lift panel for an airport.
+// When no active restriction: collapsed "Regulate" button that expands
+// into a form with capacity + duration + reason + Preview + Commit.
+// When active: shows the current restriction with a Lift button.
+function renderRegulationSection(airport, activeRestrictions) {
+    const section = el('section', {});
+    const active = (activeRestrictions || []).filter(r => !r.deleted_at);
+    const header = el('h3', {}, active.length ? `Active regulation (${active.length})` : 'Regulation');
+    section.appendChild(header);
+
+    if (active.length > 0) {
+        // Display active restriction(s) + Lift button
+        const panel = el('div', { class: 'reg-panel active' });
+        const wrap = el('div', { class: 'table-wrap' });
+        const table = el('table');
+        table.appendChild(el('thead', {}, el('tr', {},
+            ...['ID', 'Cap', 'Reason', 'OpLvl', 'Window', 'Tier', 'Compliance', ''].map(h => el('th', {}, h))
+        )));
+        const tbody = el('tbody');
+        for (const r of active) {
+            const liftBtn = el('button', {
+                class: 'reg-btn danger',
+                onclick: async (ev) => {
+                    ev.stopPropagation();
+                    if (!confirm(`Lift regulation ${r.restriction_id}?`)) return;
+                    liftBtn.disabled = true;
+                    liftBtn.textContent = 'Lifting...';
+                    try {
+                        const resp = await fetch(`/api/v1/airport-restrictions/${r.restriction_id}`, { method: 'DELETE' });
+                        if (!resp.ok) throw new Error('HTTP ' + resp.status);
+                        // Reopen drawer to refresh
+                        openAirportDetail(airport.icao);
+                    } catch (e) {
+                        alert('Failed to lift: ' + e.message);
+                        liftBtn.disabled = false;
+                        liftBtn.textContent = 'Lift';
+                    }
+                }
+            }, 'Lift');
+            tbody.appendChild(el('tr', {},
+                el('td', { class: 'mono' }, r.restriction_id),
+                el('td', { class: 'mono' }, `${r.capacity}/hr`),
+                el('td', {}, r.reason),
+                el('td', { class: 'mono' }, `L${r.op_level}`),
+                el('td', { class: 'mono' }, `${r.start_utc}–${r.end_utc}`),
+                el('td', { class: 'mono' }, r.tier_minutes + 'm'),
+                el('td', { class: 'mono muted' }, `±${r.compliance_window_early_min}/${r.compliance_window_late_min}`),
+                el('td', {}, liftBtn),
+            ));
+        }
+        table.appendChild(tbody);
+        wrap.appendChild(table);
+        panel.appendChild(wrap);
+        section.appendChild(panel);
+        return section;
+    }
+
+    // No active restriction — show inline regulation form
+    const panel = el('div', { class: 'reg-panel' });
+
+    const defaultCap = airport.active_arr_rate ?? airport.base_arrival_rate ?? 30;
+    const capInput = el('input', { type: 'number', min: 1, max: 100, value: String(defaultCap) });
+    const durSelect = el('select', {},
+        el('option', { value: '30' }, '30 min'),
+        el('option', { value: '60', selected: 'selected' }, '60 min'),
+        el('option', { value: '120' }, '2 h'),
+        el('option', { value: '240' }, '4 h'),
+    );
+    const opLevelSelect = el('select', {},
+        el('option', { value: '2', selected: 'selected' }, 'L2 Localized'),
+        el('option', { value: '3' }, 'L3 Regional'),
+        el('option', { value: '4' }, 'L4 NAS-Wide'),
+    );
+    const reasonInput = el('input', { type: 'text', value: 'ATC_CAPACITY', maxlength: 64 });
+
+    const previewBtn = el('button', { class: 'reg-btn' }, 'Preview');
+    const commitBtn = el('button', { class: 'reg-btn primary' }, 'Commit');
+    commitBtn.disabled = true; // require preview first
+
+    const previewWrap = el('div', { class: 'reg-preview', style: 'display:none;' });
+    let lastPreview = null;
+
+    const gatherBody = () => ({
+        airport:      airport.icao,
+        capacity:     parseInt(capInput.value, 10),
+        duration_min: parseInt(durSelect.value, 10),
+        op_level:     parseInt(opLevelSelect.value, 10),
+        reason:       reasonInput.value.trim() || 'ATC_CAPACITY',
+    });
+
+    previewBtn.onclick = async (ev) => {
+        ev.stopPropagation();
+        previewBtn.disabled = true;
+        previewBtn.textContent = 'Previewing...';
+        previewWrap.innerHTML = '<div class="muted">Running shadow allocator...</div>';
+        previewWrap.style.display = 'block';
+        try {
+            const body = gatherBody();
+            const resp = await fetch('/api/v1/allocator/preview', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            const data = await resp.json();
+            lastPreview = data;
+            renderPreviewResult(previewWrap, data);
+            commitBtn.disabled = false;
+        } catch (e) {
+            previewWrap.innerHTML = `<div class="muted" style="color:var(--alert);">Preview failed: ${e.message}</div>`;
+            commitBtn.disabled = true;
+        } finally {
+            previewBtn.disabled = false;
+            previewBtn.textContent = 'Preview';
+        }
+    };
+
+    commitBtn.onclick = async (ev) => {
+        ev.stopPropagation();
+        if (!confirm(`Create regulation at ${airport.icao}: ${capInput.value}/hr for ${durSelect.value} min?`)) return;
+        commitBtn.disabled = true;
+        commitBtn.textContent = 'Creating...';
+        try {
+            const body = gatherBody();
+            // Translate duration_min to start/end HHMM for the existing POST
+            const now = new Date();
+            const end = new Date(now.getTime() + body.duration_min * 60000);
+            const pad = n => String(n).padStart(2, '0');
+            const hhmm = d => pad(d.getUTCHours()) + pad(d.getUTCMinutes());
+            const payload = {
+                capacity:     body.capacity,
+                reason:       body.reason,
+                op_level:     body.op_level,
+                type:         'ARR',
+                tier_minutes: 120,
+                compliance_window_early_min: 5,
+                compliance_window_late_min:  5,
+                start_utc:    hhmm(now),
+                end_utc:      hhmm(end),
+                expires_at:   end.toISOString(),
+            };
+            const resp = await fetch(`/api/v1/airports/${airport.icao}/restrictions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
+            openAirportDetail(airport.icao); // refresh drawer
+        } catch (e) {
+            alert('Failed to create regulation: ' + e.message);
+            commitBtn.disabled = false;
+            commitBtn.textContent = 'Commit';
+        }
+    };
+
+    const row = el('div', { class: 'reg-row' },
+        el('div', {},  el('label', {}, 'Capacity (/hr)'), capInput),
+        el('div', {},  el('label', {}, 'Duration'), durSelect),
+        el('div', {},  el('label', {}, 'OpLevel'), opLevelSelect),
+        el('div', { style: 'flex:1;' }, el('label', {}, 'Reason'), reasonInput),
+        el('div', {},  el('label', {}, '\u00a0'), previewBtn),
+        el('div', {},  el('label', {}, '\u00a0'), commitBtn),
+    );
+    panel.appendChild(row);
+    panel.appendChild(previewWrap);
+    section.appendChild(panel);
+    return section;
+}
+
+function renderPreviewResult(container, data) {
+    container.innerHTML = '';
+    const s = data.summary || {};
+    const chips = el('div', { class: 'reg-summary' },
+        el('span', { class: 'chip' }, `${s.affected_flights || 0} flights affected`),
+        el('span', { class: 'chip ' + (s.ctots_would_issue > 0 ? 'warn' : 'good') }, `${s.ctots_would_issue || 0} CTOTs issued`),
+        el('span', { class: 'chip ' + (s.max_delay_min > 30 ? 'alert' : s.max_delay_min > 10 ? 'warn' : 'good') }, `max delay ${s.max_delay_min || 0}m`),
+        el('span', { class: 'chip muted' }, `avg delay ${s.avg_delay_min || 0}m`),
+        el('span', { class: 'chip muted' }, `window ${data.start_utc}–${data.end_utc}Z`),
+    );
+    container.appendChild(chips);
+
+    if (!data.flights || data.flights.length === 0) {
+        container.appendChild(el('div', { class: 'muted', style: 'padding:0.4rem 0;' }, 'No flights would be affected by this regulation.'));
+        return;
+    }
+    const wrap = el('div', { class: 'table-wrap' });
+    const table = el('table');
+    table.appendChild(el('thead', {}, el('tr', {},
+        ...['Callsign', 'From', 'Phase', 'ELDT', 'TLDT', 'CTOT', 'Delay', 'Status', 'Action'].map(h => el('th', {}, h))
+    )));
+    const tbody = el('tbody');
+    for (const f of data.flights) {
+        const delayCls = (f.delay_min || 0) > 20 ? 'alert' : (f.delay_min || 0) > 5 ? 'warn' : '';
+        tbody.appendChild(el('tr', {},
+            el('td', { class: 'mono' }, f.callsign || '?'),
+            el('td', { class: 'mono muted' }, f.adep || '?'),
+            el('td', { class: 'muted' }, f.phase || '?'),
+            el('td', { class: 'mono' }, f.eldt || '—'),
+            el('td', { class: 'mono' }, f.tldt || '—'),
+            el('td', { class: 'mono' }, f.ctot || '—'),
+            el('td', { class: 'mono ' + delayCls }, f.delay_min != null ? f.delay_min + 'm' : '—'),
+            el('td', { class: 'mono muted' }, f.delay_stat || '—'),
+            el('td', { class: 'muted' }, f.action || '?'),
+        ));
+    }
+    table.appendChild(tbody);
+    wrap.appendChild(table);
+    container.appendChild(wrap);
+}
+
 function renderAirportDetail(d) {
     const a = d.airport;
     $('modal-name').textContent = a.name;
@@ -865,32 +1111,8 @@ function renderAirportDetail(d) {
         hourlyDiv
     ));
 
-    // Active restrictions
-    if (d.restrictions.length > 0) {
-        const resSection = el('section', {}, el('h3', {}, `Active restrictions (${d.restrictions.length})`));
-        const wrap = el('div', { class: 'table-wrap' });
-        const table = el('table');
-        table.appendChild(el('thead', {}, el('tr', {},
-            ...['ID', 'Cap', 'Reason', 'OpLvl', 'Type', 'Window', 'Tier', 'Compliance'].map(h => el('th', {}, h))
-        )));
-        const tbody = el('tbody');
-        for (const r of d.restrictions) {
-            tbody.appendChild(el('tr', {},
-                el('td', { class: 'mono' }, r.restriction_id),
-                el('td', { class: 'mono' }, `${r.capacity}/hr`),
-                el('td', {}, r.reason),
-                el('td', { class: 'mono' }, `L${r.op_level}`),
-                el('td', {}, r.type),
-                el('td', { class: 'mono' }, `${r.start_utc}–${r.end_utc}`),
-                el('td', { class: 'mono' }, r.tier_minutes + 'm'),
-                el('td', { class: 'mono muted' }, `±${r.compliance_window_early_min}/${r.compliance_window_late_min}`)
-            ));
-        }
-        table.appendChild(tbody);
-        wrap.appendChild(table);
-        resSection.appendChild(wrap);
-        body.appendChild(resSection);
-    }
+    // Regulation section — preview + create + lift
+    body.appendChild(renderRegulationSection(a, d.restrictions || []));
 
     // Inbound flights — full A-CDM timeline:
     //   EOBT (filed off-block) → AOBT (actually pushed) → ATOT (actually
