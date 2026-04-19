@@ -465,7 +465,6 @@ final class Kernel
             foreach ($flights as $f) {
                 $r = \Atfm\Allocator\MeteringFix::resolve($f);
                 $apt = $f->ades;
-                $grouped[$apt] ??= [];
                 if (!$r || !$r['metering_fix']) {
                     $unresolved[] = [
                         'callsign' => $f->callsign,
@@ -476,6 +475,7 @@ final class Kernel
                     continue;
                 }
                 $fix = $r['metering_fix'];
+                $grouped[$apt] ??= [];
                 $grouped[$apt][$fix] ??= ['count' => 0, 'flights' => []];
                 $grouped[$apt][$fix]['count']++;
                 $grouped[$apt][$fix]['flights'][] = [
