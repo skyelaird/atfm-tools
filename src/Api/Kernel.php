@@ -1563,6 +1563,9 @@ final class Kernel
                     ? round(($aldt - $f->eldt_wind->getTimestamp()) / 60)
                     : null;
                 $synthetic = $f->eldt_locked && $f->aldt->getTimestamp() === $f->eldt_locked->getTimestamp();
+                $windReason = $f->eldt_wind === null
+                    ? \Atfm\Allocator\WindEta::classifyHistoricalMissing($f)
+                    : null;
                 return [
                     'callsign'      => $f->callsign,
                     'aircraft_type' => $f->aircraft_type,
@@ -1576,6 +1579,7 @@ final class Kernel
                     'our_err_min'   => $ourErr,
                     'perti_err_min' => $pertiErr,
                     'wind_err_min'  => $windErr,
+                    'wind_reason'   => $windReason,
                     'sb_err_min'    => $sbErr,
                     'is_simbrief'   => (bool) $f->is_simbrief,
                     'synthetic'     => $synthetic,
@@ -2047,6 +2051,9 @@ final class Kernel
                         'eldt_simbrief' => $f->eldt_simbrief?->format('c'),
                         'our_err_min'   => $ourErr,
                         'wind_err_min'  => $windErr,
+                        'wind_reason'   => $f->eldt_wind === null
+                            ? \Atfm\Allocator\WindEta::classifyHistoricalMissing($f)
+                            : null,
                         'perti_err_min' => $pertiErr,
                         'sb_err_min'    => $sbErr,
                         'is_simbrief'   => (bool) $f->is_simbrief,

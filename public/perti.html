@@ -122,6 +122,17 @@ function hhmmz(iso) {
     return iso.substring(11, 16);
 }
 
+function windReasonHist(code) {
+    const map = {
+        no_route:      '<span class="muted" title="Flight had no filed route to integrate wind along">— no route</span>',
+        no_takeoff:    '<span class="muted" title="No ATOT recorded — flight never tracked as airborne">— no takeoff</span>',
+        unknown_ades:  '<span class="muted" title="Destination outside our scope">— off scope</span>',
+        short_haul:    '<span class="muted" title="Flight too short (&lt;45 min) for meaningful cruise-wind integration">— short haul</span>',
+        grib_missed:   '<span class="muted" title="GRIB cron missed this flight\'s cruise window (fetch failed or off-schedule)">— grib missed</span>',
+    };
+    return map[code] || '<span class="muted">—</span>';
+}
+
 function windReasonLabel(code) {
     const map = {
         ground:           '<span class="muted" title="Flight is on the ground — GRIB applies to airborne cruise only">— ground</span>',
@@ -269,7 +280,7 @@ function render(d) {
                 <td class="mono">${hhmmz(l.aldt)}</td>
                 <td class="mono">${hhmmz(l.eldt_locked)}</td>
                 <td class="mono ${deltaClass(l.our_err_min)}">${l.our_err_min > 0 ? '+' : ''}${l.our_err_min}m</td>
-                <td class="mono">${hhmmz(l.eldt_wind)}</td>
+                <td class="mono">${l.eldt_wind ? hhmmz(l.eldt_wind) : windReasonHist(l.wind_reason)}</td>
                 <td class="mono ${l.wind_err_min !== null ? deltaClass(l.wind_err_min) : 'muted'}">${l.wind_err_min !== null ? (l.wind_err_min > 0 ? '+' : '') + l.wind_err_min + 'm' : '—'}</td>
                 <td class="mono">${hhmmz(l.eldt_perti)}</td>
                 <td class="mono ${l.perti_err_min !== null ? deltaClass(l.perti_err_min) : 'muted'}">${l.perti_err_min !== null ? (l.perti_err_min > 0 ? '+' : '') + l.perti_err_min + 'm' : '—'}</td>
@@ -496,7 +507,7 @@ function renderAccuracy() {
             <td class="mono">${hhmmz(r.aldt)}</td>
             <td class="mono">${hhmmz(r.eldt_locked)}</td>
             <td class="mono ${deltaClass(r.our_err_min)}">${r.our_err_min !== null ? (r.our_err_min > 0 ? '+' : '') + r.our_err_min + 'm' : '—'}</td>
-            <td class="mono">${hhmmz(r.eldt_wind)}</td>
+            <td class="mono">${r.eldt_wind ? hhmmz(r.eldt_wind) : windReasonHist(r.wind_reason)}</td>
             <td class="mono ${r.wind_err_min !== null ? deltaClass(r.wind_err_min) : 'muted'}">${r.wind_err_min !== null ? (r.wind_err_min > 0 ? '+' : '') + r.wind_err_min + 'm' : '—'}</td>
             <td class="mono">${hhmmz(r.eldt_perti)}</td>
             <td class="mono ${r.perti_err_min !== null ? deltaClass(r.perti_err_min) : 'muted'}">${r.perti_err_min !== null ? (r.perti_err_min > 0 ? '+' : '') + r.perti_err_min + 'm' : '—'}</td>

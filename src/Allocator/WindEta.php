@@ -165,6 +165,34 @@ final class WindEta
     }
 
     /**
+     * Classify why a landed flight has no eldt_wind. Post-hoc: we can't
+     * recheck grid bounds or position because the flight is gone, but we
+     * can infer from the stored data shape.
+     */
+    public static function classifyHistoricalMissing(Flight $f): string
+    {
+        if (!$f->fp_route || strlen($f->fp_route) < 5) {
+            return 'no_route';
+        }
+        if ($f->atot === null) {
+            return 'no_takeoff';
+        }
+        $scope = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
+        if (!in_array($f->ades, $scope, true)) {
+            return 'unknown_ades';
+        }
+        // Short-haul: if total flight duration was under ~60 min it was
+        // mostly climb+descent, GRIB has little cruise to integrate.
+        if ($f->aldt && $f->atot) {
+            $durMin = ($f->aldt->getTimestamp() - $f->atot->getTimestamp()) / 60;
+            if ($durMin < 45) return 'short_haul';
+        }
+        // All data looked computable — most likely the wind cron missed a
+        // window or the NOAA fetch failed when this flight was at cruise.
+        return 'grib_missed';
+    }
+
+    /**
      * Compute wind-corrected ELDT for a single flight.
      *
      * @param array<int, array{lats: float[], lons: float[], u: float[][], v: float[][]}> $grids keyed by mb
