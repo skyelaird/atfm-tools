@@ -141,7 +141,7 @@ function windReasonLabel(code) {
         climbing:         '<span class="muted" title="Still climbing &gt;5000ft below filed altitude">— climbing</span>',
         too_close:        '<span class="muted" title="Under 20 nm from destination — descent model applies">— too close</span>',
         too_far:          '<span class="muted" title="Over 4000 nm from destination — typically means route didn\'t resolve or wrong ADES">— too far</span>',
-        grib_unavailable: '<span class="muted" title="GRIB data not loaded this cycle (NOAA fetch failed or cache miss)">— grib n/a</span>',
+        grib_unavailable: '<span class="muted" title="GRIB data not loaded this cycle (NOAA fetch failed or cache miss, or flight just came into grid — usually resolves in 1–2 cycles)">— grib n/a</span>',
     };
     return map[code] || '<span class="muted">—</span>';
 }
