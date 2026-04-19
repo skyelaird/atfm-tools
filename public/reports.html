@@ -116,6 +116,41 @@
             color: var(--text-dim); font-size: 0.75rem;
             border-top: 1px solid var(--border);
         }
+
+        /* Help modal */
+        .help-btn {
+            display: inline-flex; align-items: center; justify-content: center;
+            width: 1.6rem; height: 1.6rem; border-radius: 50%;
+            background: var(--bg-elev-hi); border: 1px solid var(--border);
+            color: var(--text-dim); font-size: 0.85rem; font-weight: 700;
+            cursor: pointer; line-height: 1;
+        }
+        .help-btn:hover { color: var(--accent); border-color: var(--accent-dim); }
+        .help-overlay {
+            display: none; position: fixed; inset: 0; z-index: 900;
+            background: rgba(0,0,0,0.65); align-items: flex-start; justify-content: center;
+            padding: 3rem 1rem; overflow-y: auto;
+        }
+        .help-overlay.open { display: flex; }
+        .help-modal {
+            background: var(--bg-elev); border: 1px solid var(--border);
+            border-radius: 6px; max-width: 720px; width: 100%;
+            padding: 1.5rem 2rem; color: var(--text);
+            max-height: calc(100vh - 6rem); overflow-y: auto;
+        }
+        .help-modal h2 { font-size: 1rem; color: var(--text-bright); margin: 1.2rem 0 0.5rem; }
+        .help-modal h2:first-child { margin-top: 0; }
+        .help-modal p, .help-modal li { font-size: 0.85rem; line-height: 1.55; }
+        .help-modal ul { padding-left: 1.2rem; }
+        .help-modal .close-btn {
+            float: right; background: none; border: none; color: var(--text-dim);
+            font-size: 1.4rem; cursor: pointer; line-height: 1;
+        }
+        .help-modal .close-btn:hover { color: var(--text-bright); }
+        .help-modal code { background: var(--bg-elev-hi); padding: 0.1em 0.35em; border-radius: 3px; font-size: 0.8rem; }
+        .help-modal table { width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 0.8rem; }
+        .help-modal table th, .help-modal table td { padding: 0.3rem 0.5rem; border: 1px solid var(--border); text-align: left; }
+        .help-modal table th { background: var(--bg-elev-hi); color: var(--text-bright); font-weight: 600; }
     </style>
 </head>
 <body>
@@ -129,11 +164,93 @@
         <span class="pill" data-hours="48">48h</span>
         <span class="pill" data-hours="168">7d</span>
     </div>
-    <div style="display:flex; gap:0.5rem;">
+    <div style="display:flex; gap:0.5rem; align-items:center;">
         <a href="/dashboard.html" class="pill">&larr; dashboard</a>
         <a href="/perti.html" class="pill">perti</a>
+        <span class="help-btn" id="help-open" title="User guide">?</span>
     </div>
 </header>
+
+<div class="help-overlay" id="help-overlay">
+<div class="help-modal">
+<button class="close-btn" id="help-close">&times;</button>
+
+<h2>Reports &mdash; User Guide</h2>
+<p>This page shows prediction accuracy and traffic statistics for the 7 Canadian airports managed by atfm-tools. Data refreshes automatically every 60 seconds. Use the time-window pills (6h / 12h / 24h / 48h / 7d) to change the reporting period.</p>
+
+<h2>Stat cards</h2>
+<p>The top row summarises the selected window:</p>
+<ul>
+    <li><strong>Movements</strong> &mdash; completed arrivals (with ALDT) + departures (with ATOT).</li>
+    <li><strong>ELDT err</strong> &mdash; median prediction error. How far our landing estimate was from the actual landing, in minutes. Lower is better; target &le;3&thinsp;min.</li>
+    <li><strong>Dwell</strong> &mdash; median time from pilot spawn to pushback. Indicates how long pilots sit at the gate before moving.</li>
+    <li><strong>TLDT err</strong> &mdash; median slot fidelity. How close the frozen landing slot matched reality.</li>
+</ul>
+<p>Values are <em>medians</em> (not means) to resist outliers. Numbers dimmed when sample size &lt;&thinsp;5.</p>
+
+<h2>Per-airport table</h2>
+<p>One row per airport. Columns are grouped into:</p>
+<table>
+<tr><th>Group</th><th>Columns</th><th>What they show</th></tr>
+<tr><td>Airport</td><td>ICAO, Name, Rate</td><td>Active arrival rate (from AAR page)</td></tr>
+<tr><td>Movements</td><td>Arr, Dep</td><td>Completed arrivals and departures in the window</td></tr>
+<tr><td>ELDT prediction</td><td>Median, MAE, &le;3, 3&ndash;5, 5&ndash;10, &gt;10</td><td>How accurate our ETA prediction was at the time of landing</td></tr>
+<tr><td>TLDT fidelity</td><td>Median, MAE, &le;3, 3&ndash;5, 5&ndash;10, &gt;10</td><td>How accurate the frozen slot time was vs actual landing</td></tr>
+</table>
+<p>Error buckets are <strong>mutually exclusive</strong> and sum to 100%. <code>&le;3</code> = within 3 minutes (good). <code>&gt;10</code> = more than 10 minutes off (investigate).</p>
+
+<h2>ETA source distribution</h2>
+<p>Shows which estimation method was used for each flight&rsquo;s final ELDT. Higher-priority sources produce better accuracy:</p>
+<table>
+<tr><th>Source</th><th>Description</th></tr>
+<tr><td>WIND_GRIB</td><td>GRIB wind data along the route &mdash; best accuracy, position + real winds</td></tr>
+<tr><td>FILED</td><td>Pilot&rsquo;s filed enroute time (usually from SimBrief, wind-corrected)</td></tr>
+<tr><td>OBSERVED_POS</td><td>Geometric: distance from current position &divide; speed</td></tr>
+<tr><td>FIR_EET</td><td>ICAO EET/ from flight plan remarks (dispatch-quality)</td></tr>
+<tr><td>CALC_FILED_TAS</td><td>Distance &divide; filed cruise speed</td></tr>
+<tr><td>CALC_TYPE_TAS</td><td>Distance &divide; aircraft-type typical speed</td></tr>
+<tr><td>CALC_DEFAULT</td><td>Distance &divide; 430 kt (last resort, lowest confidence)</td></tr>
+</table>
+
+<h2>TLDT flights table</h2>
+<p>Individual flight records showing ATOT, TLDT, ALDT, and errors. Key columns:</p>
+<ul>
+    <li><strong>Flt time</strong> &mdash; observed flight time / filed ETE (e.g. <code>188m/570m</code>). Large discrepancy suggests mid-connect.</li>
+    <li><strong>ATOT+ETE</strong> &mdash; naive baseline: actual takeoff + filed enroute time. Compare against TLDT to see system improvement.</li>
+    <li><strong>PARTIAL</strong> badge &mdash; pilot connected mid-flight. ATOT is first-seen, not real departure. These are <strong>excluded</strong> from accuracy stats.</li>
+    <li>Error colour: <span style="color:var(--ok)">green</span> &le;3m, <span style="color:var(--warn)">yellow</span> 3&ndash;5m, <span style="color:var(--alert)">red</span> &gt;5m.</li>
+</ul>
+
+<h2>Aircraft type table</h2>
+<p>Counts of completed movements by ICAO type code. Per-airport columns show arrivals + departures at that airport. Total is the sum across all airports.</p>
+
+<h2>Abbreviations</h2>
+<table>
+<tr><th>Term</th><th>Meaning</th></tr>
+<tr><td>EOBT</td><td>Estimated Off-Block Time (filed pushback time)</td></tr>
+<tr><td>TOBT</td><td>Target Off-Block Time (confirmed ready time)</td></tr>
+<tr><td>AOBT</td><td>Actual Off-Block (pushback detected)</td></tr>
+<tr><td>ATOT</td><td>Actual Take-Off Time</td></tr>
+<tr><td>ELDT</td><td>Estimated Landing Time (system prediction)</td></tr>
+<tr><td>TLDT</td><td>Target Landing Time (frozen slot)</td></tr>
+<tr><td>ALDT</td><td>Actual Landing Time</td></tr>
+<tr><td>AIBT</td><td>Actual In-Block Time (parked at gate)</td></tr>
+<tr><td>CTOT</td><td>Calculated Take-Off Time (departure slot)</td></tr>
+<tr><td>AXOT</td><td>Actual Taxi-Out Time (ATOT &minus; AOBT)</td></tr>
+<tr><td>AXIT</td><td>Actual Taxi-In Time (AIBT &minus; ALDT)</td></tr>
+<tr><td>MAE</td><td>Mean Absolute Error</td></tr>
+<tr><td>ETE</td><td>Estimated Time Enroute (from flight plan)</td></tr>
+<tr><td>AAR</td><td>Airport Acceptance Rate</td></tr>
+</table>
+
+<p style="margin-top:1rem; color:var(--text-dim); font-size:0.75rem;">
+Per EUROCONTROL Airport CDM Implementation Manual v5.0.
+<a href="https://github.com/skyelaird/atfm-tools/blob/main/docs/GLOSSARY.md">Full glossary</a> &middot;
+<a href="https://github.com/skyelaird/atfm-tools/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+</p>
+
+</div>
+</div>
 
 <main>
 
@@ -615,6 +732,17 @@ document.querySelectorAll('#window-pills .pill').forEach(p => {
 refresh();
 refreshTldt();
 setInterval(() => { refresh(); refreshTldt(); }, 60000);
+
+// Help modal
+document.getElementById('help-open').addEventListener('click', () => {
+    document.getElementById('help-overlay').classList.add('open');
+});
+document.getElementById('help-close').addEventListener('click', () => {
+    document.getElementById('help-overlay').classList.remove('open');
+});
+document.getElementById('help-overlay').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) e.currentTarget.classList.remove('open');
+});
 </script>
 
 </body>

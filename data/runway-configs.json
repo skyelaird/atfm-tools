@@ -110,6 +110,54 @@
         "declared_arr_rate": 20, "declared_dep_rate": 20
       },
       {
+        "name": "25-32dep",
+        "label": "25 Arr / 32 Dep (dependent)",
+        "mode": "dependent",
+        "requires": { "dry": true, "vmc": true },
+        "runways": {
+          "25": { "role": "A", "hdg": 251 },
+          "32": { "role": "D", "hdg": 320 }
+        },
+        "primary_arr": "25", "primary_dep": "32",
+        "declared_arr_rate": 26, "declared_dep_rate": 22
+      },
+      {
+        "name": "07-14dep",
+        "label": "07 Arr / 14 Dep (dependent)",
+        "mode": "dependent",
+        "requires": { "dry": true, "vmc": true },
+        "runways": {
+          "07": { "role": "A", "hdg": 71 },
+          "14": { "role": "D", "hdg": 140 }
+        },
+        "primary_arr": "07", "primary_dep": "14",
+        "declared_arr_rate": 26, "declared_dep_rate": 22
+      },
+      {
+        "name": "25-14dep",
+        "label": "25 Arr / 14 Dep (dependent)",
+        "mode": "dependent",
+        "requires": { "dry": true, "vmc": true },
+        "runways": {
+          "25": { "role": "A", "hdg": 251 },
+          "14": { "role": "D", "hdg": 140 }
+        },
+        "primary_arr": "25", "primary_dep": "14",
+        "declared_arr_rate": 26, "declared_dep_rate": 22
+      },
+      {
+        "name": "07-32dep",
+        "label": "07 Arr / 32 Dep (dependent)",
+        "mode": "dependent",
+        "requires": { "dry": true, "vmc": true },
+        "runways": {
+          "07": { "role": "A", "hdg": 71 },
+          "32": { "role": "D", "hdg": 320 }
+        },
+        "primary_arr": "07", "primary_dep": "32",
+        "declared_arr_rate": 26, "declared_dep_rate": 22
+      },
+      {
         "name": "14",
         "label": "14 Single",
         "mode": "single_interleaved",

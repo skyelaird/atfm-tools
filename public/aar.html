@@ -133,12 +133,14 @@
 </main>
 <script>
 const AIRPORTS = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
-// Magnetic variation: positive = East (add to true), negative = West (subtract)
-const MAG_VAR = { CYVR: 17, CYYC: 15, CYWG: 3, CYYZ: -10, CYOW: -10, CYUL: -15, CYHZ: -18 };
+// Magnetic variation: Mag = True + MAG_VAR.
+// West variation → positive (add to true), East variation → negative (subtract).
+// Values from NOAA NCEI WMM calculator, epoch ~2025.
+const MAG_VAR = { CYVR: -16, CYYC: -14, CYWG: -3, CYYZ: 11, CYOW: 14, CYUL: 15, CYHZ: 18 };
 const AVWX_TOKEN = 'vmtkb1D8Tuva2Jw2tXihWcKE3m2sfDJkySBZygVx82I';
 const PRECIP_CODES = ['RA','SN','DZ','TS','SH','FZ','GR','GS','PL','IC','UP'];
 const MAX_TAILWIND = 5;
-const MAX_XW_DRY = 25;
+const MAX_XW_DRY = 30;
 const MAX_XW_WET = 15;
 const ROLE_CYCLE = ['off', 'A', 'D', 'A/D'];
 
