@@ -65,29 +65,63 @@
     ],
     "CYOW": [
       {
-        "fix": "GABEV",
-        "distance_nm": 13,
+        "fix": "LANRK",
+        "distance_nm": 38,
         "stars": [
-          "LEAMY5",
-          "MEECH4"
+          "CAPTL5"
         ],
-        "corridor": "north+northwest",
+        "corridor": "southwest",
         "coords": {
-          "lat": 45.48,
-          "lon": -75.88
+          "lat": 44.943056,
+          "lon": -76.388056
         }
       },
       {
-        "fix": "ADVOS",
-        "distance_nm": 11,
+        "fix": "CYRIL",
+        "distance_nm": 25,
         "stars": [
-          "CAPTL5",
+          "DEANS4"
+        ],
+        "corridor": "south",
+        "coords": {
+          "lat": 44.949514,
+          "lon": -75.401547
+        }
+      },
+      {
+        "fix": "ALIDO",
+        "distance_nm": 25,
+        "stars": [
+          "LEAMY5"
+        ],
+        "corridor": "north",
+        "coords": {
+          "lat": 45.740556,
+          "lon": -75.679444
+        }
+      },
+      {
+        "fix": "ONDOB",
+        "distance_nm": 39,
+        "stars": [
+          "MEECH4"
+        ],
+        "corridor": "northwest",
+        "coords": {
+          "lat": 45.693611,
+          "lon": -76.4375
+        }
+      },
+      {
+        "fix": "THURO",
+        "distance_nm": 35,
+        "stars": [
           "RIVER4"
         ],
-        "corridor": "southwest+east",
+        "corridor": "east (Montreal)",
         "coords": {
-          "lat": 45.336553,
-          "lon": -75.398289
+          "lat": 45.556944,
+          "lon": -74.907778
         }
       }
     ],
@@ -405,7 +439,7 @@
           "MODON",
           "VINRA"
         ],
-        "metering_fix": "GABEV"
+        "metering_fix": "ALIDO"
       },
       "MEECH4": {
         "entry_fix": "ONDOB",
@@ -418,7 +452,7 @@
           "MODON",
           "VINRA"
         ],
-        "metering_fix": "GABEV"
+        "metering_fix": "ONDOB"
       },
       "CAPTL5": {
         "entry_fix": "LANRK",
@@ -431,7 +465,7 @@
           "ADVOS",
           "KAREB"
         ],
-        "metering_fix": "ADVOS"
+        "metering_fix": "LANRK"
       },
       "RIVER4": {
         "entry_fix": "THURO",
@@ -445,7 +479,7 @@
           "TILOG",
           "EBNAP"
         ],
-        "metering_fix": "ADVOS"
+        "metering_fix": "THURO"
       },
       "DEANS4": {
         "entry_fix": "CYRIL",
@@ -459,7 +493,7 @@
           "ILOGI",
           "PETLU"
         ],
-        "metering_fix": null,
+        "metering_fix": "CYRIL",
         "note": "Independent corridor from south"
       }
     },
