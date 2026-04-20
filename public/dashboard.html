@@ -69,6 +69,9 @@
         .pill.ok    { border-color: var(--ok-dim);    background: rgba(74,222,128,0.08);  color: var(--ok); }
         .pill.warn  { border-color: var(--warn-dim);  background: rgba(250,204,21,0.08);  color: var(--warn); }
         .pill.alert { border-color: var(--alert-dim); background: rgba(248,113,113,0.08); color: var(--alert); }
+        .cdist-pill { cursor: pointer; user-select: none; }
+        .cdist-pill:hover { color: var(--text); border-color: var(--accent-dim); }
+        .cdist-pill.active { background: rgba(94,234,212,0.15); color: var(--accent); border-color: var(--accent); }
 
         /* OpLevel pill — big, prominent, lives at the left of the status row */
         .oplevel-pill {
@@ -1638,6 +1641,21 @@ async function refreshDemandDist() {
             const h = new Date(d.horizon_utc);
             const p = v => String(v).padStart(2, '0');
             horizonEl.textContent = `→ ${p(h.getUTCHours())}:${p(h.getUTCMinutes())}Z horizon`;
+        }
+        // Sync each airport card's "in" number to match the demand
+        // distribution total for the selected horizon. Without this, card
+        // shows ALL tracked inbound (no-timing filter) while the demand
+        // strip below shows ELDT-in-horizon — the two numbers don't
+        // reconcile and it's confusing.
+        for (const [apt, data] of Object.entries(d.by_airport || {})) {
+            const card = document.querySelector(`.airport-card[data-icao="${apt}"]`);
+            if (!card) continue;
+            const inMetric = card.querySelectorAll('.metric')[1]; // "in"
+            if (!inMetric) continue;
+            const valEl = inMetric.querySelector('.val');
+            const lblEl = inMetric.querySelector('.lbl');
+            if (valEl) valEl.textContent = String(data.total ?? 0);
+            if (lblEl) lblEl.textContent = 'in ' + ((cdistWindow >= 60) ? (cdistWindow / 60 + 'h') : (cdistWindow + 'm'));
         }
         const airports = Object.keys(d.by_airport || {}).sort(sortAirportsWE);
         let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:0.6rem;">';
