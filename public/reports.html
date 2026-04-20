@@ -485,6 +485,10 @@ function sortRowsFor(tableId, rows, accessors) {
     return copy;
 }
 
+// West-to-east canonical airport ordering (sort by longitude, most negative first)
+const AIRPORT_WE_ORDER = {CYVR:0, CYYC:1, CYWG:2, CYYZ:3, CYOW:4, CYUL:5, CYHZ:6};
+const sortAirportsWE = (a, b) => (AIRPORT_WE_ORDER[a] ?? 99) - (AIRPORT_WE_ORDER[b] ?? 99);
+
 let currentHours = 24;
 let lastData = null;
 
@@ -666,7 +670,7 @@ async function refreshDemandDist() {
     try {
         const r = await fetch('/api/v1/reports/demand-distribution?hours=' + currentHours);
         const d = await r.json();
-        const airports = Object.keys(d.by_airport || {}).sort();
+        const airports = Object.keys(d.by_airport || {}).sort(sortAirportsWE);
         let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:0.75rem;">';
         for (const apt of airports) {
             const data = d.by_airport[apt];
@@ -722,7 +726,7 @@ async function refreshStarUsage() {
             return;
         }
         let html = '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:0.75rem;">';
-        for (const apt of airports.sort()) {
+        for (const apt of airports.sort(sortAirportsWE)) {
             const data = d.by_airport[apt];
             const total = data.resolved + data.unresolved;
             if (total === 0) continue;
@@ -733,18 +737,19 @@ async function refreshStarUsage() {
                     <span class="mono" title="Resolved / total arrivals in window">${data.resolved}/${total} resolved (${pctResolved}%)</span>
                 </div>`;
             if (data.stars.length === 0) {
-                html += '<div class="muted" style="font-size:0.75rem; margin-top:0.3rem;">No STAR filings detected.</div>';
+                html += '<div class="muted" style="font-size:0.75rem; margin-top:0.3rem;">No STARs defined for this airport.</div>';
             } else {
                 html += '<table style="width:100%; margin-top:0.3rem; font-size:0.78rem;"><tbody>';
                 for (const s of data.stars) {
-                    const pct = (s.count / data.resolved * 100);
+                    const pct = data.resolved > 0 ? (s.count / data.resolved * 100) : 0;
                     const barW = Math.min(100, pct);
                     const transCount = Object.keys(s.transitions).length;
                     const transTooltip = Object.entries(s.transitions)
                         .map(([k,v]) => `${k}: ${v}`).join(' &#10; ');
                     const fixLabel = s.metering_fix
                         ? `<span class="muted" style="font-size:0.68rem;">→${s.metering_fix}</span>` : '';
-                    html += `<tr>
+                    const dimStyle = s.count === 0 ? ' opacity:0.45;' : '';
+                    html += `<tr style="${dimStyle}">
                         <td class="mono" style="padding:0.15rem 0.2rem; width:7em;" title="${transCount} distinct transition(s)&#10;${transTooltip}">${s.star} ${fixLabel}</td>
                         <td style="padding:0.15rem 0.2rem;">
                             <div style="display:flex; align-items:center; gap:0.3rem;">
@@ -778,7 +783,7 @@ async function refreshMeter() {
         const r = await fetch('/api/v1/metering?window=' + meterMins);
         const d = await r.json();
         const byApt = d.by_airport || {};
-        const airports = Object.keys(byApt).sort();
+        const airports = Object.keys(byApt).sort(sortAirportsWE);
         if (airports.length === 0) {
             el.innerHTML = '<div class="muted" style="padding:0.5rem 0;">No inbound flights in the next ' + meterMins + ' minutes.</div>';
             return;
@@ -857,7 +862,7 @@ async function refreshTldt() {
         // By airport
         const $aptTb = document.getElementById('tldt-airport-tbody');
         $aptTb.innerHTML = '';
-        const aptEntries = Object.entries(d.by_airport || {}).sort((a,b) => a[0].localeCompare(b[0]));
+        const aptEntries = Object.entries(d.by_airport || {}).sort((a,b) => sortAirportsWE(a[0], b[0]));
         for (const [apt, s] of aptEntries) {
             const dim2 = s.n < 5 ? ' class="muted"' : '';
             $aptTb.innerHTML += '<tr' + dim2 + '><td class="mono">' + apt + '</td><td class="num">' + s.n +

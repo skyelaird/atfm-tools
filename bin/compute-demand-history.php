@@ -26,7 +26,7 @@ $start = microtime(true);
 $tsStart = gmdate('Y-m-d H:i:s');
 echo "[demand-history] start {$tsStart}Z\n";
 
-$scope = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
+$scope = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
 $lookbackDays = 30;
 
 $catalog = MeteringFix::loadCatalog();

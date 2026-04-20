@@ -459,7 +459,8 @@ function renderAccuracy() {
         if (!airports[apt]) airports[apt] = [];
         airports[apt].push(r);
     }
-    const aptKeys = Object.keys(airports).sort();
+    const WE = {CYVR:0, CYYC:1, CYWG:2, CYYZ:3, CYOW:4, CYUL:5, CYHZ:6};
+    const aptKeys = Object.keys(airports).sort((a,b) => (WE[a] ?? 99) - (WE[b] ?? 99));
 
     html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">Accuracy by Airport</h3>';
     html += '<div class="table-wrap"><table><thead><tr><th>Airport</th><th>n (ours)</th><th>Our median</th><th>Our \u00b13%</th><th>n (PERTI)</th><th>PERTI median</th><th>PERTI \u00b13%</th></tr></thead><tbody>';

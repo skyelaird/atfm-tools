@@ -445,7 +445,7 @@ final class Kernel
         // ?hours=N (default 24, max 720)
         $app->get('/api/v1/reports/demand-distribution', function ($req, $res) {
             $hours = max(1, min(720, (int) ($req->getQueryParams()['hours'] ?? 24)));
-            $scope = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
+            $scope = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
             $catalog = \Atfm\Allocator\MeteringFix::loadCatalog();
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
@@ -574,25 +574,45 @@ final class Kernel
             $since = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
                 ->modify("-{$hours} hours")
                 ->format('Y-m-d H:i:s');
-            $scope = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
+            $scope = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
+            $catalog = \Atfm\Allocator\MeteringFix::loadCatalog();
+
+            // Seed all airports with all catalog STARs at zero count, so
+            // unused STARs still appear in the panel (same pattern as the
+            // Demand Distribution panel on metering fixes).
+            $byApt = [];
+            foreach ($scope as $apt) {
+                $byApt[$apt] = ['resolved' => 0, 'unresolved' => 0, 'stars' => []];
+                foreach (($catalog['stars'][$apt] ?? []) as $starName => $starData) {
+                    // Skip retired stubs: no entry fix and no metering fix
+                    if (empty($starData['entry_fix']) && empty($starData['metering_fix'])) continue;
+                    $byApt[$apt]['stars'][$starName] = [
+                        'star'         => $starName,
+                        'metering_fix' => $starData['metering_fix'] ?? null,
+                        'count'        => 0,
+                        'transitions'  => [],
+                    ];
+                }
+            }
 
             $flights = Flight::whereIn('ades', $scope)
                 ->whereNotNull('aldt')
                 ->where('aldt', '>=', $since)
                 ->get(['id', 'callsign', 'ades', 'fp_route']);
 
-            $byApt = [];      // icao => ['total_resolved', 'total_unresolved', 'stars' => [name => [count, transitions]]]
             foreach ($flights as $f) {
                 $apt = $f->ades;
-                $byApt[$apt] ??= ['resolved' => 0, 'unresolved' => 0, 'stars' => []];
+                if (!isset($byApt[$apt])) continue;
                 $r = \Atfm\Allocator\MeteringFix::resolve($f);
-                if (!$r) {
+                if (!$r || !$r['star']) {
                     $byApt[$apt]['unresolved']++;
                     continue;
                 }
                 $byApt[$apt]['resolved']++;
                 $star = $r['star'];
                 $tKey = $r['filed_transition'] ?? '(direct)';
+                // If inference produced a STAR not in catalog (shouldn't happen now),
+                // seed the entry ad-hoc rather than drop the count.
                 $byApt[$apt]['stars'][$star] ??= [
                     'star'         => $star,
                     'metering_fix' => $r['metering_fix'],
@@ -604,7 +624,8 @@ final class Kernel
                     ($byApt[$apt]['stars'][$star]['transitions'][$tKey] ?? 0) + 1;
             }
 
-            // Sort stars by count desc, transitions by count desc, stringify transitions
+            // Sort stars by count desc (unused STARs fall to the bottom).
+            // Transitions sorted desc by count.
             foreach ($byApt as $icao => &$apt) {
                 $stars = array_values($apt['stars']);
                 usort($stars, fn($a, $b) => $b['count'] <=> $a['count']);
@@ -615,7 +636,6 @@ final class Kernel
                 $apt['stars'] = $stars;
             }
             unset($apt);
-            ksort($byApt);
 
             return self::json($res, [
                 'generated_at' => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('c'),
@@ -2363,7 +2383,7 @@ final class Kernel
             $hours = max(1, min(168, (int) ($req->getQueryParams()['hours'] ?? 168)));
             $since = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))
                 ->modify("-{$hours} hours")->format('Y-m-d H:i:s');
-            $scope = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
+            $scope = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
 
             // 1. EOBT error (AOBT - EOBT) by departure airport
             $eobtByApt = \Illuminate\Database\Capsule\Manager::select("

@@ -177,7 +177,7 @@ final class WindEta
         if ($f->atot === null) {
             return 'no_takeoff';
         }
-        $scope = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
+        $scope = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
         if (!in_array($f->ades, $scope, true)) {
             return 'unknown_ades';
         }
