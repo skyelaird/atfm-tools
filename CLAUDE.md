@@ -172,6 +172,8 @@ Legacy: `bin/compute-wind-eldt.py` (Python) and `bin/experiments/wind-shadow.py`
 ## Reports page KPIs
 
 **Dwell** = median spawn-to-pushback time: `AOBT − created_at` in minutes.
+Observed 7d (v0.6.24, n=954): small hubs (CYHZ/CYOW) 14m, mid (CYYC) 16m, big
+(CYVR/CYUL/CYYZ) 18-19m, outlier CYWG 20m. Weighted avg ~18m.
 Replaces the old ΔOBT (AOBT−EOBT) which was proven unreliable because
 EOBT is garbage on VATSIM. Capped at 120 min to exclude idle spawners.
 Used to validate the TOBT proxy (TOBT = max(EOBT, spawned + 20 min)).
