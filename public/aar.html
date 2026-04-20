@@ -403,7 +403,13 @@ function toggleRwy(icao, ident) {
         }
     }
 
+    // Manual override — drop the previously-selected config so computeRates
+    // falls back to the heuristic (A/D single-runway dep factor). Without
+    // this, single-RWY A/D would still inherit the dual-parallel dep rate
+    // from the config, yielding AAR + ADR totals that exceed what one
+    // runway can actually deliver.
     st.configName = 'Manual';
+    st.selectedConfig = null;
     refreshCard(icao);
 }
 
