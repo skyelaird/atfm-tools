@@ -1132,6 +1132,26 @@ final class Kernel
                 $narrative = 'Flight plan on file. Awaiting TOBT or start-up time.';
             }
 
+            // Is any ATC online covering the departure airport? Used by
+            // the portal to tell the pilot "request start-up from ATC"
+            // vs "self-initiated start-up OK". Reads the cached VATSIM
+            // feed (shared with the ingestor).
+            $adepAtcOnline = false;
+            $adesAtcOnline = false;
+            $vcache = sys_get_temp_dir() . '/atfm_vatsim_feed.json';
+            if (file_exists($vcache) && (time() - filemtime($vcache)) < 90) {
+                $vraw = @file_get_contents($vcache);
+                $vdata = $vraw ? json_decode($vraw, true) : null;
+                if (is_array($vdata)) {
+                    foreach (($vdata['controllers'] ?? []) as $c) {
+                        $cs = strtoupper((string) ($c['callsign'] ?? ''));
+                        if ($f->adep && str_starts_with($cs, $f->adep . '_')) $adepAtcOnline = true;
+                        if ($f->ades && str_starts_with($cs, $f->ades . '_')) $adesAtcOnline = true;
+                        if ($adepAtcOnline && $adesAtcOnline) break;
+                    }
+                }
+            }
+
             return self::json($res, [
                 'callsign'       => $f->callsign,
                 'cid'            => $f->cid,
@@ -1158,6 +1178,8 @@ final class Kernel
                 'ctl_element'    => $f->ctl_element,
                 'narrative'      => $narrative,
                 'seconds_to_window' => $secondsToWindow,
+                'adep_atc_online'=> $adepAtcOnline,
+                'ades_atc_online'=> $adesAtcOnline,
                 'restriction'    => $restriction ? [
                     'restriction_id' => $restriction->restriction_id,
                     'airport'        => $restriction->airport?->icao,

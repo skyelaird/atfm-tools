@@ -188,6 +188,10 @@ function tickCountdown() {
     if (!cEl || !countdownAnchor) return;
     const nowSec = Math.floor(Date.now() / 1000);
     const tsat = countdownAnchor.tsatEpoch;
+    const ctot = countdownAnchor.ctotEpoch;
+    const hasATC = countdownAnchor.hasATC;
+    const regulated = countdownAnchor.regulated;
+
     if (!tsat) { cEl.textContent = ''; return; }
     const diff = tsat - nowSec;
     const windowEarly = 5 * 60, windowLate = 5 * 60;
@@ -198,21 +202,40 @@ function tickCountdown() {
         cEl.textContent = `${pad(m)}:${pad(s)} to window`;
         if (bEl && bEl.className !== 'status-banner warn') {
             bEl.className = 'status-banner warn';
-            if (mEl) mEl.textContent = 'Not yet time for start-up. Wait for your window or update TOBT.';
+            if (mEl) {
+                mEl.innerHTML = 'Not yet time for start-up.<br>Wait for your window or update TOBT.';
+            }
         }
     } else if (diff >= -windowLate) {
-        // Inside window
-        cEl.textContent = 'NOW';
+        // Inside window — show remaining time
+        const remain = diff + windowLate;
+        const m = Math.floor(remain / 60), s = ((remain % 60) + 60) % 60;
+        cEl.textContent = `${pad(m)}:${pad(s)} left in window`;
         if (bEl && bEl.className !== 'status-banner ok') {
             bEl.className = 'status-banner ok';
-            if (mEl) mEl.textContent = 'Your start-up window is now. Request clearance.';
+            if (mEl) {
+                // Guide pilot based on whether ATC is online and whether
+                // flight is regulated. Mirrors vats.im/vdgs narrative.
+                if (regulated && ctot) {
+                    const ctotHHMM = hhmmFromIso(new Date(ctot * 1000).toISOString());
+                    mEl.innerHTML =
+                        `<strong>CTOT ${ctotHHMM}Z</strong> — depart within window.<br>` +
+                        (hasATC
+                          ? 'Request start-up now if ATC is online.'
+                          : 'No ATC — self-initiated start-up OK. Target the CTOT for takeoff.');
+                } else {
+                    mEl.innerHTML = hasATC
+                        ? 'You may request start-up now.'
+                        : 'You may request start-up now if ATC is online.<br>Otherwise, self-initiated start-up OK.';
+                }
+            }
         }
     } else {
         // Past window
         cEl.textContent = 'window expired';
         if (bEl && bEl.className !== 'status-banner alert') {
             bEl.className = 'status-banner alert';
-            if (mEl) mEl.textContent = 'Window expired. Contact ATC or update TOBT for a new slot.';
+            if (mEl) mEl.innerHTML = 'Window expired.<br>Contact ATC or update TOBT for a new slot.';
         }
     }
 }
@@ -286,8 +309,13 @@ async function lookup() {
         const d = await r.json();
         // Anchor the countdown to the TSAT absolute time; tickCountdown
         // will update display every second without waiting for refresh.
+        // Also carry CTOT / regulated / ATC-online flags so narrative
+        // adapts in real time as the window opens.
         countdownAnchor = {
             tsatEpoch: d.tsat ? Math.floor(new Date(d.tsat).getTime() / 1000) : null,
+            ctotEpoch: d.ctot ? Math.floor(new Date(d.ctot).getTime() / 1000) : null,
+            regulated: !!d.restriction,
+            hasATC: !!d.adep_atc_online,
             narrative: d.narrative,
         };
         $('content').innerHTML = `<div class="toolbar">
