@@ -244,29 +244,63 @@
     ],
     "CYWG": [
       {
-        "fix": "VEVSI",
-        "distance_nm": 7,
+        "fix": "AMBIL",
+        "distance_nm": 31,
         "stars": [
-          "AMBIL5",
-          "BEFAN5"
+          "AMBIL5"
         ],
-        "corridor": "northwest+west",
+        "corridor": "northwest",
         "coords": {
-          "lat": 49.911031,
-          "lon": -97.421911
+          "lat": 50.254167,
+          "lon": -97.8275
         }
       },
       {
-        "fix": "IPRUP",
-        "distance_nm": 5,
+        "fix": "BEFAN",
+        "distance_nm": 30,
         "stars": [
-          "KELTO5",
+          "BEFAN5"
+        ],
+        "corridor": "west",
+        "coords": {
+          "lat": 49.804667,
+          "lon": -97.9865
+        }
+      },
+      {
+        "fix": "PERLI",
+        "distance_nm": 41,
+        "stars": [
+          "KELTO5"
+        ],
+        "corridor": "north/east",
+        "coords": {
+          "lat": 50.578611,
+          "lon": -96.968056
+        }
+      },
+      {
+        "fix": "NORAK",
+        "distance_nm": 30,
+        "stars": [
           "NORAK6"
         ],
-        "corridor": "north+east",
+        "corridor": "east/southeast",
         "coords": {
-          "lat": 49.929917,
-          "lon": -97.103389
+          "lat": 49.7385,
+          "lon": -96.5245
+        }
+      },
+      {
+        "fix": "KENBI",
+        "distance_nm": 30,
+        "stars": [
+          "PEPNO5"
+        ],
+        "corridor": "south",
+        "coords": {
+          "lat": 49.413889,
+          "lon": -97.083333
         }
       }
     ],
@@ -776,7 +810,7 @@
           "DUTRU",
           "UDGIK"
         ],
-        "metering_fix": "VEVSI"
+        "metering_fix": "AMBIL"
       },
       "BEFAN5": {
         "entry_fix": "BEFAN",
@@ -789,7 +823,7 @@
           "IKLOS",
           "OMSOM"
         ],
-        "metering_fix": "VEVSI"
+        "metering_fix": "BEFAN"
       },
       "PEPNO5": {
         "entry_fix": "KENBI",
@@ -802,7 +836,7 @@
           "AVSUN",
           "DURAV"
         ],
-        "metering_fix": "VEVSI",
+        "metering_fix": "KENBI",
         "note": "Shares GABRU/MESTA with AMBIL5"
       },
       "KELTO5": {
@@ -817,7 +851,7 @@
           "IPSIV",
           "DEKDA"
         ],
-        "metering_fix": "IPRUP"
+        "metering_fix": "PERLI"
       },
       "NORAK6": {
         "entry_fix": "NORAK",
@@ -830,7 +864,7 @@
           "KEPGA",
           "VIRKU"
         ],
-        "metering_fix": "IPRUP"
+        "metering_fix": "NORAK"
       }
     },
     "CYYC": {
