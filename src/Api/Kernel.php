@@ -644,12 +644,100 @@ final class Kernel
             ]);
         });
 
+        // Forward-looking demand distribution — inbound flights with ELDT
+        // in the next window_min minutes, grouped by metering fix. Same
+        // response shape as /reports/demand-distribution but sourced from
+        // future-ETE flights rather than past landings. Powers the reports
+        // page "Current demand distribution" panel.
+        //
+        // ?window=60 (default, minutes; range 15-480)
+        $app->get('/api/v1/reports/current-demand', function ($req, $res) {
+            $windowMin = max(15, min(480, (int) ($req->getQueryParams()['window'] ?? 60)));
+            $scope = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
+            $catalog = \Atfm\Allocator\MeteringFix::loadCatalog();
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            $horizon = $now->modify("+{$windowMin} minutes");
+
+            // Seed all catalog MFs at zero so zero-demand fixes still render
+            $byApt = [];
+            foreach ($scope as $apt) {
+                $fixes = $catalog['metering_fixes'][$apt] ?? [];
+                $byApt[$apt] = [
+                    'total'      => 0,
+                    'unresolved' => 0,
+                    'fixes'      => array_map(fn($e) => [
+                        'fix'      => $e['fix'],
+                        'corridor' => $e['corridor'] ?? null,
+                        'count'    => 0,
+                        'filed'    => 0,
+                        'inferred' => 0,
+                    ], $fixes),
+                ];
+            }
+
+            // Forward-looking: flights with ELDT in (now, horizon] that are
+            // still tracked (not landed/withdrawn/disconnected).
+            $flights = Flight::whereIn('ades', $scope)
+                ->whereNotNull('eldt')
+                ->where('eldt', '>=', $now->format('Y-m-d H:i:s'))
+                ->where('eldt', '<=', $horizon->format('Y-m-d H:i:s'))
+                ->whereNotIn('phase', [
+                    Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED,
+                    Flight::PHASE_ON_RUNWAY, Flight::PHASE_VACATED, Flight::PHASE_TAXI_IN,
+                ])
+                ->get(['id','callsign','adep','ades','fp_route','last_lat','last_lon','eldt','phase','fp_altitude_ft','last_altitude_ft']);
+
+            foreach ($flights as $f) {
+                $apt = $f->ades;
+                if (!isset($byApt[$apt])) continue;
+                $byApt[$apt]['total']++;
+                $r = \Atfm\Allocator\MeteringFix::resolve($f);
+                if (!$r || !$r['metering_fix']) {
+                    $byApt[$apt]['unresolved']++;
+                    continue;
+                }
+                $fixName = $r['metering_fix'];
+                foreach ($byApt[$apt]['fixes'] as &$row) {
+                    if ($row['fix'] === $fixName) {
+                        $row['count']++;
+                        if ($r['inferred'] ?? false) {
+                            $row['inferred']++;
+                        } else {
+                            $row['filed']++;
+                        }
+                        break;
+                    }
+                }
+                unset($row);
+            }
+
+            foreach ($byApt as $apt => &$data) {
+                $resolved = $data['total'] - $data['unresolved'];
+                foreach ($data['fixes'] as &$row) {
+                    $row['pct'] = $resolved > 0
+                        ? round($row['count'] / $resolved * 100, 1)
+                        : 0.0;
+                }
+                unset($row);
+                usort($data['fixes'], fn($a, $b) => $b['count'] <=> $a['count']);
+                $data['resolved'] = $resolved;
+            }
+            unset($data);
+
+            return self::json($res, [
+                'generated_at' => $now->format('c'),
+                'horizon_utc'  => $horizon->format('c'),
+                'window_min'   => $windowMin,
+                'by_airport'   => $byApt,
+            ]);
+        });
+
         $app->get('/api/v1/metering', function ($req, $res) {
             $params = $req->getQueryParams();
             $windowMin = max(15, min(240, (int) ($params['window'] ?? 60)));
             $airport = isset($params['airport']) ? strtoupper((string) $params['airport']) : null;
 
-            $scope = ['CYHZ', 'CYOW', 'CYUL', 'CYVR', 'CYWG', 'CYYC', 'CYYZ'];
+            $scope = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
             if ($airport !== null && in_array($airport, $scope, true)) {
                 $scope = [$airport];
             }

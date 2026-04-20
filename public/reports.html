@@ -340,7 +340,15 @@ Per EUROCONTROL Airport CDM Implementation Manual v5.0.
     </section>
 
     <section>
-        <h2>Current demand distribution <span class="muted">arrivals by metering fix over selected window — informs MIT allocation</span></h2>
+        <h2>Current demand distribution <span class="muted">inbound by metering fix in the next window — informs MIT allocation</span></h2>
+        <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem; font-size:0.8rem; align-items:center;">
+            <span class="muted">window:</span>
+            <span class="pill cdist-pill" data-window="60">60m</span>
+            <span class="pill cdist-pill active" data-window="120">2h</span>
+            <span class="pill cdist-pill" data-window="240">4h</span>
+            <span class="pill cdist-pill" data-window="480">8h</span>
+            <span class="muted" id="cdist-horizon" style="font-size:0.7rem; margin-left:0.5rem;"></span>
+        </div>
         <div id="demand-dist-panel"><div class="muted" style="padding:0.5rem 0;">Loading...</div></div>
     </section>
 
@@ -663,13 +671,20 @@ function rerender() {
     }
 }
 
-// ---- Demand Distribution panel (all metering fixes, AAR-page style cards) ----
+// ---- Current Demand Distribution panel (forward-looking by window) ----
+let cdistWindow = 120;
 async function refreshDemandDist() {
     const el = document.getElementById('demand-dist-panel');
     if (!el) return;
     try {
-        const r = await fetch('/api/v1/reports/demand-distribution?hours=' + currentHours);
+        const r = await fetch('/api/v1/reports/current-demand?window=' + cdistWindow);
         const d = await r.json();
+        const horizonEl = document.getElementById('cdist-horizon');
+        if (horizonEl && d.horizon_utc) {
+            const h = new Date(d.horizon_utc);
+            const p = v => String(v).padStart(2,'0');
+            horizonEl.textContent = `→ ${p(h.getUTCHours())}:${p(h.getUTCMinutes())}Z horizon`;
+        }
         const airports = Object.keys(d.by_airport || {}).sort(sortAirportsWE);
         let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:0.75rem;">';
         for (const apt of airports) {
@@ -821,6 +836,15 @@ document.addEventListener('click', (e) => {
     refreshMeter();
 });
 
+document.addEventListener('click', (e) => {
+    const pill = e.target.closest('.cdist-pill');
+    if (!pill) return;
+    document.querySelectorAll('.cdist-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    cdistWindow = parseInt(pill.getAttribute('data-window'));
+    refreshDemandDist();
+});
+
 // ---- TLDT accuracy panel ----
 async function refreshTldt() {
     try {
@@ -915,7 +939,7 @@ document.querySelectorAll('#window-pills .pill').forEach(p => {
         refresh();
         refreshTldt();
         refreshStarUsage();
-        refreshDemandDist();
+        // demand dist is forward-looking, has its own window pills — don't re-fire it
     });
 });
 
