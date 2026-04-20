@@ -638,8 +638,20 @@ async function computeRates(icao) {
 
     // ADR: prefer declared. Fall back to legacy heuristic only if no config
     // is selected (manual runway toggles with no matching config).
+    //
+    // Single-runway A/D caveat: when the same runway does both arrivals
+    // AND departures (primary_arr === primary_dep OR the only active
+    // runway has A/D role), the *declared* ADR from the config represents
+    // that runway's dedicated-dep capacity — which is NOT deliverable
+    // alongside the declared AAR. Interleaved ops share one runway's
+    // time between arr and dep (FAA FOA §7). Cap ADR at ~12/hr in that
+    // case (a single runway gets ~2 min between arrivals for dep windows).
+    const singleRwyAD = arrRwys.length === 1 && depRwys.length === 1
+                        && arrRwys[0][0] === depRwys[0][0]
+                        && arrRwys[0][1].role === 'A/D';
+
     let totalDep = 0;
-    if (declaredDep !== null) {
+    if (declaredDep !== null && !singleRwyAD) {
         totalDep = declaredDep;
         for (const [ident, r] of depRwys) details.push(`${ident}:${r.role === 'A/D' ? 'mixed' : 'D'}`);
     } else {
