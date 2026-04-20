@@ -424,6 +424,49 @@ final class VatsimIngestor
             $flight->airline_icao = $this->airlineFromCallsign($callsign);
         }
 
+        // ---- Accelerated sim-rate detection ----
+        //
+        // When a pilot runs their sim at 2x/4x realtime (cruise fast-forward),
+        // the reported GS from the client is unchanged (sim thinks it's still
+        // at cruise speed) but the position advances faster in wall-clock time.
+        // Compute effective GS = delta_distance / delta_wall_clock. If the
+        // ratio to reported GS is ≥1.3 for 3+ consecutive cycles (~6 min),
+        // we've detected accelerated sim. Affects ELDT/TLDT accuracy → flag
+        // for the diagnostic panel AND exclude from stats.
+        //
+        // Only meaningful at cruise: skip ground, taxi, and low-altitude ops.
+        if ($lat !== null && $lon !== null
+            && $flight->last_lat !== null && $flight->last_lon !== null
+            && $flight->last_position_at !== null
+            && $gs > 150 && $altitude > 10000) {
+            $dtSec = $now->getTimestamp() - $flight->last_position_at->getTimestamp();
+            if ($dtSec >= 60 && $dtSec <= 600) {
+                $dNm = Geo::distanceNm(
+                    (float) $flight->last_lat, (float) $flight->last_lon,
+                    $lat, $lon
+                );
+                $effectiveGs = $dNm / ($dtSec / 3600.0);
+                $reportedGs = (float) $gs;
+                if ($reportedGs > 100) {
+                    $ratio = $effectiveGs / $reportedGs;
+                    if ($ratio >= 1.3 && $ratio <= 10) {  // upper cap rejects GPS jumps
+                        $flight->sim_accel_cycles = ((int) $flight->sim_accel_cycles) + 1;
+                        if ($flight->sim_accel_cycles >= 3) {
+                            // Persistent acceleration — record
+                            $flight->sim_accel_total_cycles = ((int) $flight->sim_accel_total_cycles) + 1;
+                            if ($flight->sim_accel_max_ratio === null
+                                || $ratio > (float) $flight->sim_accel_max_ratio) {
+                                $flight->sim_accel_max_ratio = round($ratio, 2);
+                            }
+                        }
+                    } else {
+                        // Ratio dropped — reset consecutive counter
+                        $flight->sim_accel_cycles = 0;
+                    }
+                }
+            }
+        }
+
         // Update position
         $flight->last_lat             = $lat;
         $flight->last_lon             = $lon;

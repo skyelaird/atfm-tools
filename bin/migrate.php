@@ -538,4 +538,21 @@ if ($schema->hasTable('airports') && !$schema->hasColumn('airports', 'active_con
     echo "✓ added airports.active_config_name/active_arr_rate/active_dep_rate (v0.5.44)\n";
 }
 
+// v0.6.24: Accelerated sim-rate detection. Each ingest cycle computes
+// effective GS from position-delta over wall-clock time and compares to
+// the reported GS. Ratio ≥1.3 persistently = pilot running sim faster
+// than real-time. Affects ELDT quality, so flagged for the diagnostic
+// panel AND excluded from accuracy stats as an outlier.
+if ($schema->hasTable('flights') && !$schema->hasColumn('flights', 'sim_accel_max_ratio')) {
+    $schema->table('flights', function (Blueprint $t) {
+        $t->decimal('sim_accel_max_ratio', 4, 2)->nullable()->after('eldt_wind')
+            ->comment('Peak observed (effective GS / reported GS) ratio — >1.3 indicates accelerated sim rate');
+        $t->unsignedSmallInteger('sim_accel_cycles')->default(0)->after('sim_accel_max_ratio')
+            ->comment('Count of consecutive ingest cycles with ratio ≥1.3');
+        $t->unsignedSmallInteger('sim_accel_total_cycles')->default(0)->after('sim_accel_cycles')
+            ->comment('Total cycles flagged as accelerated (for flight-wide duration estimate)');
+    });
+    echo "✓ added flights.sim_accel_* (v0.6.24)\n";
+}
+
 echo "done.\n";

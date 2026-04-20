@@ -819,8 +819,19 @@ async function refreshTldt() {
             const errSign = f.tldt_err_min > 0 ? '+' : '';
             const fEtaErr = f.filed_eta_err !== null ? (f.filed_eta_err > 0 ? '+' : '') + f.filed_eta_err : '\u2014';
             const fEtaCls = f.filed_eta_err !== null ? (Math.abs(f.filed_eta_err) <= 3 ? 'ok' : Math.abs(f.filed_eta_err) <= 5 ? 'warn' : 'alert') : '';
-            const rowCls = f.partial ? ' class="muted" title="Partial observation — pilot connected mid-flight, excluded from stats"' : '';
-            const partialTag = f.partial ? ' <span style="font-size:0.6rem;color:var(--warn);vertical-align:super">PARTIAL</span>' : '';
+            // Outliers (partial mid-connect, accelerated sim) get dimmed row + badge
+            const isOutlier = f.partial || f.sim_accel;
+            const outlierTip = f.partial
+                ? 'Partial observation — pilot connected mid-flight, excluded from stats'
+                : (f.sim_accel ? `Accelerated sim rate detected (${f.sim_accel_ratio}x) — excluded from stats` : '');
+            const rowCls = isOutlier ? ` class="muted" title="${outlierTip}"` : '';
+            const partialTag = f.partial
+                ? ' <span style="font-size:0.6rem;color:var(--warn);vertical-align:super">PARTIAL</span>'
+                : (f.sim_accel
+                    ? ` <span style="font-size:0.6rem;color:var(--alert);vertical-align:super" title="${outlierTip}">SIM ${f.sim_accel_ratio}x</span>`
+                    : (f.sim_accel_mild
+                        ? ` <span style="font-size:0.6rem;color:var(--warn);vertical-align:super" title="Mild sim-rate acceleration (${f.sim_accel_ratio}x) — in stats but noted">sim ${f.sim_accel_ratio}x</span>`
+                        : ''));
             // Why-tooltip for large errors — diagnostic reasons computed server-side
             const reasons = (f.err_reasons || []);
             const hasReasons = reasons.length > 0;

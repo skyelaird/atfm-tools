@@ -1631,12 +1631,18 @@ final class Kernel
                 // flight already airborne, so the first ELDT we computed was
                 // based on far less route than planned. Exclude any flight
                 // whose observed flight time is < 50% of its filed ETE.
+                // Also exclude flights flagged as accelerated sim (≥2x real-
+                // time observed via position-delta/wall-clock GS ratio).
                 $isPartial = function ($f) {
                     if (!$f->atot || !$f->aldt) return false;
                     $fte = $f->fp_enroute_time_min;
                     if (!$fte || $fte <= 0) return false;
                     $observedMin = ($f->aldt->getTimestamp() - $f->atot->getTimestamp()) / 60;
-                    return $observedMin < $fte * 0.5;
+                    if ($observedMin < $fte * 0.5) return true;
+                    // Treat ≥2x sim accel as a partial-equivalent outlier
+                    if ($f->sim_accel_max_ratio !== null
+                        && (float) $f->sim_accel_max_ratio >= 2.0) return true;
+                    return false;
                 };
                 foreach ($arrivals as $f) {
                     if ($f->aldt && $f->eldt_locked
@@ -2747,11 +2753,27 @@ final class Kernel
                 $partial = $filedEte && $filedEte > 0
                     && $flightTimeMin < ($filedEte * 0.5);
 
+                // Accelerated sim rate (≥2x) — also excluded from stats as
+                // outlier. Peak ratio stored during ingest. Separate flag from
+                // "partial" so UI can distinguish.
+                $simAccel = ($f->sim_accel_max_ratio !== null
+                             && (float) $f->sim_accel_max_ratio >= 2.0);
+                $simAccelMild = ($f->sim_accel_max_ratio !== null
+                                 && (float) $f->sim_accel_max_ratio >= 1.3
+                                 && (float) $f->sim_accel_max_ratio < 2.0);
+
                 // Per-flight "why was this off" diagnostic. Empty for near-zero
                 // errors; populated with concise cause bullets when |err| > 5.
                 // Reads only stored flight fields — no external data needed.
                 $errReasons = [];
-                if (!$partial && abs($errMin) > 5) {
+                if (($simAccel || $simAccelMild) && abs($errMin) > 3) {
+                    $mins = (int) round(((int) $f->sim_accel_total_cycles) * 2); // 2-min cycles
+                    $errReasons[] = sprintf(
+                        'accelerated sim rate detected (up to %.1fx reported GS for ~%dm)',
+                        (float) $f->sim_accel_max_ratio, $mins
+                    );
+                }
+                if (!$partial && !$simAccel && abs($errMin) > 5) {
                     // 1. Lock source quality
                     if ($source === 'FILED' || $source === 'FIR_EET' ||
                         strpos($source, 'CALC_') === 0) {
@@ -2820,28 +2842,32 @@ final class Kernel
                 }
 
                 $records[] = [
-                    'callsign'     => $f->callsign,
-                    'aircraft_type'=> $f->aircraft_type,
-                    'adep'         => $f->adep,
-                    'ades'         => $f->ades,
-                    'dist_nm'      => $distNm,
-                    'flight_time'  => (int) $flightTimeMin,
-                    'filed_ete'    => $filedEte,
-                    'partial'      => $partial,
-                    'atot'         => $f->atot->format('c'),
-                    'filed_eta'    => $filedEta,
-                    'filed_eta_err'=> $filedEtaErr,
-                    'tldt'         => $f->tldt->format('c'),
-                    'aldt'         => $f->aldt->format('c'),
-                    'tldt_err_min' => $errMin,
-                    'eldt_err_min' => $eldtErr,
-                    'eta_source'   => $source,
-                    'ctl_type'     => $f->ctl_type,
-                    'err_reasons'  => $errReasons,
+                    'callsign'      => $f->callsign,
+                    'aircraft_type' => $f->aircraft_type,
+                    'adep'          => $f->adep,
+                    'ades'          => $f->ades,
+                    'dist_nm'       => $distNm,
+                    'flight_time'   => (int) $flightTimeMin,
+                    'filed_ete'     => $filedEte,
+                    'partial'       => $partial,
+                    'sim_accel'     => $simAccel,
+                    'sim_accel_mild'=> $simAccelMild,
+                    'sim_accel_ratio' => $f->sim_accel_max_ratio !== null ? (float) $f->sim_accel_max_ratio : null,
+                    'atot'          => $f->atot->format('c'),
+                    'filed_eta'     => $filedEta,
+                    'filed_eta_err' => $filedEtaErr,
+                    'tldt'          => $f->tldt->format('c'),
+                    'aldt'          => $f->aldt->format('c'),
+                    'tldt_err_min'  => $errMin,
+                    'eldt_err_min'  => $eldtErr,
+                    'eta_source'    => $source,
+                    'ctl_type'      => $f->ctl_type,
+                    'err_reasons'   => $errReasons,
                 ];
 
-                // Exclude partial-observation flights from accuracy stats
-                if ($partial) {
+                // Exclude partial-observation and ≥2x sim-accel flights from
+                // accuracy stats — both are outliers we can't model.
+                if ($partial || $simAccel) {
                     continue;
                 }
 
