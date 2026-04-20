@@ -999,6 +999,78 @@ final class Kernel
 
     private static function registerTobtEndpoint(App $app): void
     {
+        // GET /api/v1/controllers/online — list of ATC positions currently
+        // connected at or adjacent to our scope airports. Powers the
+        // "Live ACDM" view in the Pilot Portal — pilots see who'll they
+        // be talking to (vs. "UNICOM — no ATC online").
+        $app->get('/api/v1/controllers/online', function ($req, $res) {
+            // Scope ICAOs: 7 airports + related FIR centres
+            $scopeAirports = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
+            $scopeFIRs = ['CZEG','CZUL','CZWG','CZQM','CZVR','CZYZ','CZQX'];
+            // Adjacent US centres that commonly feed our scope — controllers
+            // here often have the biggest effect on flow so we surface them
+            $adjacent = ['ZBW','ZNY','ZOB','ZAU','ZMP','ZLC','ZDV','ZSE','ZOA','ZLA'];
+
+            // Read the cached VATSIM feed (same cache the ingestor maintains)
+            $cacheFile = sys_get_temp_dir() . '/atfm_vatsim_feed.json';
+            $raw = null;
+            if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 60) {
+                $raw = @file_get_contents($cacheFile);
+            }
+            if (!$raw) {
+                $ctx = stream_context_create(['http' => ['timeout' => 5]]);
+                $raw = @file_get_contents('https://data.vatsim.net/v3/vatsim-data.json', false, $ctx);
+                if ($raw) @file_put_contents($cacheFile, $raw);
+            }
+            if (!$raw) {
+                return self::json($res->withStatus(502), ['error' => 'VATSIM feed unavailable']);
+            }
+            $data = json_decode($raw, true);
+            if (!is_array($data)) {
+                return self::json($res->withStatus(502), ['error' => 'VATSIM feed parse failed']);
+            }
+
+            // Bucketize by prefix
+            $byBucket = ['scope' => [], 'fir' => [], 'adjacent' => []];
+            foreach (($data['controllers'] ?? []) as $c) {
+                $cs = strtoupper((string) ($c['callsign'] ?? ''));
+                if ($cs === '') continue;
+                $parts = explode('_', $cs);
+                $prefix = $parts[0] ?? '';
+                $row = [
+                    'callsign'  => $cs,
+                    'cid'       => (int) ($c['cid'] ?? 0),
+                    'name'      => $c['name'] ?? '',
+                    'frequency' => $c['frequency'] ?? null,
+                    'facility'  => (int) ($c['facility'] ?? 0),
+                    'rating'    => (int) ($c['rating'] ?? 0),
+                    'logon_time'=> $c['logon_time'] ?? null,
+                    'prefix'    => $prefix,
+                ];
+                if (in_array($prefix, $scopeAirports, true)) $byBucket['scope'][] = $row;
+                elseif (in_array($prefix, $scopeFIRs, true))  $byBucket['fir'][] = $row;
+                elseif (in_array($prefix, $adjacent, true))   $byBucket['adjacent'][] = $row;
+            }
+            // Sort each bucket by callsign for consistent display
+            foreach ($byBucket as &$b) {
+                usort($b, fn($a, $c) => strcmp($a['callsign'], $c['callsign']));
+            }
+            unset($b);
+
+            return self::json($res, [
+                'generated_at' => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('c'),
+                'feed_update'  => $data['general']['update_timestamp'] ?? null,
+                'scope'        => $byBucket['scope'],
+                'fir'          => $byBucket['fir'],
+                'adjacent'     => $byBucket['adjacent'],
+                'counts'       => [
+                    'scope'    => count($byBucket['scope']),
+                    'fir'      => count($byBucket['fir']),
+                    'adjacent' => count($byBucket['adjacent']),
+                ],
+            ]);
+        });
+
         // GET /api/v1/pilot/{callsign} — single-flight lookup for the
         // Pilot Portal. Trust-based: anyone can query any callsign.
         // Returns the fields the VDGS-style portal needs: CALLSIGN,

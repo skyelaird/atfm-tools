@@ -75,6 +75,22 @@
         .toolbar button { background: var(--bg-elev); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem 1rem; cursor: pointer; font-size: 0.85rem; }
         .toolbar button:hover { background: var(--bg-elev-hi); border-color: var(--accent); color: var(--accent); }
 
+        /* Modal overlay for Flt Details / Live ACDM */
+        .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.6); display: none; align-items: center; justify-content: center; z-index: 100; padding: 1rem; }
+        .modal-backdrop.open { display: flex; }
+        .modal-box { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; max-width: 700px; width: 100%; max-height: 85vh; overflow-y: auto; }
+        .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--bg-elev); }
+        .modal-header h2 { margin: 0; font-size: 1rem; color: var(--accent); }
+        .modal-close { background: none; border: 0; color: var(--text-dim); font-size: 1.2rem; cursor: pointer; padding: 0.2rem 0.5rem; }
+        .modal-body { padding: 1rem; }
+        .acdm-list { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+        .acdm-list th { text-align: left; color: var(--accent); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); position: sticky; top: 50px; background: var(--bg-elev); }
+        .acdm-list td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border); font-family: var(--mono); }
+        .acdm-list tbody tr:hover { background: var(--bg-elev-hi); }
+        .acdm-section-hdr { background: var(--bg); color: var(--text-dim); font-weight: 600; font-size: 0.72rem; text-transform: uppercase; padding: 0.5rem 0.6rem; }
+        .acdm-freq { color: var(--warn); }
+        .acdm-empty { color: var(--text-dim); font-style: italic; padding: 0.5rem; }
+
         .empty { text-align: center; padding: 3rem 1rem; color: var(--text-dim); }
         .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--text-dim); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 0.3rem; }
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -88,6 +104,16 @@
     <a class="auth-pill" id="auth-pill" href="/oauth/vatsim/login">Sign in with VATSIM</a>
     <a class="auth-pill" href="/dashboard.html">← dashboard</a>
 </header>
+
+<div class="modal-backdrop" id="modal-backdrop" onclick="if(event.target===this)closeModal()">
+    <div class="modal-box">
+        <div class="modal-header">
+            <h2 id="modal-title">—</h2>
+            <button class="modal-close" onclick="closeModal()">×</button>
+        </div>
+        <div class="modal-body" id="modal-body">—</div>
+    </div>
+</div>
 
 <main>
     <div class="search-bar">
@@ -264,7 +290,11 @@ async function lookup() {
             tsatEpoch: d.tsat ? Math.floor(new Date(d.tsat).getTime() / 1000) : null,
             narrative: d.narrative,
         };
-        $('content').innerHTML = '<div class="toolbar"><button id="refresh-btn">Refresh</button></div>' + statusBanner(d) + renderDetails(d);
+        $('content').innerHTML = `<div class="toolbar">
+            <button id="refresh-btn">Refresh</button>
+            <button id="flt-details-btn">Flt Details</button>
+            <button id="live-acdm-btn">Live ACDM</button>
+        </div>` + statusBanner(d) + renderDetails(d);
         tickCountdown();
         bindHandlers(d);
     } catch (e) {
@@ -274,6 +304,8 @@ async function lookup() {
 
 function bindHandlers(d) {
     $('refresh-btn').onclick = lookup;
+    $('flt-details-btn').onclick = () => showFltDetails(d);
+    $('live-acdm-btn').onclick = showLiveAcdm;
     const input = $('tobt-input');
     const submit = $('tobt-submit');
     submit.onclick = async () => {
@@ -338,6 +370,83 @@ function bindHandlers(d) {
             submit.textContent = 'Submit TOBT';
         }
     };
+}
+
+function openModal(title, bodyHtml) {
+    $('modal-title').textContent = title;
+    $('modal-body').innerHTML = bodyHtml;
+    $('modal-backdrop').classList.add('open');
+}
+function closeModal() {
+    $('modal-backdrop').classList.remove('open');
+}
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+function showFltDetails(d) {
+    const rows = [
+        ['Callsign', d.callsign],
+        ['CID',      d.cid ? String(d.cid) : '—'],
+        ['Aircraft', d.aircraft_type || '—'],
+        ['From → To', (d.adep || '?') + ' → ' + (d.ades || '?')],
+        ['Phase',    d.phase || '—'],
+        ['Filed alt', d.fp_altitude_ft ? ('FL' + pad(Math.round(d.fp_altitude_ft / 100))) : '—'],
+        ['EOBT',     hhmmFromIso(d.eobt) + 'Z'],
+        ['TOBT',     hhmmFromIso(d.tobt) + 'Z' + (d.tobt_source === 'manual' ? ' (manual)' : '')],
+        ['TSAT',     hhmmFromIso(d.tsat) + 'Z'],
+        ['TTOT',     hhmmFromIso(d.ttot) + 'Z'],
+        ['CTOT',     d.ctot ? hhmmFromIso(d.ctot) + 'Z' : '—'],
+        ['ELDT',     hhmmFromIso(d.eldt) + 'Z'],
+        ['Delay',    d.delay_minutes != null ? ((d.delay_minutes > 0 ? '+' : '') + d.delay_minutes + 'm') : '—'],
+    ];
+    const detailRows = rows.map(([k, v]) =>
+        `<tr><td style="color:var(--text-dim);padding:0.25rem 0.5rem;">${k}</td>` +
+        `<td class="mono" style="padding:0.25rem 0.5rem;color:var(--text-bright);">${v}</td></tr>`
+    ).join('');
+    const routeBlock = d.route ? `<div style="margin-top:0.75rem;">
+        <div style="color:var(--text-dim);font-size:0.7rem;text-transform:uppercase;margin-bottom:0.25rem;">Filed route</div>
+        <div class="mono" style="background:var(--bg);padding:0.5rem;border-radius:3px;font-size:0.78rem;line-height:1.5;word-break:break-all;">${d.route}</div>
+    </div>` : '';
+    const body = `<table style="width:100%;border-collapse:collapse;">${detailRows}</table>${routeBlock}`;
+    openModal(`Flight details — ${d.callsign}`, body);
+}
+
+async function showLiveAcdm() {
+    openModal('Live ACDM — online controllers', '<div class="acdm-empty">Loading…</div>');
+    try {
+        const d = await fetch('/api/v1/controllers/online').then(r => r.json());
+        const section = (title, rows) => {
+            if (!rows || rows.length === 0) return `<tr><td colspan="3" class="acdm-empty">${title} — no controllers online</td></tr>`;
+            let h = `<tr><td colspan="3" class="acdm-section-hdr">${title} (${rows.length})</td></tr>`;
+            for (const c of rows) {
+                const freq = c.frequency ? `<span class="acdm-freq">${c.frequency}</span>` : '—';
+                h += `<tr><td style="width:7em;">${c.callsign}</td>` +
+                     `<td style="width:6em;">${freq}</td>` +
+                     `<td style="font-family:inherit;color:var(--text-dim);font-size:0.78rem;">${c.name || ''}</td></tr>`;
+            }
+            return h;
+        };
+        const html = `<input id="acdm-filter" placeholder="Filter by ICAO or position…" style="width:100%;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:0.4rem 0.6rem;margin-bottom:0.5rem;font-size:0.85rem;">
+        <table class="acdm-list" id="acdm-table">
+            <thead><tr><th>Callsign</th><th>Freq</th><th>Controller</th></tr></thead>
+            <tbody>
+                ${section('Scope airports', d.scope)}
+                ${section('Canadian FIR centres', d.fir)}
+                ${section('Adjacent US centres (feed our scope)', d.adjacent)}
+            </tbody>
+        </table>
+        <div style="margin-top:0.5rem;font-size:0.7rem;color:var(--text-dim);">Updated ${new Date(d.generated_at).toLocaleTimeString()}. Not listed = UNICOM at that airport.</div>`;
+        $('modal-body').innerHTML = html;
+        const filterIn = document.getElementById('acdm-filter');
+        filterIn.oninput = () => {
+            const q = filterIn.value.toUpperCase();
+            document.querySelectorAll('#acdm-table tbody tr').forEach(tr => {
+                if (tr.querySelector('.acdm-section-hdr') || tr.querySelector('.acdm-empty')) return;
+                tr.style.display = tr.textContent.toUpperCase().includes(q) ? '' : 'none';
+            });
+        };
+    } catch (e) {
+        $('modal-body').innerHTML = '<div style="color:var(--alert);">Failed to load: ' + e.message + '</div>';
+    }
 }
 
 $('lookup-btn').onclick = lookup;
