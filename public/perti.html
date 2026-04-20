@@ -36,6 +36,7 @@
             flex-wrap: wrap;
         }
         header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+        .utc-clock { font-size: 0.95rem; color: var(--accent); font-variant-numeric: tabular-nums; padding: 0 0.6rem; border-left: 1px solid var(--border); }
         header .nav-pills { display: flex; gap: 0.5rem; margin-left: auto; align-items: center; }
         .pill {
             display: inline-flex; align-items: center; gap: 0.3rem;
@@ -101,6 +102,7 @@
 <body>
 <header>
     <h1>atfm-tools <span class="muted">PERTI Comparison</span></h1>
+    <span class="utc-clock mono" id="utc-clock">––:––:––Z</span>
     <div class="nav-pills">
         <a href="/dashboard.html" class="pill">dashboard</a>
         <a href="/fsm.html" class="pill">FSM</a>
@@ -322,6 +324,16 @@ function render(d) {
 
 load();
 setInterval(load, 120000); // refresh every 2 min
+
+// UTC clock in header
+function updateUtcClock() {
+    const n = new Date();
+    const p = v => String(v).padStart(2, '0');
+    const el = document.getElementById('utc-clock');
+    if (el) el.textContent = `${p(n.getUTCHours())}:${p(n.getUTCMinutes())}:${p(n.getUTCSeconds())}Z`;
+}
+updateUtcClock();
+setInterval(updateUtcClock, 1000);
 
 // --- Historical ELDT Accuracy (independent fetch) ---
 

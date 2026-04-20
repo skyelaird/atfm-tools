@@ -23,6 +23,7 @@
 
         header { position: sticky; top: 0; z-index: 100; background: var(--bg-elev); border-bottom: 1px solid var(--border); padding: 0.65rem 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
         header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+        .utc-clock { font-size: 0.95rem; color: var(--accent); font-variant-numeric: tabular-nums; padding: 0 0.6rem; border-left: 1px solid var(--border); }
         header .nav-pills { display: flex; gap: 0.5rem; margin-left: auto; }
         .pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px; background: var(--bg-elev-hi); border: 1px solid var(--border); font-size: 0.75rem; color: var(--text-dim); text-decoration: none; }
 
@@ -141,6 +142,7 @@
 <body>
 <header>
     <h1>atfm-tools <span style="color:var(--text-dim)">Runway / AAR</span></h1>
+    <span class="utc-clock mono" id="utc-clock">––:––:––Z</span>
     <div class="nav-pills">
         <a href="/dashboard.html" class="pill">dashboard</a>
         <a href="/reports.html" class="pill">reports</a>
@@ -714,6 +716,16 @@ async function loadAll() {
 document.getElementById('refresh-btn').addEventListener('click', loadAll);
 loadAll();
 setInterval(loadAll, 300000);
+
+// UTC clock in header
+function updateUtcClock() {
+    const n = new Date();
+    const p = v => String(v).padStart(2, '0');
+    const el = document.getElementById('utc-clock');
+    if (el) el.textContent = `${p(n.getUTCHours())}:${p(n.getUTCMinutes())}:${p(n.getUTCSeconds())}Z`;
+}
+updateUtcClock();
+setInterval(updateUtcClock, 1000);
 </script>
 </body>
 </html>
