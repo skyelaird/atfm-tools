@@ -463,6 +463,8 @@
         <span class="pill"><span class="label">flights</span> <span class="value mono" id="flight-count">—</span></span>
         <span class="pill" id="pill-ctots"><span class="label">ctots</span> <span class="value mono" id="ctot-count">—</span></span>
         <span class="pill" id="pill-restrictions"><span class="label">restrictions</span> <span class="value mono" id="restriction-count">—</span></span>
+        <span class="pill" id="pill-feed" title="Raw VATSIM feed pilots / our scope-matched count"><span class="label">feed</span> <span class="value mono" id="feed-count">—</span></span>
+        <span class="pill" id="pill-perti" title="Our match rate vs PERTI ADL for scope airports — cache refreshed every 2 min"><span class="label">PERTI</span> <span class="value mono" id="perti-match">—</span></span>
         <a href="/reports.html" class="pill" style="text-decoration: none;">reports →</a>
         <a href="/perti.html" class="pill" style="text-decoration: none;">perti →</a>
         <a href="/aar.html" class="pill" style="text-decoration: none;">AAR →</a>
@@ -765,6 +767,26 @@ function renderStatus(s) {
     $('pill-ctots').className = (s.active_ctot_count > 0) ? 'pill warn' : 'pill';
     $('restriction-count').textContent = s.active_restrictions ?? 0;
     $('pill-restrictions').className = (s.active_restrictions > 0) ? 'pill alert' : 'pill';
+
+    // Feed + PERTI completeness
+    const ing = s.last_ingest_stats;
+    if (ing) {
+        $('feed-count').textContent = ing.feed_pilots + '/' + ing.scope_kept;
+        $('pill-feed').title = `VATSIM feed: ${ing.feed_pilots} pilots · scope-matched: ${ing.scope_kept} · disconnected ${ing.disconnected} this cycle · ingest ${ing.elapsed_ms}ms`;
+    } else {
+        $('feed-count').textContent = '—';
+    }
+    const pc = s.perti_completeness;
+    if (pc && pc.perti_scope > 0) {
+        $('perti-match').textContent = pc.our_matched + '/' + pc.perti_scope + ' (' + pc.match_pct + '%)';
+        $('pill-perti').className = pc.match_pct >= 95 ? 'pill ok'
+                                   : pc.match_pct >= 85 ? 'pill warn'
+                                   : 'pill alert';
+        $('pill-perti').title = `Our active flights matching PERTI's scope ADL: ${pc.our_matched} / ${pc.perti_scope}. <85% = ingest gap worth checking.`;
+    } else {
+        $('perti-match').textContent = '—';
+        $('pill-perti').className = 'pill';
+    }
     const lvl = s.op_level ?? 1;
     $('oplevel-num').textContent = lvl;
     $('oplevel-label').textContent = s.op_level_label || 'Steady State';

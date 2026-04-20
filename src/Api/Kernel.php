@@ -926,6 +926,45 @@ final class Kernel
             $maxTagged        = (int) $restrictionRows->max(fn ($r) => (int) ($r->op_level ?? 2));
             $systemOpLevel    = max($derived, $maxTagged ?: 1);
 
+            // Ingest completeness snapshot — written by VatsimIngestor at
+            // end of each run. Drives the dashboard "feed / scope" pill.
+            $ingestStats = null;
+            $cacheFile = __DIR__ . '/../../data/cache/ingest-stats.json';
+            if (file_exists($cacheFile)) {
+                $raw = @file_get_contents($cacheFile);
+                $decoded = $raw ? json_decode($raw, true) : null;
+                if (is_array($decoded)) $ingestStats = $decoded;
+            }
+
+            // PERTI match rate — read the cached ADL if fresh (< 2 min),
+            // compare by flight_key. Skip the network fetch entirely if
+            // cache is stale, to keep /status latency predictable.
+            $pertiStats = null;
+            $pertiCache = sys_get_temp_dir() . '/atfm_perti_adl_cache.json';
+            if (file_exists($pertiCache) && (time() - filemtime($pertiCache)) < 120) {
+                $raw = @file_get_contents($pertiCache);
+                $adl = $raw ? json_decode($raw, true) : null;
+                if (is_array($adl) && isset($adl['flights'])) {
+                    $scope = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
+                    $pertiScopeKeys = [];
+                    foreach ($adl['flights'] as $pf) {
+                        $dest = $pf['fp_dest_icao'] ?? '';
+                        if (in_array($dest, $scope, true) && !empty($pf['flight_key'])) {
+                            $pertiScopeKeys[$pf['flight_key']] = true;
+                        }
+                    }
+                    $pertiScopeN = count($pertiScopeKeys);
+                    $oursHave = Flight::whereIn('flight_key', array_keys($pertiScopeKeys))
+                        ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                        ->count();
+                    $pertiStats = [
+                        'perti_scope'  => $pertiScopeN,
+                        'our_matched'  => $oursHave,
+                        'match_pct'    => $pertiScopeN > 0 ? round(100 * $oursHave / $pertiScopeN) : null,
+                    ];
+                }
+            }
+
             return self::json($res, [
                 'time_utc'             => $now->format('c'),
                 'airport_count'        => $airportCount,
@@ -938,6 +977,8 @@ final class Kernel
                 'op_level'             => $systemOpLevel,
                 'op_level_label'       => AirportRestriction::OP_LEVEL_LABELS[$systemOpLevel] ?? '',
                 'last_ingest_at'       => $lastFlightUpdate,
+                'last_ingest_stats'    => $ingestStats,
+                'perti_completeness'   => $pertiStats,
                 'last_allocation_at'   => $lastRun?->started_at?->format('c'),
                 'last_allocation_stats' => $lastRun ? [
                     'airports_considered' => (int) $lastRun->airports_considered,

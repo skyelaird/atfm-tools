@@ -159,6 +159,21 @@ final class VatsimIngestor
 
         $elapsedMs = (int) round((microtime(true) - $start) * 1000);
 
+        // Persist completeness snapshot for the dashboard status pill.
+        // Small JSON cache — no schema. Lets /api/v1/status report
+        // "feed pilots: N, scope: M" without a second DB query.
+        try {
+            $cacheDir = dirname(__DIR__, 2) . '/data/cache';
+            if (!is_dir($cacheDir)) @mkdir($cacheDir, 0755, true);
+            @file_put_contents($cacheDir . '/ingest-stats.json', json_encode([
+                'at'            => $now->format('c'),
+                'feed_pilots'   => $fetchedCount,
+                'scope_kept'    => $kept,
+                'disconnected'  => $disconnected,
+                'elapsed_ms'    => $elapsedMs,
+            ]));
+        } catch (\Throwable $e) { /* best-effort only */ }
+
         return [
             'fetched'      => $fetchedCount,
             'kept'         => $kept,
