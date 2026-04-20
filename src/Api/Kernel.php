@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Atfm\Api;
 
 use Atfm\Allocator\Geo;
+use Atfm\Auth\VatsimOAuth;
 use Atfm\Models\Airport;
 use Atfm\Models\AirportRestriction;
 use Atfm\Models\AllocationRun;
+use Atfm\Models\AuthSession;
 use Atfm\Models\EventSource;
 use Atfm\Models\Fir;
 use Atfm\Models\Flight;
@@ -55,8 +57,194 @@ final class Kernel
         self::registerReportsEndpoints($app);
         self::registerDebugEndpoints($app);
         self::registerEmergencyEndpoints($app);
+        self::registerAuthEndpoints($app);
 
         return $app;
+    }
+
+    /**
+     * Current authenticated user from the cookie, or null if not logged in.
+     * Called by route handlers that want to know who the caller is.
+     *
+     * @return array{cid:int, name:string, rating:string, division:string, raw:array}|null
+     */
+    public static function currentUser(ServerRequestInterface $req): ?array
+    {
+        $token = $req->getCookieParams()['atfm_session'] ?? null;
+        if (!$token || !preg_match('/^[a-f0-9]{64}$/', $token)) return null;
+        $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s');
+        $s = AuthSession::where('token', $token)
+            ->where('expires_at', '>', $now)
+            ->first();
+        if (!$s) return null;
+        $s->last_seen_at = $now;
+        $s->save();
+        $d = $s->user_data ?: [];
+        return [
+            'cid'      => (int) $s->vatsim_cid,
+            'name'     => $d['personal']['name_full'] ?? ('CID ' . $s->vatsim_cid),
+            'rating'   => $d['vatsim']['rating']['short'] ?? null,
+            'division' => $d['vatsim']['division']['id']  ?? null,
+            'raw'      => $d,
+        ];
+    }
+
+    private static function registerAuthEndpoints(App $app): void
+    {
+        // Starts the VATSIM OAuth flow. Sets a CSRF state cookie and
+        // redirects to VATSIM's authorize endpoint. Optional ?return= to
+        // come back to a specific page after login.
+        $app->get('/oauth/vatsim/login', function (ServerRequestInterface $req, ResponseInterface $res) {
+            if (!VatsimOAuth::isConfigured()) {
+                return self::json($res->withStatus(503), [
+                    'error' => 'VATSIM OAuth not configured — set VATSIM_OAUTH_CLIENT_ID/_SECRET in .env',
+                ]);
+            }
+            $state = bin2hex(random_bytes(16));
+            $returnTo = (string) ($req->getQueryParams()['return'] ?? '/');
+            // Whitelist return paths to prevent open-redirect
+            if (!preg_match('#^/[A-Za-z0-9_\-./?=&]{0,120}$#', $returnTo)) $returnTo = '/';
+            $url = VatsimOAuth::authorizeUrl($state, $returnTo);
+            $secure = ($_ENV['APP_URL'] ?? '') && str_starts_with($_ENV['APP_URL'], 'https:');
+            $cookie = sprintf(
+                'atfm_oauth_state=%s; Path=/; Max-Age=600; HttpOnly; SameSite=Lax%s',
+                $state, $secure ? '; Secure' : ''
+            );
+            return $res->withStatus(302)
+                ->withHeader('Location', $url)
+                ->withHeader('Set-Cookie', $cookie);
+        });
+
+        // VATSIM redirects here with ?code=... & state=...
+        $app->get('/oauth/vatsim/callback', function (ServerRequestInterface $req, ResponseInterface $res) {
+            $q = $req->getQueryParams();
+            $code = (string) ($q['code'] ?? '');
+            $state = (string) ($q['state'] ?? '');
+            if ($code === '' || $state === '') {
+                return self::json($res->withStatus(400), ['error' => 'missing code or state']);
+            }
+            $cookieState = $req->getCookieParams()['atfm_oauth_state'] ?? '';
+            [$stateNonce, $returnB64] = array_pad(explode('|', $state, 2), 2, '');
+            if (!hash_equals($cookieState, $stateNonce)) {
+                return self::json($res->withStatus(400), ['error' => 'state mismatch (CSRF)']);
+            }
+            $returnTo = $returnB64 ? base64_decode($returnB64) : '/';
+            if (!is_string($returnTo) || !preg_match('#^/#', $returnTo)) $returnTo = '/';
+
+            $tok = VatsimOAuth::exchangeCode($code);
+            if (!$tok) {
+                return self::json($res->withStatus(502), ['error' => 'token exchange failed']);
+            }
+            $user = VatsimOAuth::fetchUser($tok['access_token']);
+            if (!$user || empty($user['cid'])) {
+                return self::json($res->withStatus(502), ['error' => 'user fetch failed']);
+            }
+
+            // Create session
+            $token = AuthSession::generateToken();
+            $expires = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->modify('+30 days');
+            AuthSession::create([
+                'token'        => $token,
+                'vatsim_cid'   => (int) $user['cid'],
+                'user_data'    => $user,
+                'expires_at'   => $expires->format('Y-m-d H:i:s'),
+                'last_seen_at' => $expires->modify('-30 days')->format('Y-m-d H:i:s'),
+            ]);
+            $secure = ($_ENV['APP_URL'] ?? '') && str_starts_with($_ENV['APP_URL'], 'https:');
+            $sessionCookie = sprintf(
+                'atfm_session=%s; Path=/; Max-Age=%d; HttpOnly; SameSite=Lax%s',
+                $token, 60 * 60 * 24 * 30, $secure ? '; Secure' : ''
+            );
+            // Clear the state cookie
+            $clearState = 'atfm_oauth_state=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax';
+            return $res->withStatus(302)
+                ->withHeader('Location', $returnTo)
+                ->withHeader('Set-Cookie', $sessionCookie)
+                ->withAddedHeader('Set-Cookie', $clearState);
+        });
+
+        // Logout — delete session record + clear cookie
+        $app->post('/oauth/logout', function (ServerRequestInterface $req, ResponseInterface $res) {
+            $token = $req->getCookieParams()['atfm_session'] ?? null;
+            if ($token) AuthSession::where('token', $token)->delete();
+            $clear = 'atfm_session=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax';
+            return $res->withStatus(204)->withHeader('Set-Cookie', $clear);
+        });
+
+        // Who-am-I — powers the UI's "Sign in with VATSIM" button vs
+        // "Logged in as X" indicator. Also returns the user's current
+        // live connection (if online) so role-based views can adapt.
+        $app->get('/api/v1/auth/me', function (ServerRequestInterface $req, ResponseInterface $res) {
+            $u = self::currentUser($req);
+            if (!$u) return self::json($res, ['authenticated' => false]);
+
+            // Augment with current VATSIM network position (if online).
+            // Reads from the VatsimIngestor's cached controller data if
+            // available; otherwise polls VATSIM v3 data feed directly.
+            $live = self::lookupLiveConnection($u['cid']);
+
+            return self::json($res, [
+                'authenticated' => true,
+                'cid'           => $u['cid'],
+                'name'          => $u['name'],
+                'rating'        => $u['rating'],
+                'division'      => $u['division'],
+                'live'          => $live,
+            ]);
+        });
+    }
+
+    /**
+     * Look up a user's current VATSIM network connection (if online).
+     * Returns {type: 'PILOT'|'CONTROLLER'|null, callsign, facility, ...}.
+     */
+    private static function lookupLiveConnection(int $cid): ?array
+    {
+        // Feed is poll-cached by the ingestor; also check a local cache
+        // here so /auth/me is fast.
+        $cacheFile = sys_get_temp_dir() . '/atfm_vatsim_feed.json';
+        $raw = null;
+        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 60) {
+            $raw = @file_get_contents($cacheFile);
+        }
+        if (!$raw) {
+            $ctx = stream_context_create(['http' => ['timeout' => 5]]);
+            $raw = @file_get_contents('https://data.vatsim.net/v3/vatsim-data.json', false, $ctx);
+            if ($raw) @file_put_contents($cacheFile, $raw);
+        }
+        if (!$raw) return null;
+        $data = json_decode($raw, true);
+        if (!is_array($data)) return null;
+
+        foreach (($data['pilots'] ?? []) as $p) {
+            if ((int) ($p['cid'] ?? 0) === $cid) {
+                return [
+                    'type'      => 'PILOT',
+                    'callsign'  => $p['callsign'] ?? null,
+                    'departure' => $p['flight_plan']['departure'] ?? null,
+                    'arrival'   => $p['flight_plan']['arrival'] ?? null,
+                ];
+            }
+        }
+        foreach (($data['controllers'] ?? []) as $c) {
+            if ((int) ($c['cid'] ?? 0) === $cid) {
+                return [
+                    'type'      => 'CONTROLLER',
+                    'callsign'  => $c['callsign'] ?? null,
+                    'facility'  => $c['facility'] ?? null,
+                    'frequency' => $c['frequency'] ?? null,
+                ];
+            }
+        }
+        foreach (($data['atis'] ?? []) as $a) {
+            if ((int) ($a['cid'] ?? 0) === $cid) {
+                return [
+                    'type'     => 'ATIS',
+                    'callsign' => $a['callsign'] ?? null,
+                ];
+            }
+        }
+        return null;
     }
 
     // ------------------------------------------------------------------

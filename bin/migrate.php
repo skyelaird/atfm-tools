@@ -555,4 +555,21 @@ if ($schema->hasTable('flights') && !$schema->hasColumn('flights', 'sim_accel_ma
     echo "✓ added flights.sim_accel_* (v0.6.24)\n";
 }
 
+// v0.7.0: VATSIM Connect auth sessions. Server-side session store keyed
+// by a random cookie token; caches the user CID + profile data from VATSIM
+// so we don't re-hit their user-info endpoint on every request.
+if (!$schema->hasTable('auth_sessions')) {
+    $schema->create('auth_sessions', function (Blueprint $t) {
+        $t->id();
+        $t->string('token', 64)->unique()->comment('Random opaque cookie token');
+        $t->unsignedInteger('vatsim_cid');
+        $t->json('user_data')->nullable()->comment('{full_name, rating, division, subdivision, pilot_rating, ...}');
+        $t->dateTime('expires_at');
+        $t->dateTime('last_seen_at')->nullable();
+        $t->timestamps();
+        $t->index('vatsim_cid');
+    });
+    echo "✓ created auth_sessions (v0.7.0)\n";
+}
+
 echo "done.\n";
