@@ -2770,15 +2770,22 @@ final class Kernel
                         }
                     }
 
-                    // 3. Pilot speed delta — actual vs filed ETE
+                    // 3. Observed flight time vs filed ETE. "Shorter" could mean
+                    // tailwind / direct clearance / higher speed; "longer"
+                    // could mean headwind / vectoring / holding. We don't have
+                    // enough info to pinpoint which — just flag the fact and
+                    // let the Wind tier comparison (bullet 4) distinguish wind
+                    // from other causes.
                     if ($filedEte && $filedEte > 0) {
                         $delta = $flightTimeMin - $filedEte;
                         $pctOff = abs($delta) / $filedEte * 100;
                         if ($pctOff >= 10 && abs($delta) >= 5) {
-                            $dir = $delta > 0 ? 'slow' : 'fast';
+                            $label = $delta > 0
+                                ? 'longer than filed ETE (possible headwind / vectoring / holding)'
+                                : 'shorter than filed ETE (possible tailwind / direct clearance / higher speed)';
                             $errReasons[] = sprintf(
-                                '%s flight (actual %dm vs filed %dm, %+dm)',
-                                $dir, $flightTimeMin, $filedEte, $delta
+                                '%s — actual %dm vs filed %dm (%+dm)',
+                                $label, $flightTimeMin, $filedEte, $delta
                             );
                         }
                     }
