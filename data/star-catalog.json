@@ -326,35 +326,68 @@
     ],
     "CYYZ": [
       {
-        "fix": "ERBUS",
-        "distance_nm": 6,
+        "fix": "BOXUM",
+        "distance_nm": 39,
         "stars": [
           "BOXUM7",
-          "DUVOS4",
-          "IMEBA9",
-          "VIBLI6",
-          "RAGID6",
-          "UDNOX5",
-          "NAKBO6",
-          "NUBER6"
+          "DUVOS4"
         ],
-        "corridor": "all-except-south",
+        "corridor": "northwest (Collingwood)",
         "coords": {
-          "lat": 43.749233,
-          "lon": -79.722033
+          "lat": 44.178056,
+          "lon": -80.201667
         }
       },
       {
-        "fix": "VERKO",
-        "distance_nm": 6,
+        "fix": "IMEBA",
+        "distance_nm": 42,
+        "stars": [
+          "IMEBA9",
+          "VIBLI6"
+        ],
+        "corridor": "northeast (Barrie)",
+        "coords": {
+          "lat": 44.249444,
+          "lon": -79.054444
+        }
+      },
+      {
+        "fix": "NUBER",
+        "distance_nm": 35,
+        "stars": [
+          "NAKBO6",
+          "NUBER6"
+        ],
+        "corridor": "west (Kitchener)",
+        "coords": {
+          "lat": 43.457778,
+          "lon": -80.3775
+        }
+      },
+      {
+        "fix": "RAGID",
+        "distance_nm": 42,
+        "stars": [
+          "RAGID6",
+          "UDNOX5"
+        ],
+        "corridor": "east (Peterborough)",
+        "coords": {
+          "lat": 44.041944,
+          "lon": -78.805
+        }
+      },
+      {
+        "fix": "LINNG",
+        "distance_nm": 25,
         "stars": [
           "LINNG3",
           "VERKO1"
         ],
-        "corridor": "south",
+        "corridor": "south (Niagara)",
         "coords": {
-          "lat": 43.596614,
-          "lon": -79.543764
+          "lat": 43.302747,
+          "lon": -79.354797
         }
       }
     ]
@@ -923,7 +956,7 @@
           "LITRO",
           "DERLI"
         ],
-        "metering_fix": "ERBUS",
+        "metering_fix": "BOXUM",
         "note": "Northwest, runway variant pair with DUVOS4"
       },
       "DUVOS4": {
@@ -940,7 +973,7 @@
           "LITRO",
           "DERLI"
         ],
-        "metering_fix": "ERBUS"
+        "metering_fix": "BOXUM"
       },
       "IMEBA9": {
         "entry_fix": "IMEBA",
@@ -960,7 +993,7 @@
           "LITRO",
           "DERLI"
         ],
-        "metering_fix": "ERBUS",
+        "metering_fix": "IMEBA",
         "note": "Northeast, runway variant pair with VIBLI6"
       },
       "VIBLI6": {
@@ -981,7 +1014,7 @@
           "LITRO",
           "DERLI"
         ],
-        "metering_fix": "ERBUS"
+        "metering_fix": "IMEBA"
       },
       "RAGID6": {
         "entry_fix": "RAGID",
@@ -997,7 +1030,7 @@
           "LITRO",
           "DERLI"
         ],
-        "metering_fix": "ERBUS",
+        "metering_fix": "RAGID",
         "note": "East, runway variant pair with UDNOX5"
       },
       "UDNOX5": {
@@ -1014,7 +1047,7 @@
           "LITRO",
           "DERLI"
         ],
-        "metering_fix": "ERBUS"
+        "metering_fix": "RAGID"
       },
       "NAKBO6": {
         "entry_fix": "NUBER",
@@ -1034,7 +1067,7 @@
           "MIPED",
           "SATUR"
         ],
-        "metering_fix": "ERBUS",
+        "metering_fix": "NUBER",
         "note": "West, runway variant pair with NUBER6"
       },
       "NUBER6": {
@@ -1055,7 +1088,7 @@
           "MIPED",
           "SATUR"
         ],
-        "metering_fix": "ERBUS"
+        "metering_fix": "NUBER"
       },
       "LINNG3": {
         "entry_fix": "LINNG",
@@ -1071,7 +1104,7 @@
           "MASAR",
           "LERAN"
         ],
-        "metering_fix": "VERKO",
+        "metering_fix": "LINNG",
         "note": "South corridor, runway variant pair with VERKO1"
       },
       "VERKO1": {
@@ -1088,7 +1121,7 @@
           "MASAR",
           "LERAN"
         ],
-        "metering_fix": "VERKO"
+        "metering_fix": "LINNG"
       }
     }
   }
