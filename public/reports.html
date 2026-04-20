@@ -337,6 +337,11 @@ Per EUROCONTROL Airport CDM Implementation Manual v5.0.
     </section>
 
     <section>
+        <h2>STAR usage <span class="muted">filed arrivals by STAR + transition (last <span id="star-window">24</span>h, retroactive from fp_route)</span></h2>
+        <div id="star-usage-panel"><div class="muted" style="padding:0.5rem 0;">Loading...</div></div>
+    </section>
+
+    <section>
         <h2>Metering fix load <span class="muted" id="meter-label">inbound arrivals by STAR metering fix</span></h2>
         <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem; font-size:0.8rem;">
             <span class="muted">window:</span>
@@ -646,6 +651,58 @@ function rerender() {
     }
 }
 
+// ---- Historical STAR usage panel ----
+async function refreshStarUsage() {
+    const el = document.getElementById('star-usage-panel');
+    const winEl = document.getElementById('star-window');
+    if (!el) return;
+    if (winEl) winEl.textContent = currentHours;
+    try {
+        const r = await fetch('/api/v1/reports/star-usage?hours=' + currentHours);
+        const d = await r.json();
+        const airports = Object.keys(d.by_airport || {});
+        if (airports.length === 0) {
+            el.innerHTML = '<div class="muted" style="padding:0.5rem 0;">No landed arrivals in this window.</div>';
+            return;
+        }
+        let html = '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:0.75rem;">';
+        for (const apt of airports.sort()) {
+            const data = d.by_airport[apt];
+            const total = data.resolved + data.unresolved;
+            if (total === 0) continue;
+            const pctResolved = (data.resolved / total * 100).toFixed(0);
+            html += `<div class="stat-card" style="align-items:stretch; padding:0.6rem;">
+                <div class="lbl" style="display:flex; justify-content:space-between;">
+                    <span>${apt}</span>
+                    <span class="mono" title="Resolved / total arrivals in window">${data.resolved}/${total} resolved (${pctResolved}%)</span>
+                </div>`;
+            if (data.stars.length === 0) {
+                html += '<div class="muted" style="font-size:0.75rem; margin-top:0.3rem;">No STAR filings detected.</div>';
+            } else {
+                html += '<table style="width:100%; margin-top:0.3rem; font-size:0.78rem;"><thead><tr><th style="text-align:left;padding:0.2rem;">STAR</th><th style="padding:0.2rem;">Fix</th><th class="num" style="padding:0.2rem;">N</th><th style="padding:0.2rem;">Transitions</th></tr></thead><tbody>';
+                for (const s of data.stars) {
+                    const pct = (s.count / data.resolved * 100).toFixed(0);
+                    const transList = Object.entries(s.transitions)
+                        .map(([k,v]) => `<span class="mono" title="${k}: ${v} flights">${k}=${v}</span>`)
+                        .join(', ');
+                    html += `<tr>
+                        <td class="mono" style="padding:0.2rem;">${s.star}</td>
+                        <td class="mono muted" style="padding:0.2rem;" title="Metering fix where MIT would typically be applied">${s.metering_fix || '—'}</td>
+                        <td class="num mono" style="padding:0.2rem;" title="${pct}% of resolved arrivals">${s.count}</td>
+                        <td style="padding:0.2rem; font-size:0.72rem;">${transList}</td>
+                    </tr>`;
+                }
+                html += '</tbody></table>';
+            }
+            html += '</div>';
+        }
+        html += '</div>';
+        el.innerHTML = html;
+    } catch (err) {
+        el.innerHTML = '<div class="error">Failed to load STAR usage: ' + err.message + '</div>';
+    }
+}
+
 // ---- Metering fix load panel ----
 let meterMins = 60;
 
@@ -787,13 +844,15 @@ document.querySelectorAll('#window-pills .pill').forEach(p => {
         currentHours = Number(p.dataset.hours);
         refresh();
         refreshTldt();
+        refreshStarUsage();
     });
 });
 
 refresh();
 refreshTldt();
 refreshMeter();
-setInterval(() => { refresh(); refreshTldt(); refreshMeter(); }, 60000);
+refreshStarUsage();
+setInterval(() => { refresh(); refreshTldt(); refreshMeter(); refreshStarUsage(); }, 60000);
 
 // Help modal
 document.getElementById('help-open').addEventListener('click', () => {

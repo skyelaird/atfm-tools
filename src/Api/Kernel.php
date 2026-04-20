@@ -438,6 +438,66 @@ final class Kernel
         //
         // ?window=60 : minutes ahead (by ELDT) to include. Default 60.
         // ?airport=CYYZ : limit to one airport. Optional.
+        // Historical STAR usage rollup — landed flights grouped by
+        // destination → STAR → transition. Used by the reports page
+        // panel to show which STARs/transitions are actually flown.
+        // Retroactive: reads fp_route on any historical flight with ALDT.
+        // ?hours=N (default 24, max 720)
+        $app->get('/api/v1/reports/star-usage', function ($req, $res) {
+            $hours = max(1, min(720, (int) ($req->getQueryParams()['hours'] ?? 24)));
+            $since = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
+                ->modify("-{$hours} hours")
+                ->format('Y-m-d H:i:s');
+            $scope = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
+
+            $flights = Flight::whereIn('ades', $scope)
+                ->whereNotNull('aldt')
+                ->where('aldt', '>=', $since)
+                ->get(['id', 'callsign', 'ades', 'fp_route']);
+
+            $byApt = [];      // icao => ['total_resolved', 'total_unresolved', 'stars' => [name => [count, transitions]]]
+            foreach ($flights as $f) {
+                $apt = $f->ades;
+                $byApt[$apt] ??= ['resolved' => 0, 'unresolved' => 0, 'stars' => []];
+                $r = \Atfm\Allocator\MeteringFix::resolve($f);
+                if (!$r) {
+                    $byApt[$apt]['unresolved']++;
+                    continue;
+                }
+                $byApt[$apt]['resolved']++;
+                $star = $r['star'];
+                $tKey = $r['filed_transition'] ?? '(direct)';
+                $byApt[$apt]['stars'][$star] ??= [
+                    'star'         => $star,
+                    'metering_fix' => $r['metering_fix'],
+                    'count'        => 0,
+                    'transitions'  => [],
+                ];
+                $byApt[$apt]['stars'][$star]['count']++;
+                $byApt[$apt]['stars'][$star]['transitions'][$tKey] =
+                    ($byApt[$apt]['stars'][$star]['transitions'][$tKey] ?? 0) + 1;
+            }
+
+            // Sort stars by count desc, transitions by count desc, stringify transitions
+            foreach ($byApt as $icao => &$apt) {
+                $stars = array_values($apt['stars']);
+                usort($stars, fn($a, $b) => $b['count'] <=> $a['count']);
+                foreach ($stars as &$s) {
+                    arsort($s['transitions']);
+                }
+                unset($s);
+                $apt['stars'] = $stars;
+            }
+            unset($apt);
+            ksort($byApt);
+
+            return self::json($res, [
+                'generated_at' => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('c'),
+                'hours'        => $hours,
+                'by_airport'   => $byApt,
+            ]);
+        });
+
         $app->get('/api/v1/metering', function ($req, $res) {
             $params = $req->getQueryParams();
             $windowMin = max(15, min(240, (int) ($params['window'] ?? 60)));
