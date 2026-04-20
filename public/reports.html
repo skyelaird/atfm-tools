@@ -340,7 +340,7 @@ Per EUROCONTROL Airport CDM Implementation Manual v5.0.
     </section>
 
     <section>
-        <h2>Demand distribution <span class="muted">arrivals by metering fix (informs MIT allocation)</span></h2>
+        <h2>Current demand distribution <span class="muted">arrivals by metering fix over selected window — informs MIT allocation</span></h2>
         <div id="demand-dist-panel"><div class="muted" style="padding:0.5rem 0;">Loading...</div></div>
     </section>
 
@@ -735,20 +735,29 @@ async function refreshStarUsage() {
             if (data.stars.length === 0) {
                 html += '<div class="muted" style="font-size:0.75rem; margin-top:0.3rem;">No STAR filings detected.</div>';
             } else {
-                html += '<table style="width:100%; margin-top:0.3rem; font-size:0.78rem;"><thead><tr><th style="text-align:left;padding:0.2rem;">STAR</th><th style="padding:0.2rem;">Fix</th><th class="num" style="padding:0.2rem;">N</th><th style="padding:0.2rem;">Transitions</th></tr></thead><tbody>';
+                html += '<table style="width:100%; margin-top:0.3rem; font-size:0.78rem;"><tbody>';
                 for (const s of data.stars) {
-                    const pct = (s.count / data.resolved * 100).toFixed(0);
-                    const transList = Object.entries(s.transitions)
-                        .map(([k,v]) => `<span class="mono" title="${k}: ${v} flights">${k}=${v}</span>`)
-                        .join(', ');
+                    const pct = (s.count / data.resolved * 100);
+                    const barW = Math.min(100, pct);
+                    const transCount = Object.keys(s.transitions).length;
+                    const transTooltip = Object.entries(s.transitions)
+                        .map(([k,v]) => `${k}: ${v}`).join(' &#10; ');
+                    const fixLabel = s.metering_fix
+                        ? `<span class="muted" style="font-size:0.68rem;">→${s.metering_fix}</span>` : '';
                     html += `<tr>
-                        <td class="mono" style="padding:0.2rem;">${s.star}</td>
-                        <td class="mono muted" style="padding:0.2rem;" title="Metering fix where MIT would typically be applied">${s.metering_fix || '—'}</td>
-                        <td class="num mono" style="padding:0.2rem;" title="${pct}% of resolved arrivals">${s.count}</td>
-                        <td style="padding:0.2rem; font-size:0.72rem;">${transList}</td>
+                        <td class="mono" style="padding:0.15rem 0.2rem; width:7em;" title="${transCount} distinct transition(s)&#10;${transTooltip}">${s.star} ${fixLabel}</td>
+                        <td style="padding:0.15rem 0.2rem;">
+                            <div style="display:flex; align-items:center; gap:0.3rem;">
+                                <div style="flex:1; background:var(--bg); border-radius:2px; height:10px; position:relative;">
+                                    <div style="background:var(--accent); height:100%; width:${barW}%; border-radius:2px;"></div>
+                                </div>
+                                <span class="mono" style="min-width:5em; text-align:right;">${pct.toFixed(0)}% <span class="muted" style="font-size:0.72rem;">(${s.count})</span></span>
+                            </div>
+                        </td>
                     </tr>`;
                 }
                 html += '</tbody></table>';
+                html += '<div class="muted" style="font-size:0.62rem; margin-top:0.2rem;">Hover STAR name for transition breakdown.</div>';
             }
             html += '</div>';
         }
