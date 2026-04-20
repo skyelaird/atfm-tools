@@ -2,66 +2,300 @@
   "_comment": "STAR catalog for the 7 Canadian scope airports. Derived from data/procedures.json. Used for Miles-in-Trail attribution over metering fixes.",
   "metering_fixes": {
     "CYHZ": [
-      {"fix": "ILOTA", "distance_nm": 14, "stars": ["FUNDY5", "PEGGY5"], "corridor": "west+south"},
-      {"fix": "GABAP", "distance_nm": 12, "stars": ["LIRLA5", "MINAS1"], "corridor": "east+north"}
+      {
+        "fix": "ILOTA",
+        "distance_nm": 14,
+        "stars": [
+          "FUNDY5",
+          "PEGGY5"
+        ],
+        "corridor": "west+south",
+        "coords": {
+          "lat": 44.853392,
+          "lon": -63.831867
+        }
+      },
+      {
+        "fix": "GABAP",
+        "distance_nm": 12,
+        "stars": [
+          "LIRLA5",
+          "MINAS1"
+        ],
+        "corridor": "east+north",
+        "coords": {
+          "lat": 44.853625,
+          "lon": -63.234078
+        }
+      }
     ],
     "CYOW": [
-      {"fix": "GABEV", "distance_nm": 13, "stars": ["LEAMY5", "MEECH4"], "corridor": "north+northwest"},
-      {"fix": "ADVOS", "distance_nm": 11, "stars": ["CAPTL5", "RIVER4"], "corridor": "southwest+east"}
+      {
+        "fix": "GABEV",
+        "distance_nm": 13,
+        "stars": [
+          "LEAMY5",
+          "MEECH4"
+        ],
+        "corridor": "north+northwest",
+        "coords": {
+          "lat": 45.48,
+          "lon": -75.88
+        }
+      },
+      {
+        "fix": "ADVOS",
+        "distance_nm": 11,
+        "stars": [
+          "CAPTL5",
+          "RIVER4"
+        ],
+        "corridor": "southwest+east",
+        "coords": {
+          "lat": 45.336553,
+          "lon": -75.398289
+        }
+      }
     ],
     "CYUL": [
-      {"fix": "HABBS", "distance_nm": 33, "stars": ["ALOET4", "IMPAC4", "HABBS7"], "corridor": "west"}
+      {
+        "fix": "HABBS",
+        "distance_nm": 33,
+        "stars": [
+          "ALOET4",
+          "IMPAC4",
+          "HABBS7"
+        ],
+        "corridor": "west",
+        "coords": {
+          "lat": 45.205278,
+          "lon": -74.417222
+        }
+      }
     ],
     "CYVR": [
-      {"fix": "STAVE", "distance_nm": 35, "stars": ["CANUC6", "LIONN4", "VITEV5"], "corridor": "east"},
-      {"fix": "NAGUP", "distance_nm": 18, "stars": ["CYPRS2", "WHSLR8", "SOUND6"], "corridor": "north"},
-      {"fix": "NAKMA", "distance_nm": 14, "stars": ["GRIZZ9", "ILAND9"], "corridor": "southwest"}
+      {
+        "fix": "STAVE",
+        "distance_nm": 35,
+        "stars": [
+          "CANUC6",
+          "LIONN4",
+          "VITEV5"
+        ],
+        "corridor": "east",
+        "coords": {
+          "lat": 49.401539,
+          "lon": -122.347997
+        }
+      },
+      {
+        "fix": "NAGUP",
+        "distance_nm": 18,
+        "stars": [
+          "CYPRS2",
+          "WHSLR8",
+          "SOUND6"
+        ],
+        "corridor": "north",
+        "coords": {
+          "lat": 49.347986,
+          "lon": -123.565228
+        }
+      },
+      {
+        "fix": "NAKMA",
+        "distance_nm": 14,
+        "stars": [
+          "GRIZZ9",
+          "ILAND9"
+        ],
+        "corridor": "southwest",
+        "coords": {
+          "lat": 49.133483,
+          "lon": -123.530761
+        }
+      }
     ],
     "CYWG": [
-      {"fix": "VEVSI", "distance_nm": 7, "stars": ["AMBIL5", "BEFAN5"], "corridor": "northwest+west"},
-      {"fix": "IPRUP", "distance_nm": 5, "stars": ["KELTO5", "NORAK6"], "corridor": "north+east"}
+      {
+        "fix": "VEVSI",
+        "distance_nm": 7,
+        "stars": [
+          "AMBIL5",
+          "BEFAN5"
+        ],
+        "corridor": "northwest+west",
+        "coords": {
+          "lat": 49.911031,
+          "lon": -97.421911
+        }
+      },
+      {
+        "fix": "IPRUP",
+        "distance_nm": 5,
+        "stars": [
+          "KELTO5",
+          "NORAK6"
+        ],
+        "corridor": "north+east",
+        "coords": {
+          "lat": 49.929917,
+          "lon": -97.103389
+        }
+      }
     ],
     "CYYC": [
-      {"fix": "FLAAM", "distance_nm": 28, "stars": ["ADVOX9", "FLAAM7"], "corridor": "northwest"},
-      {"fix": "TOTUB", "distance_nm": 17, "stars": ["BIRKO6", "TOTUB5"], "corridor": "east"},
-      {"fix": "TIDUK", "distance_nm": 17, "stars": ["EBGAL7", "TIDUK7"], "corridor": "southeast"},
-      {"fix": "VESGA", "distance_nm": 17, "stars": ["IGVEP7", "VESGA6"], "corridor": "southwest"}
+      {
+        "fix": "FLAAM",
+        "distance_nm": 28,
+        "stars": [
+          "ADVOX9",
+          "FLAAM7"
+        ],
+        "corridor": "northwest",
+        "coords": {
+          "lat": 51.477167,
+          "lon": -114.469667
+        }
+      },
+      {
+        "fix": "TOTUB",
+        "distance_nm": 17,
+        "stars": [
+          "BIRKO6",
+          "TOTUB5"
+        ],
+        "corridor": "east",
+        "coords": {
+          "lat": 51.277167,
+          "lon": -113.645333
+        }
+      },
+      {
+        "fix": "TIDUK",
+        "distance_nm": 17,
+        "stars": [
+          "EBGAL7",
+          "TIDUK7"
+        ],
+        "corridor": "southeast",
+        "coords": {
+          "lat": 50.928333,
+          "lon": -113.687833
+        }
+      },
+      {
+        "fix": "VESGA",
+        "distance_nm": 17,
+        "stars": [
+          "IGVEP7",
+          "VESGA6"
+        ],
+        "corridor": "southwest",
+        "coords": {
+          "lat": 50.917167,
+          "lon": -114.328333
+        }
+      }
     ],
     "CYYZ": [
-      {"fix": "ERBUS", "distance_nm": 6, "stars": ["BOXUM7", "DUVOS4", "IMEBA9", "VIBLI6", "RAGID6", "UDNOX5", "NAKBO6", "NUBER6"], "corridor": "all-except-south"},
-      {"fix": "VERKO", "distance_nm": 6, "stars": ["LINNG3", "VERKO1"], "corridor": "south"}
+      {
+        "fix": "ERBUS",
+        "distance_nm": 6,
+        "stars": [
+          "BOXUM7",
+          "DUVOS4",
+          "IMEBA9",
+          "VIBLI6",
+          "RAGID6",
+          "UDNOX5",
+          "NAKBO6",
+          "NUBER6"
+        ],
+        "corridor": "all-except-south",
+        "coords": {
+          "lat": 43.749233,
+          "lon": -79.722033
+        }
+      },
+      {
+        "fix": "VERKO",
+        "distance_nm": 6,
+        "stars": [
+          "LINNG3",
+          "VERKO1"
+        ],
+        "corridor": "south",
+        "coords": {
+          "lat": 43.596614,
+          "lon": -79.543764
+        }
+      }
     ]
   },
   "stars": {
     "CYHZ": {
       "FUNDY5": {
         "entry_fix": "MUVOX",
-        "transitions": ["EBONY", "ALLEX"],
-        "fixes": ["MUVOX", "ILOTA", "MODIR", "DUNUB"],
+        "transitions": [
+          "EBONY",
+          "ALLEX"
+        ],
+        "fixes": [
+          "MUVOX",
+          "ILOTA",
+          "MODIR",
+          "DUNUB"
+        ],
         "metering_fix": "ILOTA"
       },
       "PEGGY5": {
         "entry_fix": "ETGAR",
-        "transitions": ["TUSKY", "ELERI"],
-        "fixes": ["ETGAR", "ILOTA", "MODIR", "DUNUB"],
+        "transitions": [
+          "TUSKY",
+          "ELERI"
+        ],
+        "fixes": [
+          "ETGAR",
+          "ILOTA",
+          "MODIR",
+          "DUNUB"
+        ],
         "metering_fix": "ILOTA"
       },
       "LIRLA5": {
         "entry_fix": "AGMIR",
         "transitions": [],
-        "fixes": ["AGMIR", "LIRLA", "MENVO", "GABAP", "KIXIT"],
+        "fixes": [
+          "AGMIR",
+          "LIRLA",
+          "MENVO",
+          "GABAP",
+          "KIXIT"
+        ],
         "metering_fix": "GABAP"
       },
       "MINAS1": {
         "entry_fix": "LOKRI",
         "transitions": [],
-        "fixes": ["LOKRI", "ULBAR", "AVRIX", "GABAP", "KIXIT"],
+        "fixes": [
+          "LOKRI",
+          "ULBAR",
+          "AVRIX",
+          "GABAP",
+          "KIXIT"
+        ],
         "metering_fix": "GABAP"
       },
       "CABOT5": {
         "entry_fix": "BOSUB",
         "transitions": [],
-        "fixes": ["BOSUB", "OTVUV", "PEPTA", "OBNOM"],
+        "fixes": [
+          "BOSUB",
+          "OTVUV",
+          "PEPTA",
+          "OBNOM"
+        ],
         "metering_fix": null,
         "note": "Independent corridor, no convergence"
       }
@@ -70,31 +304,69 @@
       "LEAMY5": {
         "entry_fix": "ALIDO",
         "transitions": [],
-        "fixes": ["ALIDO", "DUNUM", "GABEV", "KEMLU", "SENNZ", "MODON", "VINRA"],
+        "fixes": [
+          "ALIDO",
+          "DUNUM",
+          "GABEV",
+          "KEMLU",
+          "SENNZ",
+          "MODON",
+          "VINRA"
+        ],
         "metering_fix": "GABEV"
       },
       "MEECH4": {
         "entry_fix": "ONDOB",
         "transitions": [],
-        "fixes": ["ONDOB", "GABEV", "KEMLU", "SENNZ", "MODON", "VINRA"],
+        "fixes": [
+          "ONDOB",
+          "GABEV",
+          "KEMLU",
+          "SENNZ",
+          "MODON",
+          "VINRA"
+        ],
         "metering_fix": "GABEV"
       },
       "CAPTL5": {
         "entry_fix": "LANRK",
         "transitions": [],
-        "fixes": ["LANRK", "VISOL", "ULAGU", "BOREG", "ADVOS", "KAREB"],
+        "fixes": [
+          "LANRK",
+          "VISOL",
+          "ULAGU",
+          "BOREG",
+          "ADVOS",
+          "KAREB"
+        ],
         "metering_fix": "ADVOS"
       },
       "RIVER4": {
         "entry_fix": "THURO",
         "transitions": [],
-        "fixes": ["THURO", "URLAG", "ADVOS", "AMAGI", "NOVUX", "TILOG", "EBNAP"],
+        "fixes": [
+          "THURO",
+          "URLAG",
+          "ADVOS",
+          "AMAGI",
+          "NOVUX",
+          "TILOG",
+          "EBNAP"
+        ],
         "metering_fix": "ADVOS"
       },
       "DEANS4": {
         "entry_fix": "CYRIL",
         "transitions": [],
-        "fixes": ["CYRIL", "CAVUR", "LITRI", "APMUP", "MERKO", "ILOGI", "PETLU"],
+        "fixes": [
+          "CYRIL",
+          "CAVUR",
+          "LITRI",
+          "APMUP",
+          "MERKO",
+          "ILOGI",
+          "PETLU"
+        ],
         "metering_fix": null,
         "note": "Independent corridor from south"
       }
@@ -103,39 +375,96 @@
       "ALOET4": {
         "entry_fix": "HABBS",
         "transitions": [],
-        "fixes": ["HABBS", "COMAU", "MITIG", "AGNAG", "TIDAS", "MAXOD", "OVUVI"],
+        "fixes": [
+          "HABBS",
+          "COMAU",
+          "MITIG",
+          "AGNAG",
+          "TIDAS",
+          "MAXOD",
+          "OVUVI"
+        ],
         "metering_fix": "HABBS"
       },
       "IMPAC4": {
         "entry_fix": "EPMOK",
         "transitions": [],
-        "fixes": ["EPMOK", "ARVIE", "HABBS", "COMAU", "MITIG", "AGNAG", "TIDAS", "MAXOD", "OVUVI"],
+        "fixes": [
+          "EPMOK",
+          "ARVIE",
+          "HABBS",
+          "COMAU",
+          "MITIG",
+          "AGNAG",
+          "TIDAS",
+          "MAXOD",
+          "OVUVI"
+        ],
         "metering_fix": "HABBS"
       },
       "HABBS7": {
         "entry_fix": "REEDO",
         "transitions": [],
-        "fixes": ["REEDO", "IGVUD", "EPMOK", "ARVIE", "HABBS", "COMAU", "MITIG", "AGNAG", "TIDAS", "MAXOD", "OVUVI"],
+        "fixes": [
+          "REEDO",
+          "IGVUD",
+          "EPMOK",
+          "ARVIE",
+          "HABBS",
+          "COMAU",
+          "MITIG",
+          "AGNAG",
+          "TIDAS",
+          "MAXOD",
+          "OVUVI"
+        ],
         "metering_fix": "HABBS"
       },
       "CARTR5": {
         "entry_fix": "EBDOT",
         "transitions": [],
-        "fixes": ["EBDOT", "DUNUP", "MATEP", "ELTAT", "SILDO", "KERDU", "OMVAL"],
+        "fixes": [
+          "EBDOT",
+          "DUNUP",
+          "MATEP",
+          "ELTAT",
+          "SILDO",
+          "KERDU",
+          "OMVAL"
+        ],
         "metering_fix": null,
         "note": "Independent south corridor"
       },
       "LFLER7": {
         "entry_fix": "EMPEK",
         "transitions": [],
-        "fixes": ["EMPEK", "SATOT", "PIGNA", "DEGVI", "OBNUV", "BUBAK", "LEPOP", "AXENI"],
+        "fixes": [
+          "EMPEK",
+          "SATOT",
+          "PIGNA",
+          "DEGVI",
+          "OBNUV",
+          "BUBAK",
+          "LEPOP",
+          "AXENI"
+        ],
         "metering_fix": null,
         "note": "Independent north corridor"
       },
       "ROCKT3": {
         "entry_fix": "XOVOL",
         "transitions": [],
-        "fixes": ["XOVOL", "IKLUK", "MAIRE", "DELKI", "UBTEG", "ROKTI", "PEKLO", "TAPKA", "MEGTU"],
+        "fixes": [
+          "XOVOL",
+          "IKLUK",
+          "MAIRE",
+          "DELKI",
+          "UBTEG",
+          "ROKTI",
+          "PEKLO",
+          "TAPKA",
+          "MEGTU"
+        ],
         "metering_fix": null,
         "note": "Independent east corridor"
       }
@@ -144,59 +473,134 @@
       "CANUC6": {
         "entry_fix": "BOOTH",
         "transitions": [],
-        "fixes": ["BOOTH", "VITEV", "STAVE", "NUDEG", "VOGOR", "SEBOG", "APLEX", "VINLO"],
+        "fixes": [
+          "BOOTH",
+          "VITEV",
+          "STAVE",
+          "NUDEG",
+          "VOGOR",
+          "SEBOG",
+          "APLEX",
+          "VINLO"
+        ],
         "metering_fix": "STAVE",
         "note": "South-flow variant of BOOTH corridor"
       },
       "LIONN4": {
         "entry_fix": "BOOTH",
         "transitions": [],
-        "fixes": ["BOOTH", "VITEV", "STAVE", "NUDEG", "VOGOR", "SEBOG", "APLEX", "VINLO"],
+        "fixes": [
+          "BOOTH",
+          "VITEV",
+          "STAVE",
+          "NUDEG",
+          "VOGOR",
+          "SEBOG",
+          "APLEX",
+          "VINLO"
+        ],
         "metering_fix": "STAVE",
         "note": "Runway variant of CANUC6"
       },
       "VITEV5": {
         "entry_fix": "BOOTH",
         "transitions": [],
-        "fixes": ["BOOTH", "VITEV", "STAVE", "GONIR", "PILGO", "ILUXU", "METPO", "SEDUS"],
+        "fixes": [
+          "BOOTH",
+          "VITEV",
+          "STAVE",
+          "GONIR",
+          "PILGO",
+          "ILUXU",
+          "METPO",
+          "SEDUS"
+        ],
         "metering_fix": "STAVE",
         "note": "North-flow variant of BOOTH corridor"
       },
       "CYPRS2": {
         "entry_fix": "KEINN",
         "transitions": [],
-        "fixes": ["KEINN", "IRLAX", "AVOLU", "NAGUP", "LESEM", "IMESO", "SAXAG", "SEDUS"],
+        "fixes": [
+          "KEINN",
+          "IRLAX",
+          "AVOLU",
+          "NAGUP",
+          "LESEM",
+          "IMESO",
+          "SAXAG",
+          "SEDUS"
+        ],
         "metering_fix": "NAGUP"
       },
       "WHSLR8": {
         "entry_fix": "KEINN",
         "transitions": [],
-        "fixes": ["KEINN", "IRLAX", "AVOLU", "NAGUP", "LESEM", "IMESO", "SAXAG", "SEDUS"],
+        "fixes": [
+          "KEINN",
+          "IRLAX",
+          "AVOLU",
+          "NAGUP",
+          "LESEM",
+          "IMESO",
+          "SAXAG",
+          "SEDUS"
+        ],
         "metering_fix": "NAGUP",
         "note": "Runway variant of CYPRS2"
       },
       "SOUND6": {
         "entry_fix": "VIGSO",
         "transitions": [],
-        "fixes": ["VIGSO", "LIBOG", "NAGUP", "LESEM", "IMESO", "SAXAG", "SEDUS"],
+        "fixes": [
+          "VIGSO",
+          "LIBOG",
+          "NAGUP",
+          "LESEM",
+          "IMESO",
+          "SAXAG",
+          "SEDUS"
+        ],
         "metering_fix": "NAGUP"
       },
       "GRIZZ9": {
         "entry_fix": "EGRET",
         "transitions": [],
-        "fixes": ["EGRET", "VESGU", "TATGO", "GABIB", "NOTOK", "NAKMA"],
+        "fixes": [
+          "EGRET",
+          "VESGU",
+          "TATGO",
+          "GABIB",
+          "NOTOK",
+          "NAKMA"
+        ],
         "metering_fix": "NAKMA"
       },
       "ILAND9": {
         "entry_fix": "MEPMU",
         "transitions": [],
-        "fixes": ["MEPMU", "LERIX", "ITLIM", "NAKMA"],
+        "fixes": [
+          "MEPMU",
+          "LERIX",
+          "ITLIM",
+          "NAKMA"
+        ],
         "metering_fix": "NAKMA"
       },
       "SHARK4": {
         "entry_fix": "FOCHE",
         "transitions": [],
-        "fixes": ["FOCHE", "ANVAP", "CASDY", "URMIX", "ATUKI", "IMOXU", "VIMKI", "ONDUX", "PEMSU"],
+        "fixes": [
+          "FOCHE",
+          "ANVAP",
+          "CASDY",
+          "URMIX",
+          "ATUKI",
+          "IMOXU",
+          "VIMKI",
+          "ONDUX",
+          "PEMSU"
+        ],
         "metering_fix": null,
         "note": "Independent west/Pacific corridor"
       }
@@ -205,32 +609,68 @@
       "AMBIL5": {
         "entry_fix": "AMBIL",
         "transitions": [],
-        "fixes": ["AMBIL", "VEVSI", "GABRU", "MESTA", "DUTRU", "UDGIK"],
+        "fixes": [
+          "AMBIL",
+          "VEVSI",
+          "GABRU",
+          "MESTA",
+          "DUTRU",
+          "UDGIK"
+        ],
         "metering_fix": "VEVSI"
       },
       "BEFAN5": {
         "entry_fix": "BEFAN",
         "transitions": [],
-        "fixes": ["BEFAN", "ODBIT", "VEVSI", "EPNID", "IKLOS", "OMSOM"],
+        "fixes": [
+          "BEFAN",
+          "ODBIT",
+          "VEVSI",
+          "EPNID",
+          "IKLOS",
+          "OMSOM"
+        ],
         "metering_fix": "VEVSI"
       },
       "PEPNO5": {
         "entry_fix": "KENBI",
         "transitions": [],
-        "fixes": ["KENBI", "PEPNO", "MESTA", "GABRU", "AVSUN", "DURAV"],
+        "fixes": [
+          "KENBI",
+          "PEPNO",
+          "MESTA",
+          "GABRU",
+          "AVSUN",
+          "DURAV"
+        ],
         "metering_fix": "VEVSI",
         "note": "Shares GABRU/MESTA with AMBIL5"
       },
       "KELTO5": {
         "entry_fix": "PERLI",
         "transitions": [],
-        "fixes": ["PERLI", "KELTO", "URVEV", "IPRUP", "VEPTA", "IPSIV", "DEKDA"],
+        "fixes": [
+          "PERLI",
+          "KELTO",
+          "URVEV",
+          "IPRUP",
+          "VEPTA",
+          "IPSIV",
+          "DEKDA"
+        ],
         "metering_fix": "IPRUP"
       },
       "NORAK6": {
         "entry_fix": "NORAK",
         "transitions": [],
-        "fixes": ["NORAK", "ANAXU", "IPRUP", "TAMEP", "KEPGA", "VIRKU"],
+        "fixes": [
+          "NORAK",
+          "ANAXU",
+          "IPRUP",
+          "TAMEP",
+          "KEPGA",
+          "VIRKU"
+        ],
         "metering_fix": "IPRUP"
       }
     },
@@ -238,53 +678,107 @@
       "ADVOX9": {
         "entry_fix": "ADVOX",
         "transitions": [],
-        "fixes": ["ADVOX", "FLAAM", "LEXOK", "UBTON", "SEPSO"],
+        "fixes": [
+          "ADVOX",
+          "FLAAM",
+          "LEXOK",
+          "UBTON",
+          "SEPSO"
+        ],
         "metering_fix": "FLAAM",
         "note": "Northwest corridor, runway variant pair with FLAAM7"
       },
       "FLAAM7": {
         "entry_fix": "ADVOX",
         "transitions": [],
-        "fixes": ["ADVOX", "FLAAM", "LEXOK", "UBTON", "SEPSO"],
+        "fixes": [
+          "ADVOX",
+          "FLAAM",
+          "LEXOK",
+          "UBTON",
+          "SEPSO"
+        ],
         "metering_fix": "FLAAM"
       },
       "BIRKO6": {
         "entry_fix": "BIRKO",
         "transitions": [],
-        "fixes": ["BIRKO", "TOTUB", "EBDIK", "LETUT", "BOTAX"],
+        "fixes": [
+          "BIRKO",
+          "TOTUB",
+          "EBDIK",
+          "LETUT",
+          "BOTAX"
+        ],
         "metering_fix": "TOTUB",
         "note": "East corridor, runway variant pair with TOTUB5"
       },
       "TOTUB5": {
         "entry_fix": "BIRKO",
         "transitions": [],
-        "fixes": ["BIRKO", "TOTUB", "EBDIK", "LETUT", "BOTAX"],
+        "fixes": [
+          "BIRKO",
+          "TOTUB",
+          "EBDIK",
+          "LETUT",
+          "BOTAX"
+        ],
         "metering_fix": "TOTUB"
       },
       "EBGAL7": {
         "entry_fix": "EBGAL",
         "transitions": [],
-        "fixes": ["EBGAL", "TIDUK", "KEBNO", "MUPUV", "ELSOG"],
+        "fixes": [
+          "EBGAL",
+          "TIDUK",
+          "KEBNO",
+          "MUPUV",
+          "ELSOG"
+        ],
         "metering_fix": "TIDUK",
         "note": "Southeast corridor, runway variant pair with TIDUK7"
       },
       "TIDUK7": {
         "entry_fix": "EBGAL",
         "transitions": [],
-        "fixes": ["EBGAL", "TIDUK", "KEBNO", "MUPUV", "ELSOG"],
+        "fixes": [
+          "EBGAL",
+          "TIDUK",
+          "KEBNO",
+          "MUPUV",
+          "ELSOG"
+        ],
         "metering_fix": "TIDUK"
       },
       "IGVEP7": {
         "entry_fix": "IGVEP",
         "transitions": [],
-        "fixes": ["IGVEP", "XUGAV", "URVUG", "VESGA", "NABON", "AVTIS", "VIMVO", "TEXIT"],
+        "fixes": [
+          "IGVEP",
+          "XUGAV",
+          "URVUG",
+          "VESGA",
+          "NABON",
+          "AVTIS",
+          "VIMVO",
+          "TEXIT"
+        ],
         "metering_fix": "VESGA",
         "note": "Southwest corridor, runway variant pair with VESGA6"
       },
       "VESGA6": {
         "entry_fix": "IGVEP",
         "transitions": [],
-        "fixes": ["IGVEP", "XUGAV", "URVUG", "VESGA", "NABON", "AVTIS", "VIMVO", "TEXIT"],
+        "fixes": [
+          "IGVEP",
+          "XUGAV",
+          "URVUG",
+          "VESGA",
+          "NABON",
+          "AVTIS",
+          "VIMVO",
+          "TEXIT"
+        ],
         "metering_fix": "VESGA"
       }
     },
@@ -292,66 +786,182 @@
       "BOXUM7": {
         "entry_fix": "BOXUM",
         "transitions": [],
-        "fixes": ["BOXUM", "DUVOS", "DEBGO", "ERBUS", "MODOL", "SELAP", "DUNOP", "LITRO", "DERLI"],
+        "fixes": [
+          "BOXUM",
+          "DUVOS",
+          "DEBGO",
+          "ERBUS",
+          "MODOL",
+          "SELAP",
+          "DUNOP",
+          "LITRO",
+          "DERLI"
+        ],
         "metering_fix": "ERBUS",
         "note": "Northwest, runway variant pair with DUVOS4"
       },
       "DUVOS4": {
         "entry_fix": "BOXUM",
         "transitions": [],
-        "fixes": ["BOXUM", "DUVOS", "DEBGO", "ERBUS", "MODOL", "SELAP", "DUNOP", "LITRO", "DERLI"],
+        "fixes": [
+          "BOXUM",
+          "DUVOS",
+          "DEBGO",
+          "ERBUS",
+          "MODOL",
+          "SELAP",
+          "DUNOP",
+          "LITRO",
+          "DERLI"
+        ],
         "metering_fix": "ERBUS"
       },
       "IMEBA9": {
         "entry_fix": "IMEBA",
-        "transitions": ["LETAK", "TUKIR"],
-        "fixes": ["IMEBA", "SEKOP", "BISDA", "PILPO", "ERBUS", "MODOL", "SELAP", "DUNOP", "LITRO", "DERLI"],
+        "transitions": [
+          "LETAK",
+          "TUKIR"
+        ],
+        "fixes": [
+          "IMEBA",
+          "SEKOP",
+          "BISDA",
+          "PILPO",
+          "ERBUS",
+          "MODOL",
+          "SELAP",
+          "DUNOP",
+          "LITRO",
+          "DERLI"
+        ],
         "metering_fix": "ERBUS",
         "note": "Northeast, runway variant pair with VIBLI6"
       },
       "VIBLI6": {
         "entry_fix": "IMEBA",
-        "transitions": ["LETAK", "TUKIR"],
-        "fixes": ["IMEBA", "SEKOP", "BISDA", "PILPO", "ERBUS", "MODOL", "SELAP", "DUNOP", "LITRO", "DERLI"],
+        "transitions": [
+          "LETAK",
+          "TUKIR"
+        ],
+        "fixes": [
+          "IMEBA",
+          "SEKOP",
+          "BISDA",
+          "PILPO",
+          "ERBUS",
+          "MODOL",
+          "SELAP",
+          "DUNOP",
+          "LITRO",
+          "DERLI"
+        ],
         "metering_fix": "ERBUS"
       },
       "RAGID6": {
         "entry_fix": "RAGID",
         "transitions": [],
-        "fixes": ["RAGID", "LERAT", "SEMTI", "KEVNO", "ERBUS", "SELAP", "DUNOP", "LITRO", "DERLI"],
+        "fixes": [
+          "RAGID",
+          "LERAT",
+          "SEMTI",
+          "KEVNO",
+          "ERBUS",
+          "SELAP",
+          "DUNOP",
+          "LITRO",
+          "DERLI"
+        ],
         "metering_fix": "ERBUS",
         "note": "East, runway variant pair with UDNOX5"
       },
       "UDNOX5": {
         "entry_fix": "RAGID",
         "transitions": [],
-        "fixes": ["RAGID", "LERAT", "SEMTI", "KEVNO", "ERBUS", "SELAP", "DUNOP", "LITRO", "DERLI"],
+        "fixes": [
+          "RAGID",
+          "LERAT",
+          "SEMTI",
+          "KEVNO",
+          "ERBUS",
+          "SELAP",
+          "DUNOP",
+          "LITRO",
+          "DERLI"
+        ],
         "metering_fix": "ERBUS"
       },
       "NAKBO6": {
         "entry_fix": "NUBER",
-        "transitions": ["YZEMN", "MONEE"],
-        "fixes": ["NUBER", "ROKTO", "PENGO", "MANUP", "ERBUS", "TASKU", "DAVIK", "LEVIG", "MIPED", "SATUR"],
+        "transitions": [
+          "YZEMN",
+          "MONEE"
+        ],
+        "fixes": [
+          "NUBER",
+          "ROKTO",
+          "PENGO",
+          "MANUP",
+          "ERBUS",
+          "TASKU",
+          "DAVIK",
+          "LEVIG",
+          "MIPED",
+          "SATUR"
+        ],
         "metering_fix": "ERBUS",
         "note": "West, runway variant pair with NUBER6"
       },
       "NUBER6": {
         "entry_fix": "NUBER",
-        "transitions": ["YZEMN", "MONEE"],
-        "fixes": ["NUBER", "ROKTO", "PENGO", "MANUP", "ERBUS", "TASKU", "DAVIK", "LEVIG", "MIPED", "SATUR"],
+        "transitions": [
+          "YZEMN",
+          "MONEE"
+        ],
+        "fixes": [
+          "NUBER",
+          "ROKTO",
+          "PENGO",
+          "MANUP",
+          "ERBUS",
+          "TASKU",
+          "DAVIK",
+          "LEVIG",
+          "MIPED",
+          "SATUR"
+        ],
         "metering_fix": "ERBUS"
       },
       "LINNG3": {
         "entry_fix": "LINNG",
         "transitions": [],
-        "fixes": ["LINNG", "SEDAB", "DEGRO", "SEGOD", "VERKO", "DARPU", "DANIP", "MASAR", "LERAN"],
+        "fixes": [
+          "LINNG",
+          "SEDAB",
+          "DEGRO",
+          "SEGOD",
+          "VERKO",
+          "DARPU",
+          "DANIP",
+          "MASAR",
+          "LERAN"
+        ],
         "metering_fix": "VERKO",
         "note": "South corridor, runway variant pair with VERKO1"
       },
       "VERKO1": {
         "entry_fix": "LINNG",
         "transitions": [],
-        "fixes": ["LINNG", "SEDAB", "DEGRO", "SEGOD", "VERKO", "DARPU", "DANIP", "MASAR", "LERAN"],
+        "fixes": [
+          "LINNG",
+          "SEDAB",
+          "DEGRO",
+          "SEGOD",
+          "VERKO",
+          "DARPU",
+          "DANIP",
+          "MASAR",
+          "LERAN"
+        ],
         "metering_fix": "VERKO"
       }
     }

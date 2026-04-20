@@ -438,6 +438,86 @@ final class Kernel
         //
         // ?window=60 : minutes ahead (by ELDT) to include. Default 60.
         // ?airport=CYYZ : limit to one airport. Optional.
+        // Demand distribution rollup — landed flights grouped by
+        // destination → metering fix (ALL catalog fixes, including zero).
+        // Direct-to filers resolved by bearing inference. Used by the
+        // reports page Demand Distribution panel to inform MIT allocation.
+        // ?hours=N (default 24, max 720)
+        $app->get('/api/v1/reports/demand-distribution', function ($req, $res) {
+            $hours = max(1, min(720, (int) ($req->getQueryParams()['hours'] ?? 24)));
+            $since = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
+                ->modify("-{$hours} hours")
+                ->format('Y-m-d H:i:s');
+            $scope = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
+
+            $flights = Flight::whereIn('ades', $scope)
+                ->whereNotNull('aldt')
+                ->where('aldt', '>=', $since)
+                ->get(['id', 'callsign', 'adep', 'ades', 'fp_route', 'last_lat', 'last_lon', 'aldt']);
+
+            $catalog = \Atfm\Allocator\MeteringFix::loadCatalog();
+            $byApt = [];
+            foreach ($scope as $apt) {
+                $fixes = $catalog['metering_fixes'][$apt] ?? [];
+                $byApt[$apt] = [
+                    'total'      => 0,
+                    'unresolved' => 0,
+                    'fixes'      => array_map(fn($e) => [
+                        'fix'          => $e['fix'],
+                        'corridor'     => $e['corridor'] ?? null,
+                        'count'        => 0,
+                        'filed'        => 0,   // pilot explicitly filed STAR
+                        'inferred'     => 0,   // direct-to, we inferred
+                    ], $fixes),
+                ];
+            }
+
+            foreach ($flights as $f) {
+                $apt = $f->ades;
+                if (!isset($byApt[$apt])) continue;
+                $byApt[$apt]['total']++;
+                $r = \Atfm\Allocator\MeteringFix::resolve($f);
+                if (!$r || !$r['metering_fix']) {
+                    $byApt[$apt]['unresolved']++;
+                    continue;
+                }
+                $fixName = $r['metering_fix'];
+                foreach ($byApt[$apt]['fixes'] as &$row) {
+                    if ($row['fix'] === $fixName) {
+                        $row['count']++;
+                        if ($r['inferred'] ?? false) {
+                            $row['inferred']++;
+                        } else {
+                            $row['filed']++;
+                        }
+                        break;
+                    }
+                }
+                unset($row);
+            }
+
+            // Compute percentages (out of total resolved = total - unresolved)
+            foreach ($byApt as $apt => &$data) {
+                $resolved = $data['total'] - $data['unresolved'];
+                foreach ($data['fixes'] as &$row) {
+                    $row['pct'] = $resolved > 0
+                        ? round($row['count'] / $resolved * 100, 1)
+                        : 0.0;
+                }
+                unset($row);
+                // Sort fixes by count desc so biggest demand is first
+                usort($data['fixes'], fn($a, $b) => $b['count'] <=> $a['count']);
+                $data['resolved'] = $resolved;
+            }
+            unset($data);
+
+            return self::json($res, [
+                'generated_at' => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('c'),
+                'hours'        => $hours,
+                'by_airport'   => $byApt,
+            ]);
+        });
+
         // Historical STAR usage rollup — landed flights grouped by
         // destination → STAR → transition. Used by the reports page
         // panel to show which STARs/transitions are actually flown.

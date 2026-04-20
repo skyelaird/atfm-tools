@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Atfm\Allocator;
 
+use Atfm\Models\Airport;
 use Atfm\Models\Flight;
 
 /**
@@ -29,16 +30,31 @@ use Atfm\Models\Flight;
 final class MeteringFix
 {
     private static ?array $catalog = null;
+    /** @var array<string, array{lat: float, lon: float}>|null  ICAO => coords */
+    private static ?array $airportCoords = null;
 
     /**
-     * @return array{star:string,entry_fix:?string,transitions:array<int,string>,metering_fix:?string,filed_transition:?string}|null
+     * @return array{star:?string,entry_fix:?string,transitions:array<int,string>,metering_fix:?string,filed_transition:?string,inferred:bool}|null
      */
     public static function resolve(Flight $f): ?array
     {
-        if (!$f->ades || !$f->fp_route) {
-            return null;
+        if (!$f->ades) return null;
+
+        // Primary: STAR name in filed route
+        if ($f->fp_route) {
+            $r = self::resolveFromRoute($f->ades, (string) $f->fp_route);
+            if ($r) {
+                $r['inferred'] = false;
+                return $r;
+            }
         }
-        return self::resolveFromRoute($f->ades, (string) $f->fp_route);
+
+        // Fallback: infer from geometry. Pilots who file direct-to
+        // without a STAR token still cross a metering fix corridor —
+        // the fix closest in bearing to their approach direction is
+        // what ATC would have them over. Assign that fix so the demand
+        // distribution reflects real sector load.
+        return self::inferByBearing($f);
     }
 
     /**
@@ -98,7 +114,123 @@ final class MeteringFix
             'transitions'     => $star['transitions'] ?? [],
             'metering_fix'    => $star['metering_fix'] ?? null,
             'filed_transition'=> $filedTransition,
+            'inferred'        => false,
         ];
+    }
+
+    /**
+     * Infer metering fix for direct-to filers by geometry.
+     *
+     * Picks the metering fix whose bearing from the destination matches
+     * most closely the bearing of the flight's origin point (current
+     * airborne position, or ADEP coords for ground flights). Flights
+     * approaching from the northwest get attributed to the northwest
+     * corridor fix, etc.
+     *
+     * @return array{star:?string,entry_fix:?string,transitions:array<int,string>,metering_fix:?string,filed_transition:?string,inferred:bool}|null
+     */
+    private static function inferByBearing(Flight $f): ?array
+    {
+        $ades = strtoupper((string) $f->ades);
+        $catalog = self::loadCatalog();
+        $fixes = $catalog['metering_fixes'][$ades] ?? null;
+        if (!$fixes || count($fixes) === 0) return null;
+
+        // Destination coords
+        $destCoords = self::loadAirportCoords()[$ades] ?? null;
+        if (!$destCoords) return null;
+
+        // Origin point: live position if airborne, else ADEP coords
+        $fromLat = null; $fromLon = null;
+        if ($f->last_lat !== null && $f->last_lon !== null) {
+            $fromLat = (float) $f->last_lat;
+            $fromLon = (float) $f->last_lon;
+        } elseif ($f->adep) {
+            $adep = self::loadAirportCoords()[strtoupper((string) $f->adep)] ?? null;
+            if ($adep) {
+                $fromLat = $adep['lat'];
+                $fromLon = $adep['lon'];
+            }
+        }
+        if ($fromLat === null) return null;
+
+        // If origin is very close to dest (< 20 nm), bearing is noisy — skip
+        if (self::distanceNm($fromLat, $fromLon, $destCoords['lat'], $destCoords['lon']) < 20) {
+            return null;
+        }
+
+        // Bearing from ADES toward origin (direction flight is coming from)
+        $originBearing = self::bearingDeg($destCoords['lat'], $destCoords['lon'], $fromLat, $fromLon);
+
+        $bestFix = null;
+        $bestDiff = 360.0;
+        foreach ($fixes as $fixEntry) {
+            $fc = $fixEntry['coords'] ?? null;
+            if (!$fc) continue;
+            $fixBearing = self::bearingDeg($destCoords['lat'], $destCoords['lon'], $fc['lat'], $fc['lon']);
+            $diff = self::bearingDiffDeg($originBearing, $fixBearing);
+            if ($diff < $bestDiff) {
+                $bestDiff = $diff;
+                $bestFix = $fixEntry;
+            }
+        }
+        // Only accept if the origin bearing is reasonably aligned with a
+        // corridor — > 75° off means the flight is coming from a direction
+        // no corridor covers (e.g. overflying from an unexpected vector).
+        if (!$bestFix || $bestDiff > 75) return null;
+
+        $stars = $bestFix['stars'] ?? [];
+        return [
+            'star'             => $stars[0] ?? null, // most-common STAR at this fix
+            'entry_fix'        => null,
+            'transitions'      => [],
+            'metering_fix'     => $bestFix['fix'],
+            'filed_transition' => null,
+            'inferred'         => true,
+        ];
+    }
+
+    /** @return array<string, array{lat: float, lon: float}> */
+    private static function loadAirportCoords(): array
+    {
+        if (self::$airportCoords !== null) return self::$airportCoords;
+        self::$airportCoords = [];
+        try {
+            foreach (Airport::all(['icao', 'latitude', 'longitude']) as $a) {
+                self::$airportCoords[(string) $a->icao] = [
+                    'lat' => (float) $a->latitude,
+                    'lon' => (float) $a->longitude,
+                ];
+            }
+        } catch (\Throwable $e) {
+            // DB not available (tests, etc.) — leave empty
+        }
+        return self::$airportCoords;
+    }
+
+    private static function bearingDeg(float $lat1, float $lon1, float $lat2, float $lon2): float
+    {
+        $φ1 = deg2rad($lat1); $φ2 = deg2rad($lat2);
+        $Δλ = deg2rad($lon2 - $lon1);
+        $y = sin($Δλ) * cos($φ2);
+        $x = cos($φ1) * sin($φ2) - sin($φ1) * cos($φ2) * cos($Δλ);
+        $θ = rad2deg(atan2($y, $x));
+        return fmod($θ + 360.0, 360.0);
+    }
+
+    private static function bearingDiffDeg(float $a, float $b): float
+    {
+        $d = abs($a - $b);
+        return $d > 180 ? 360 - $d : $d;
+    }
+
+    private static function distanceNm(float $lat1, float $lon1, float $lat2, float $lon2): float
+    {
+        $R = 3440.065; // Earth radius in nm
+        $φ1 = deg2rad($lat1); $φ2 = deg2rad($lat2);
+        $Δφ = deg2rad($lat2 - $lat1); $Δλ = deg2rad($lon2 - $lon1);
+        $a = sin($Δφ/2)**2 + cos($φ1) * cos($φ2) * sin($Δλ/2)**2;
+        return $R * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     /**

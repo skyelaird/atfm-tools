@@ -163,6 +163,7 @@
         <span class="pill active" data-hours="24">24h</span>
         <span class="pill" data-hours="48">48h</span>
         <span class="pill" data-hours="168">7d</span>
+        <span class="pill" data-hours="720" title="All tracked (capped at 30 days)">all</span>
     </div>
     <div style="display:flex; gap:0.5rem; align-items:center;">
         <a href="/dashboard.html" class="pill">&larr; dashboard</a>
@@ -334,6 +335,11 @@ Per EUROCONTROL Airport CDM Implementation Manual v5.0.
                 </tbody>
             </table>
         </div>
+    </section>
+
+    <section>
+        <h2>Demand distribution <span class="muted">arrivals by metering fix (informs MIT allocation)</span></h2>
+        <div id="demand-dist-panel"><div class="muted" style="padding:0.5rem 0;">Loading...</div></div>
     </section>
 
     <section>
@@ -651,6 +657,54 @@ function rerender() {
     }
 }
 
+// ---- Demand Distribution panel (all metering fixes, AAR-page style cards) ----
+async function refreshDemandDist() {
+    const el = document.getElementById('demand-dist-panel');
+    if (!el) return;
+    try {
+        const r = await fetch('/api/v1/reports/demand-distribution?hours=' + currentHours);
+        const d = await r.json();
+        const airports = Object.keys(d.by_airport || {}).sort();
+        let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:0.75rem;">';
+        for (const apt of airports) {
+            const data = d.by_airport[apt];
+            html += `<div class="stat-card" style="align-items:stretch; padding:0.6rem;">
+                <div class="lbl" style="display:flex; justify-content:space-between;">
+                    <span>${apt}</span>
+                    <span class="mono">${data.total} arr${data.unresolved > 0 ? ' (' + data.unresolved + ' no fix)' : ''}</span>
+                </div>`;
+            if (!data.fixes || data.fixes.length === 0) {
+                html += '<div class="muted" style="font-size:0.72rem; margin-top:0.3rem;">No metering fixes defined for this airport.</div>';
+            } else {
+                html += '<table style="width:100%; margin-top:0.3rem; font-size:0.78rem;"><tbody>';
+                for (const row of data.fixes) {
+                    const pctStr = row.pct.toFixed(0) + '%';
+                    const barW = Math.min(100, row.pct);
+                    const inf = row.inferred > 0 ? `<span class="muted" title="${row.inferred} inferred from bearing (pilot filed direct)" style="font-size:0.68rem;"> +${row.inferred}i</span>` : '';
+                    html += `<tr>
+                        <td class="mono" style="padding:0.15rem 0.2rem; width:5em;" title="${row.corridor || ''}">${row.fix}</td>
+                        <td style="padding:0.15rem 0.2rem;">
+                            <div style="display:flex; align-items:center; gap:0.3rem;">
+                                <div style="flex:1; background:var(--bg); border-radius:2px; height:10px; position:relative;">
+                                    <div style="background:var(--accent); height:100%; width:${barW}%; border-radius:2px;"></div>
+                                </div>
+                                <span class="mono" style="min-width:5em; text-align:right;">${pctStr} <span class="muted" style="font-size:0.72rem;">(${row.count}${inf})</span></span>
+                            </div>
+                        </td>
+                    </tr>`;
+                }
+                html += '</tbody></table>';
+            }
+            html += '</div>';
+        }
+        html += '</div>';
+        html += '<div class="muted" style="font-size:0.7rem; margin-top:0.4rem;">Bars show share of resolved arrivals. "+Ni" = N direct-to filers assigned by bearing inference.</div>';
+        el.innerHTML = html;
+    } catch (err) {
+        el.innerHTML = '<div class="error">Failed to load demand distribution: ' + err.message + '</div>';
+    }
+}
+
 // ---- Historical STAR usage panel ----
 async function refreshStarUsage() {
     const el = document.getElementById('star-usage-panel');
@@ -845,6 +899,7 @@ document.querySelectorAll('#window-pills .pill').forEach(p => {
         refresh();
         refreshTldt();
         refreshStarUsage();
+        refreshDemandDist();
     });
 });
 
@@ -852,7 +907,8 @@ refresh();
 refreshTldt();
 refreshMeter();
 refreshStarUsage();
-setInterval(() => { refresh(); refreshTldt(); refreshMeter(); refreshStarUsage(); }, 60000);
+refreshDemandDist();
+setInterval(() => { refresh(); refreshTldt(); refreshMeter(); refreshStarUsage(); refreshDemandDist(); }, 60000);
 
 // Help modal
 document.getElementById('help-open').addEventListener('click', () => {
