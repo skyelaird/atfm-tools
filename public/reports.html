@@ -821,6 +821,15 @@ async function refreshTldt() {
             const fEtaCls = f.filed_eta_err !== null ? (Math.abs(f.filed_eta_err) <= 3 ? 'ok' : Math.abs(f.filed_eta_err) <= 5 ? 'warn' : 'alert') : '';
             const rowCls = f.partial ? ' class="muted" title="Partial observation — pilot connected mid-flight, excluded from stats"' : '';
             const partialTag = f.partial ? ' <span style="font-size:0.6rem;color:var(--warn);vertical-align:super">PARTIAL</span>' : '';
+            // Why-tooltip for large errors — diagnostic reasons computed server-side
+            const reasons = (f.err_reasons || []);
+            const hasReasons = reasons.length > 0;
+            const whyTip = hasReasons
+                ? reasons.map(r => '• ' + r.replace(/"/g, "'")).join(' &#10;')
+                : '';
+            const whyMarker = hasReasons
+                ? ` <span style="cursor:help; color:var(--info); font-size:0.7rem;" title="${whyTip}">ⓘ</span>`
+                : '';
             $ftb.innerHTML += '<tr' + rowCls + '>' +
                 '<td class="mono">' + f.callsign + partialTag + '</td>' +
                 '<td>' + (f.aircraft_type || '') + '</td>' +
@@ -832,7 +841,7 @@ async function refreshTldt() {
                 '<td class="num"' + (fEtaCls ? ' style="color:var(--' + fEtaCls + ')"' : '') + '>' + fEtaErr + '</td>' +
                 '<td class="mono">' + fmtTime(f.tldt) + '</td>' +
                 '<td class="mono">' + fmtTime(f.aldt) + '</td>' +
-                '<td class="num" style="color:var(--' + errCls + ')">' + errSign + f.tldt_err_min + '</td>' +
+                '<td class="num" style="color:var(--' + errCls + ')">' + errSign + f.tldt_err_min + whyMarker + '</td>' +
                 '<td class="mono" style="font-size:0.75rem">' + (f.eta_source || '') + '</td></tr>';
         }
         if ((d.flights || []).length === 0) $ftb.innerHTML = '<tr><td colspan="12" class="empty-row">No TLDT data yet \u2014 need flights with ATOT + TLDT + ALDT.</td></tr>';

@@ -2747,6 +2747,71 @@ final class Kernel
                 $partial = $filedEte && $filedEte > 0
                     && $flightTimeMin < ($filedEte * 0.5);
 
+                // Per-flight "why was this off" diagnostic. Empty for near-zero
+                // errors; populated with concise cause bullets when |err| > 5.
+                // Reads only stored flight fields — no external data needed.
+                $errReasons = [];
+                if (!$partial && abs($errMin) > 5) {
+                    // 1. Lock source quality
+                    if ($source === 'FILED' || $source === 'FIR_EET' ||
+                        strpos($source, 'CALC_') === 0) {
+                        $errReasons[] = "locked from ground tier ({$source}) — no live position at freeze";
+                    } elseif ($source === 'OBSERVED_POS') {
+                        $errReasons[] = 'locked from OBSERVED_POS (no wind correction)';
+                    }
+
+                    // 2. Freeze timing — how early did we commit?
+                    if ($f->eldt_locked_at) {
+                        $minsBeforeLanding = round(
+                            ($aldtEpoch - $f->eldt_locked_at->getTimestamp()) / 60
+                        );
+                        if ($minsBeforeLanding > 120) {
+                            $errReasons[] = "froze early ({$minsBeforeLanding}m before landing — drift room)";
+                        }
+                    }
+
+                    // 3. Pilot speed delta — actual vs filed ETE
+                    if ($filedEte && $filedEte > 0) {
+                        $delta = $flightTimeMin - $filedEte;
+                        $pctOff = abs($delta) / $filedEte * 100;
+                        if ($pctOff >= 10 && abs($delta) >= 5) {
+                            $dir = $delta > 0 ? 'slow' : 'fast';
+                            $errReasons[] = sprintf(
+                                '%s flight (actual %dm vs filed %dm, %+dm)',
+                                $dir, $flightTimeMin, $filedEte, $delta
+                            );
+                        }
+                    }
+
+                    // 4. Wind estimate comparison — did eldt_wind beat the lock?
+                    if ($f->eldt_wind) {
+                        $windErr = round(($f->eldt_wind->getTimestamp() - $aldtEpoch) / 60);
+                        if (abs($windErr) < abs($errMin) - 3) {
+                            $errReasons[] = sprintf(
+                                'GRIB wind estimate would have been better (%+dm vs locked %+dm)',
+                                $windErr, $errMin
+                            );
+                        }
+                    }
+
+                    // 5. Aircraft type coverage
+                    if (!$f->aircraft_type) {
+                        $errReasons[] = 'no aircraft type filed';
+                    }
+
+                    // 6. Route resolution sanity
+                    $routeLen = $f->fp_route ? strlen(trim($f->fp_route)) : 0;
+                    if ($routeLen < 10) {
+                        $errReasons[] = 'sparse / missing route (poor GRIB integration)';
+                    }
+
+                    // 7. Pre-departure delay (big gap between EOBT and ATOT)
+                    if ($f->eobt && $atotEpoch - $f->eobt->getTimestamp() > 3600) {
+                        $delayMin = round(($atotEpoch - $f->eobt->getTimestamp()) / 60);
+                        $errReasons[] = "big pre-departure delay ({$delayMin}m after EOBT)";
+                    }
+                }
+
                 $records[] = [
                     'callsign'     => $f->callsign,
                     'aircraft_type'=> $f->aircraft_type,
@@ -2765,6 +2830,7 @@ final class Kernel
                     'eldt_err_min' => $eldtErr,
                     'eta_source'   => $source,
                     'ctl_type'     => $f->ctl_type,
+                    'err_reasons'  => $errReasons,
                 ];
 
                 // Exclude partial-observation flights from accuracy stats
