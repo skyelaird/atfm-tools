@@ -401,6 +401,8 @@
         }
         .hourly-bar .bucket .arr { background: var(--accent); min-height: 1px; }
         .hourly-bar .bucket .dep { background: var(--info); min-height: 1px; }
+        .hourly-bar .bucket.forecast .arr, .hourly-bar .bucket.forecast .dep { opacity: 0.55; }
+        .hourly-bar .bucket.forecast .lbl { color: var(--accent); }
         .hourly-bar .bucket .lbl {
             font-size: 0.55rem; text-align: center; color: var(--text-dim);
             margin-top: 0.15rem;
@@ -525,6 +527,23 @@
                 </table>
             </div>
         </details>
+    </section>
+
+    <section>
+        <h2 style="margin: 0 0 0.6rem; font-size: 0.85rem; color: var(--text-bright); display: flex; align-items: center; gap: 0.75rem;">
+            Current demand distribution
+            <span class="muted" style="font-weight: 400; font-size: 0.75rem;">inbound by metering fix — informs MIT allocation</span>
+            <span style="display: flex; gap: 0.3rem; margin-left: auto; font-size: 0.75rem; align-items: center;">
+                <span class="muted">horizon:</span>
+                <span class="pill cdist-pill" data-window="60">60m</span>
+                <span class="pill cdist-pill" data-window="120">2h</span>
+                <span class="pill cdist-pill active" data-window="240">4h</span>
+                <span class="pill cdist-pill" data-window="480">8h</span>
+                <span class="pill cdist-pill" data-window="1440" title="All currently tracked inbound">all</span>
+                <span class="muted mono" id="cdist-horizon" style="font-size: 0.7rem; margin-left: 0.5rem;"></span>
+            </span>
+        </h2>
+        <div id="demand-dist-panel"><div class="muted" style="padding:0.5rem 0;">Loading...</div></div>
     </section>
 
     <section>
@@ -1092,23 +1111,36 @@ function renderAirportDetail(d) {
     );
     body.appendChild(statsSection);
 
-    // Hourly movement histogram
+    // Hourly movement histogram — 24h past + 4h forecast
     const maxMovement = Math.max(1, ...d.hourly_movements.map(h => h.arrivals + h.departures));
     const hourlyDiv = el('div', { class: 'hourly-bar' });
+    let firstForecast = true;
     for (const h of d.hourly_movements) {
         const arrH = (h.arrivals / maxMovement) * 40;
         const depH = (h.departures / maxMovement) * 40;
-        hourlyDiv.appendChild(
-            el('div', { class: 'bucket', title: `${h.hour} arr=${h.arrivals} dep=${h.departures}` },
-                el('div', { class: 'lbl' }, h.hour.substring(0, 2)),
-                el('div', { class: 'dep', style: `height:${depH}px` }),
-                el('div', { class: 'arr', style: `height:${arrH}px` })
-            )
+        const tip = h.forecast
+            ? `${h.hour} (forecast) arr=${h.arrivals} dep=${h.departures}`
+            : `${h.hour} arr=${h.arrivals} dep=${h.departures}`;
+        // Visually separate forecast from past: dashed-left border on first
+        // forecast bucket, half-opacity bars.
+        const bucketCls = 'bucket' + (h.forecast ? ' forecast' : '');
+        const bucket = el('div', { class: bucketCls, title: tip },
+            el('div', { class: 'lbl' }, h.hour.substring(0, 2)),
+            el('div', { class: 'dep', style: `height:${depH}px` }),
+            el('div', { class: 'arr', style: `height:${arrH}px` })
         );
+        if (h.forecast && firstForecast) {
+            bucket.style.borderLeft = '1px dashed var(--accent)';
+            firstForecast = false;
+        }
+        hourlyDiv.appendChild(bucket);
     }
     body.appendChild(el('section', {},
-        el('h3', {}, 'Last 24h movements — arrivals (teal) + departures (blue)'),
-        hourlyDiv
+        el('h3', {}, 'Movements — past 24h (actual) + next 4h (forecast)'),
+        hourlyDiv,
+        el('div', { style: 'font-size:0.68rem; color:var(--text-dim); margin-top:0.2rem;' },
+          'Arrivals (teal), departures (blue). Dashed line marks forecast boundary; forecast bars based on ELDT / TTOT.'
+        )
     ));
 
     // Regulation section — preview + create + lift
@@ -1568,6 +1600,75 @@ async function refresh() {
 
 refresh();
 setInterval(refresh, 30000);  // 30s auto-refresh
+
+// ---- Current demand distribution (forward-looking MF rollup, main page) ----
+const AIRPORT_WE_ORDER = {CYVR:0, CYYC:1, CYWG:2, CYYZ:3, CYOW:4, CYUL:5, CYHZ:6};
+const sortAirportsWE = (a, b) => (AIRPORT_WE_ORDER[a] ?? 99) - (AIRPORT_WE_ORDER[b] ?? 99);
+let cdistWindow = 240;
+
+async function refreshDemandDist() {
+    const panel = document.getElementById('demand-dist-panel');
+    if (!panel) return;
+    try {
+        const d = await fetchJson('/api/v1/reports/current-demand?window=' + cdistWindow);
+        const horizonEl = document.getElementById('cdist-horizon');
+        if (horizonEl && d.horizon_utc) {
+            const h = new Date(d.horizon_utc);
+            const p = v => String(v).padStart(2, '0');
+            horizonEl.textContent = `→ ${p(h.getUTCHours())}:${p(h.getUTCMinutes())}Z horizon`;
+        }
+        const airports = Object.keys(d.by_airport || {}).sort(sortAirportsWE);
+        let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr)); gap:0.6rem;">';
+        for (const apt of airports) {
+            const data = d.by_airport[apt];
+            html += `<div class="stat-card" style="align-items:stretch; padding:0.5rem;">
+                <div class="lbl" style="display:flex; justify-content:space-between;">
+                    <span>${apt}</span>
+                    <span class="mono">${data.total} arr${data.unresolved > 0 ? ' (' + data.unresolved + ' no fix)' : ''}</span>
+                </div>`;
+            if (!data.fixes || data.fixes.length === 0) {
+                html += '<div class="muted" style="font-size:0.7rem; margin-top:0.3rem;">No metering fixes defined.</div>';
+            } else {
+                html += '<table style="width:100%; margin-top:0.25rem; font-size:0.75rem;"><tbody>';
+                for (const row of data.fixes) {
+                    const pct = row.pct || 0;
+                    const barW = Math.min(100, pct);
+                    const inf = row.inferred > 0 ? `<span class="muted" title="${row.inferred} inferred direct-to" style="font-size:0.65rem;"> +${row.inferred}i</span>` : '';
+                    const dim = row.count === 0 ? ' opacity:0.45;' : '';
+                    html += `<tr style="${dim}">
+                        <td class="mono" style="padding:0.1rem 0.2rem; width:5em;" title="${row.corridor || ''}">${row.fix}</td>
+                        <td style="padding:0.1rem 0.2rem;">
+                            <div style="display:flex; align-items:center; gap:0.3rem;">
+                                <div style="flex:1; background:var(--bg); border-radius:2px; height:9px;">
+                                    <div style="background:var(--accent); height:100%; width:${barW}%; border-radius:2px;"></div>
+                                </div>
+                                <span class="mono" style="min-width:4.5em; text-align:right;">${pct.toFixed(0)}% <span class="muted" style="font-size:0.7rem;">(${row.count}${inf})</span></span>
+                            </div>
+                        </td>
+                    </tr>`;
+                }
+                html += '</tbody></table>';
+            }
+            html += '</div>';
+        }
+        html += '</div>';
+        panel.innerHTML = html;
+    } catch (err) {
+        panel.innerHTML = '<div class="muted" style="color:var(--alert);">Failed to load demand distribution: ' + err.message + '</div>';
+    }
+}
+
+document.addEventListener('click', (e) => {
+    const pill = e.target.closest('.cdist-pill');
+    if (!pill) return;
+    document.querySelectorAll('.cdist-pill').forEach(p => p.classList.remove('active'));
+    pill.classList.add('active');
+    cdistWindow = parseInt(pill.getAttribute('data-window'));
+    refreshDemandDist();
+});
+
+refreshDemandDist();
+setInterval(refreshDemandDist, 60000);
 </script>
 
 </body>

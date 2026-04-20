@@ -340,19 +340,6 @@ Per EUROCONTROL Airport CDM Implementation Manual v5.0.
     </section>
 
     <section>
-        <h2>Current demand distribution <span class="muted">inbound by metering fix in the next window — informs MIT allocation</span></h2>
-        <div style="display:flex; gap:0.5rem; margin-bottom:0.5rem; font-size:0.8rem; align-items:center;">
-            <span class="muted">window:</span>
-            <span class="pill cdist-pill" data-window="60">60m</span>
-            <span class="pill cdist-pill active" data-window="120">2h</span>
-            <span class="pill cdist-pill" data-window="240">4h</span>
-            <span class="pill cdist-pill" data-window="480">8h</span>
-            <span class="muted" id="cdist-horizon" style="font-size:0.7rem; margin-left:0.5rem;"></span>
-        </div>
-        <div id="demand-dist-panel"><div class="muted" style="padding:0.5rem 0;">Loading...</div></div>
-    </section>
-
-    <section>
         <h2>Metering fix usage <span class="muted">historical arrivals by metering fix over the selected time window</span></h2>
         <div id="mf-usage-panel"><div class="muted" style="padding:0.5rem 0;">Loading...</div></div>
     </section>
@@ -671,61 +658,6 @@ function rerender() {
     }
 }
 
-// ---- Current Demand Distribution panel (forward-looking by window) ----
-let cdistWindow = 120;
-async function refreshDemandDist() {
-    const el = document.getElementById('demand-dist-panel');
-    if (!el) return;
-    try {
-        const r = await fetch('/api/v1/reports/current-demand?window=' + cdistWindow);
-        const d = await r.json();
-        const horizonEl = document.getElementById('cdist-horizon');
-        if (horizonEl && d.horizon_utc) {
-            const h = new Date(d.horizon_utc);
-            const p = v => String(v).padStart(2,'0');
-            horizonEl.textContent = `→ ${p(h.getUTCHours())}:${p(h.getUTCMinutes())}Z horizon`;
-        }
-        const airports = Object.keys(d.by_airport || {}).sort(sortAirportsWE);
-        let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:0.75rem;">';
-        for (const apt of airports) {
-            const data = d.by_airport[apt];
-            html += `<div class="stat-card" style="align-items:stretch; padding:0.6rem;">
-                <div class="lbl" style="display:flex; justify-content:space-between;">
-                    <span>${apt}</span>
-                    <span class="mono">${data.total} arr${data.unresolved > 0 ? ' (' + data.unresolved + ' no fix)' : ''}</span>
-                </div>`;
-            if (!data.fixes || data.fixes.length === 0) {
-                html += '<div class="muted" style="font-size:0.72rem; margin-top:0.3rem;">No metering fixes defined for this airport.</div>';
-            } else {
-                html += '<table style="width:100%; margin-top:0.3rem; font-size:0.78rem;"><tbody>';
-                for (const row of data.fixes) {
-                    const pctStr = row.pct.toFixed(0) + '%';
-                    const barW = Math.min(100, row.pct);
-                    const inf = row.inferred > 0 ? `<span class="muted" title="${row.inferred} inferred from bearing (pilot filed direct)" style="font-size:0.68rem;"> +${row.inferred}i</span>` : '';
-                    html += `<tr>
-                        <td class="mono" style="padding:0.15rem 0.2rem; width:5em;" title="${row.corridor || ''}">${row.fix}</td>
-                        <td style="padding:0.15rem 0.2rem;">
-                            <div style="display:flex; align-items:center; gap:0.3rem;">
-                                <div style="flex:1; background:var(--bg); border-radius:2px; height:10px; position:relative;">
-                                    <div style="background:var(--accent); height:100%; width:${barW}%; border-radius:2px;"></div>
-                                </div>
-                                <span class="mono" style="min-width:5em; text-align:right;">${pctStr} <span class="muted" style="font-size:0.72rem;">(${row.count}${inf})</span></span>
-                            </div>
-                        </td>
-                    </tr>`;
-                }
-                html += '</tbody></table>';
-            }
-            html += '</div>';
-        }
-        html += '</div>';
-        html += '<div class="muted" style="font-size:0.7rem; margin-top:0.4rem;">Bars show share of inbound traffic in the next ' + cdistWindow + ' min. "+Ni" = N direct-to filers assigned by bearing inference.</div>';
-        el.innerHTML = html;
-    } catch (err) {
-        el.innerHTML = '<div class="error">Failed to load demand distribution: ' + err.message + '</div>';
-    }
-}
-
 // ---- Metering Fix Usage panel (historical, page time-window) ----
 async function refreshMfUsage() {
     const el = document.getElementById('mf-usage-panel');
@@ -822,15 +754,6 @@ document.addEventListener('click', (e) => {
     pill.classList.add('active');
     meterMins = parseInt(pill.getAttribute('data-mins'));
     refreshMeter();
-});
-
-document.addEventListener('click', (e) => {
-    const pill = e.target.closest('.cdist-pill');
-    if (!pill) return;
-    document.querySelectorAll('.cdist-pill').forEach(p => p.classList.remove('active'));
-    pill.classList.add('active');
-    cdistWindow = parseInt(pill.getAttribute('data-window'));
-    refreshDemandDist();
 });
 
 // ---- TLDT accuracy panel ----
@@ -935,8 +858,7 @@ refresh();
 refreshTldt();
 refreshMeter();
 refreshMfUsage();
-refreshDemandDist();
-setInterval(() => { refresh(); refreshTldt(); refreshMeter(); refreshMfUsage(); refreshDemandDist(); }, 60000);
+setInterval(() => { refresh(); refreshTldt(); refreshMeter(); refreshMfUsage(); }, 60000);
 
 // UTC clock in header
 function updateUtcClock() {

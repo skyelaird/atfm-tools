@@ -1254,10 +1254,15 @@ final class Kernel
                     ];
                 })->values()->all();
 
-            // Hourly-bucketed movement counts for the last 24 hours
+            // Hourly-bucketed movement counts:
+            //   past 24 hours (actual): ALDT for arrivals, ATOT for departures
+            //   next 4 hours  (forecast): ELDT for arrivals, TTOT for departures
+            // Forecast buckets let the FMP see the incoming spike against the
+            // 24h baseline in one chart.
             $hourly = [];
             for ($i = 23; $i >= 0; $i--) {
-                $bucketStart = $now->modify("-{$i} hours")->setTime((int) $now->modify("-{$i} hours")->format('H'), 0, 0);
+                $anchor = $now->modify("-{$i} hours");
+                $bucketStart = $anchor->setTime((int) $anchor->format('H'), 0, 0);
                 $bucketEnd   = $bucketStart->modify('+1 hour');
                 $arr = Flight::where('ades', $icao)
                     ->whereBetween('aldt', [$bucketStart->format('Y-m-d H:i:s'), $bucketEnd->format('Y-m-d H:i:s')])
@@ -1269,6 +1274,30 @@ final class Kernel
                     'hour'       => $bucketStart->format('Hi') . 'Z',
                     'arrivals'   => $arr,
                     'departures' => $dep,
+                    'forecast'   => false,
+                ];
+            }
+            // Next 4 hours of forecast: flights with ELDT / TTOT in each bucket
+            for ($i = 1; $i <= 4; $i++) {
+                $anchor = $now->modify("+{$i} hours");
+                $bucketStart = $anchor->setTime((int) $anchor->format('H'), 0, 0);
+                // Use rolling (not aligned) for forecast to avoid double-counting
+                // the current partial hour and under-reporting the last bucket.
+                $bucketStart = $now->modify("+" . ($i - 1) . " hours");
+                $bucketEnd   = $now->modify("+{$i} hours");
+                $arrFc = Flight::where('ades', $icao)
+                    ->whereBetween('eldt', [$bucketStart->format('Y-m-d H:i:s'), $bucketEnd->format('Y-m-d H:i:s')])
+                    ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN, Flight::PHASE_DISCONNECTED])
+                    ->count();
+                $depFc = Flight::where('adep', $icao)
+                    ->whereBetween('ttot', [$bucketStart->format('Y-m-d H:i:s'), $bucketEnd->format('Y-m-d H:i:s')])
+                    ->whereNull('atot')
+                    ->count();
+                $hourly[] = [
+                    'hour'       => $bucketStart->format('Hi') . 'Z',
+                    'arrivals'   => $arrFc,
+                    'departures' => $depFc,
+                    'forecast'   => true,
                 ];
             }
 
