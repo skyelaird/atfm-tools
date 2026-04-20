@@ -96,14 +96,72 @@
         "fix": "HABBS",
         "distance_nm": 33,
         "stars": [
-          "ALOET4",
-          "IMPAC4",
-          "HABBS7"
+          "ALOET4"
         ],
-        "corridor": "west",
+        "corridor": "southwest (near, ZBW)",
         "coords": {
           "lat": 45.205278,
           "lon": -74.417222
+        }
+      },
+      {
+        "fix": "EPMOK",
+        "distance_nm": 59,
+        "stars": [
+          "IMPAC4"
+        ],
+        "corridor": "west (Ottawa direction, ZBW)",
+        "coords": {
+          "lat": 44.984761,
+          "lon": -74.952017
+        }
+      },
+      {
+        "fix": "REEDO",
+        "distance_nm": 106,
+        "stars": [
+          "HABBS7"
+        ],
+        "corridor": "far west (Ontario, ZBW/CZUL)",
+        "coords": {
+          "lat": 44.703333,
+          "lon": -75.981667
+        }
+      },
+      {
+        "fix": "EBDOT",
+        "distance_nm": 24,
+        "stars": [
+          "CARTR5"
+        ],
+        "corridor": "south (US border, ZBW)",
+        "coords": {
+          "lat": 45.090342,
+          "lon": -73.567014
+        }
+      },
+      {
+        "fix": "EMPEK",
+        "distance_nm": 37,
+        "stars": [
+          "LFLER7"
+        ],
+        "corridor": "north",
+        "coords": {
+          "lat": 45.916414,
+          "lon": -74.344764
+        }
+      },
+      {
+        "fix": "XOVOL",
+        "distance_nm": 45,
+        "stars": [
+          "ROCKT3"
+        ],
+        "corridor": "east (Quebec City direction)",
+        "coords": {
+          "lat": 45.811944,
+          "lon": -72.774444
         }
       }
     ],
@@ -434,7 +492,7 @@
           "MAXOD",
           "OVUVI"
         ],
-        "metering_fix": "HABBS"
+        "metering_fix": "EPMOK"
       },
       "HABBS7": {
         "entry_fix": "REEDO",
@@ -452,7 +510,7 @@
           "MAXOD",
           "OVUVI"
         ],
-        "metering_fix": "HABBS"
+        "metering_fix": "REEDO"
       },
       "CARTR5": {
         "entry_fix": "EBDOT",
@@ -466,7 +524,7 @@
           "KERDU",
           "OMVAL"
         ],
-        "metering_fix": null,
+        "metering_fix": "EBDOT",
         "note": "Independent south corridor"
       },
       "LFLER7": {
@@ -482,7 +540,7 @@
           "LEPOP",
           "AXENI"
         ],
-        "metering_fix": null,
+        "metering_fix": "EMPEK",
         "note": "Independent north corridor"
       },
       "ROCKT3": {
@@ -499,7 +557,7 @@
           "TAPKA",
           "MEGTU"
         ],
-        "metering_fix": null,
+        "metering_fix": "XOVOL",
         "note": "Independent east corridor"
       }
     },
