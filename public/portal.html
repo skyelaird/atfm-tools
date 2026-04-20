@@ -133,26 +133,64 @@ async function refreshAuth() {
 }
 refreshAuth();
 
+// Countdown ticker state — set by the last data fetch, decremented
+// every second locally. Avoids the jump-by-30s effect on refresh.
+let countdownAnchor = null;  // { tsatEpoch: number, narrative: string }
+
 function statusBanner(data) {
     const n = data.narrative || '';
-    const sec = data.seconds_to_window;
-    let cls = 'info';
-    if (/window is now/i.test(n)) cls = 'ok';
-    else if (/expired|contact ATC|alert/i.test(n)) cls = 'alert';
-    else if (/not yet time|wait for/i.test(n)) cls = 'warn';
-    else cls = 'info';
-    let countdown = '';
-    if (sec !== null && sec !== undefined && sec > 0) {
-        const m = Math.floor(sec / 60), s = sec % 60;
-        countdown = `<div class="countdown">${pad(m)}:${pad(s)} to window</div>`;
-    }
+    let cls = classifyNarrative(n);
     const iconMap = { ok: '✓', warn: '⧖', alert: '⚠', info: 'ℹ' };
-    return `<div class="status-banner ${cls}">
+    return `<div class="status-banner ${cls}" id="status-banner">
         <div class="icon">${iconMap[cls]}</div>
-        <div class="msg">${n}</div>
-        ${countdown}
+        <div class="msg" id="status-msg">${n}</div>
+        <div class="countdown" id="status-countdown"></div>
     </div>`;
 }
+
+function classifyNarrative(n) {
+    if (/window is now/i.test(n)) return 'ok';
+    if (/expired|contact ATC/i.test(n)) return 'alert';
+    if (/not yet time|wait for/i.test(n)) return 'warn';
+    return 'info';
+}
+
+function tickCountdown() {
+    const cEl = document.getElementById('status-countdown');
+    const bEl = document.getElementById('status-banner');
+    const mEl = document.getElementById('status-msg');
+    if (!cEl || !countdownAnchor) return;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const tsat = countdownAnchor.tsatEpoch;
+    if (!tsat) { cEl.textContent = ''; return; }
+    const diff = tsat - nowSec;
+    const windowEarly = 5 * 60, windowLate = 5 * 60;
+    if (diff > windowEarly) {
+        // Before window opens
+        const toWin = diff - windowEarly;
+        const m = Math.floor(toWin / 60), s = toWin % 60;
+        cEl.textContent = `${pad(m)}:${pad(s)} to window`;
+        if (bEl && bEl.className !== 'status-banner warn') {
+            bEl.className = 'status-banner warn';
+            if (mEl) mEl.textContent = 'Not yet time for start-up. Wait for your window or update TOBT.';
+        }
+    } else if (diff >= -windowLate) {
+        // Inside window
+        cEl.textContent = 'NOW';
+        if (bEl && bEl.className !== 'status-banner ok') {
+            bEl.className = 'status-banner ok';
+            if (mEl) mEl.textContent = 'Your start-up window is now. Request clearance.';
+        }
+    } else {
+        // Past window
+        cEl.textContent = 'window expired';
+        if (bEl && bEl.className !== 'status-banner alert') {
+            bEl.className = 'status-banner alert';
+            if (mEl) mEl.textContent = 'Window expired. Contact ATC or update TOBT for a new slot.';
+        }
+    }
+}
+setInterval(tickCountdown, 1000);
 
 function renderDetails(d) {
     const eobt = hhmmFromIso(d.eobt);
@@ -220,7 +258,14 @@ async function lookup() {
         }
         if (!r.ok) throw new Error('HTTP ' + r.status);
         const d = await r.json();
+        // Anchor the countdown to the TSAT absolute time; tickCountdown
+        // will update display every second without waiting for refresh.
+        countdownAnchor = {
+            tsatEpoch: d.tsat ? Math.floor(new Date(d.tsat).getTime() / 1000) : null,
+            narrative: d.narrative,
+        };
         $('content').innerHTML = '<div class="toolbar"><button id="refresh-btn">Refresh</button></div>' + statusBanner(d) + renderDetails(d);
+        tickCountdown();
         bindHandlers(d);
     } catch (e) {
         $('content').innerHTML = '<div class="empty" style="color:var(--alert)">Error: ' + e.message + '</div>';
