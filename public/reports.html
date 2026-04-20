@@ -719,7 +719,7 @@ async function refreshDemandDist() {
             html += '</div>';
         }
         html += '</div>';
-        html += '<div class="muted" style="font-size:0.7rem; margin-top:0.4rem;">Bars show share of resolved arrivals. "+Ni" = N direct-to filers assigned by bearing inference.</div>';
+        html += '<div class="muted" style="font-size:0.7rem; margin-top:0.4rem;">Bars show share of inbound traffic in the next ' + cdistWindow + ' min. "+Ni" = N direct-to filers assigned by bearing inference.</div>';
         el.innerHTML = html;
     } catch (err) {
         el.innerHTML = '<div class="error">Failed to load demand distribution: ' + err.message + '</div>';
