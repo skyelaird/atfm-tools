@@ -113,6 +113,29 @@
         .metar-raw { font-size: 0.6rem; color: var(--text-dim); margin-top: 0.3rem; word-break: break-all; cursor: pointer; max-height: 1.2em; overflow: hidden; transition: max-height 0.3s; }
         .metar-raw.expanded { max-height: 5em; }
         .metar-toggle { font-size: 0.55rem; color: var(--text-dim); cursor: pointer; }
+
+        /* MIT planner */
+        .mit-section { margin-top: 0.4rem; border-top: 1px dashed var(--border); padding-top: 0.3rem; }
+        .mit-toggle { font-size: 0.7rem; background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 0; font-family: inherit; }
+        .mit-toggle:hover { color: var(--accent); }
+        .mit-body { font-size: 0.72rem; margin-top: 0.3rem; }
+        .mit-controls { display: flex; gap: 0.3rem; align-items: center; margin-bottom: 0.3rem; font-size: 0.68rem; color: var(--text-dim); }
+        .mit-win { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 0.1rem 0.3rem; font-size: 0.68rem; font-family: var(--mono); }
+        .mit-table { width: 100%; border-collapse: collapse; }
+        .mit-table th, .mit-table td { padding: 0.2rem 0.3rem; text-align: left; border-bottom: 1px solid var(--border); }
+        .mit-table th { font-size: 0.6rem; color: var(--text-dim); font-weight: 400; text-transform: uppercase; letter-spacing: 0.03em; }
+        .mit-table td { font-family: var(--mono); font-size: 0.72rem; }
+        .mit-table .num { text-align: right; }
+        .mit-input { width: 3em; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 0.05rem 0.2rem; font-family: var(--mono); font-size: 0.72rem; text-align: right; }
+        .mit-bar { display: inline-block; height: 6px; background: var(--accent); border-radius: 1px; vertical-align: middle; }
+        .mit-text { width: 100%; background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px; padding: 0.3rem; font-size: 0.65rem; font-family: var(--mono); margin-top: 0.3rem; resize: vertical; min-height: 3em; box-sizing: border-box; }
+        .mit-copy { font-size: 0.65rem; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--accent); border-radius: 3px; padding: 0.15rem 0.5rem; cursor: pointer; margin-top: 0.2rem; }
+        .mit-copy:hover { background: var(--accent); color: var(--bg); }
+        .mit-over { color: var(--warn); font-weight: 600; }
+        .mit-under { color: var(--text-dim); }
+        .mit-headline { font-family: var(--mono); font-size: 0.72rem; margin-bottom: 0.3rem; display: flex; gap: 0.5rem; flex-wrap: wrap; }
+        .mit-headline .chip { padding: 0.1rem 0.4rem; background: var(--bg-elev-hi); border: 1px solid var(--border); border-radius: 3px; }
+        .mit-headline .chip.over { border-color: var(--warn); color: var(--warn); }
     </style>
 </head>
 <body>
@@ -348,6 +371,10 @@ function renderCard(icao) {
         </div>
         <div class="rate-sub" id="rate-detail-${icao}"></div>
         <div class="metar-raw" onclick="this.classList.toggle('expanded')">${st.metar || ''}</div>
+        <div class="mit-section">
+            <button class="mit-toggle" onclick="toggleMit('${icao}'); event.stopPropagation();">MIT planner ▾</button>
+            <div class="mit-body" id="mit-body-${icao}" style="display:none;"></div>
+        </div>
     `;
 }
 
@@ -382,7 +409,185 @@ function propose(icao) { autoPropose(icao); refreshCard(icao); }
 
 function refreshCard(icao) {
     const card = document.querySelector(`[data-card="${icao}"]`);
-    if (card) { card.innerHTML = renderCard(icao); computeRates(icao); }
+    if (card) {
+        card.innerHTML = renderCard(icao);
+        computeRates(icao);
+        // Rehydrate MIT panel if it was open
+        if (mitOpen[icao]) refreshMit(icao);
+    }
+}
+
+// ---------- MIT planner ----------
+//
+// Concept: given the declared AAR at this airport and the observed
+// demand distribution over each metering fix in a forward window,
+// allocate the AAR proportionally to demand share. MIT at each fix is
+// suggested from the fair-share rate; FMP tweaks as needed and pastes
+// the request into a message to the adjacent centre / sector.
+//
+// Math: fair_share_rate (per hr) = AAR * (fix_demand / total_demand).
+// MIT (nm) = airport_final_spacing / fix_share, where
+//   airport_final_spacing = (60 / AAR) * approach_GS_nm_per_min.
+// Defaults to 240 kt approach (4 nm/min), rounded up to nearest 5nm,
+// min 10nm. Fixes already under their fair share get no MIT (—).
+
+const APPROACH_GS_NM_PER_MIN = 4.0;  // 240 kt at the metering fix
+const MIT_ROUND_NM = 5;
+const MIT_MIN_NM = 10;
+const mitOpen = {};     // icao -> bool
+const mitWindow = {};   // icao -> minutes
+const mitOverride = {}; // icao -> {fix: nm}
+const mitCache = {};    // icao -> last fetched /metering payload
+
+function toggleMit(icao) {
+    const body = document.getElementById('mit-body-' + icao);
+    if (!body) return;
+    const wasOpen = body.style.display !== 'none';
+    body.style.display = wasOpen ? 'none' : 'block';
+    mitOpen[icao] = !wasOpen;
+    // Update toggle text
+    const btn = body.previousElementSibling;
+    if (btn) btn.textContent = 'MIT planner ' + (wasOpen ? '▾' : '▴');
+    if (!wasOpen) refreshMit(icao);
+}
+
+function getAar(icao) {
+    const st = aptState[icao]; if (!st) return null;
+    // computeRates stored aar via innerText on #aar-<icao>
+    const el = document.getElementById('aar-' + icao);
+    if (!el) return null;
+    const n = parseInt(el.textContent, 10);
+    return isFinite(n) && n > 0 ? n : null;
+}
+
+function suggestMit(aar, share) {
+    if (!aar || !share || share <= 0) return null;
+    const airportSpacingNm = (60 / aar) * APPROACH_GS_NM_PER_MIN;
+    const raw = airportSpacingNm / share;
+    const rounded = Math.ceil(raw / MIT_ROUND_NM) * MIT_ROUND_NM;
+    return Math.max(MIT_MIN_NM, rounded);
+}
+
+async function refreshMit(icao) {
+    const body = document.getElementById('mit-body-' + icao);
+    if (!body) return;
+    const win = mitWindow[icao] || 120;
+    body.innerHTML = '<div class="muted">Loading demand…</div>';
+    try {
+        const r = await fetch(`/api/v1/metering?airport=${icao}&window=${win}`);
+        const d = await r.json();
+        mitCache[icao] = d;
+        renderMitPanel(icao);
+    } catch (e) {
+        body.innerHTML = '<div style="color:var(--alert);">Failed to load: ' + e.message + '</div>';
+    }
+}
+
+function setMitOverride(icao, fix, nm) {
+    mitOverride[icao] = mitOverride[icao] || {};
+    mitOverride[icao][fix] = Number(nm);
+    renderMitPanel(icao);
+}
+
+function renderMitPanel(icao) {
+    const data = mitCache[icao];
+    if (!data) return;
+    const body = document.getElementById('mit-body-' + icao);
+    if (!body) return;
+    const aar = getAar(icao);
+    const win = mitWindow[icao] || 120;
+    const fixesByIcao = (data.by_airport && data.by_airport[icao]) || {};
+    const fixEntries = Object.entries(fixesByIcao);
+
+    // Also include all catalog fixes with zero count for completeness.
+    // We don't have the catalog on this page, so just use whatever the
+    // server returned (non-zero); zero-demand fixes can be inferred
+    // from "no constraint needed".
+
+    const totalDemand = fixEntries.reduce((s, [,v]) => s + v.count, 0);
+    // Demand per hour scaled from observed window
+    const hoursWin = win / 60;
+    const demandPerHr = totalDemand / hoursWin;
+    const overCapacity = aar && demandPerHr > aar;
+
+    const winSel = `<select class="mit-win" onchange="mitWindow['${icao}']=Number(this.value); refreshMit('${icao}')">` +
+        [60, 120, 240].map(m => `<option value="${m}"${m===win?' selected':''}>${m}m</option>`).join('') +
+        '</select>';
+
+    let html = `<div class="mit-controls">
+        window ${winSel}
+        · AAR <span class="mono" style="color:var(--text)">${aar || '—'}/hr</span>
+    </div>`;
+
+    html += `<div class="mit-headline">
+        <span class="chip">${totalDemand} arr next ${win}m</span>
+        <span class="chip">~${demandPerHr.toFixed(1)}/hr observed</span>
+        <span class="chip${overCapacity?' over':''}">${aar ? Math.round(demandPerHr/aar*100) : '—'}% of AAR</span>
+    </div>`;
+
+    if (fixEntries.length === 0) {
+        html += '<div class="muted" style="padding:0.2rem 0;">No inbound flights resolved to a metering fix in this window.</div>';
+        body.innerHTML = html;
+        return;
+    }
+
+    fixEntries.sort((a, b) => b[1].count - a[1].count);
+    html += `<table class="mit-table"><thead><tr>
+        <th>Fix</th><th class="num">N</th><th class="num">Share</th><th class="num">Fair/hr</th><th class="num">MIT (nm)</th>
+    </tr></thead><tbody>`;
+
+    const tooHigh = [];
+    const okFixes = [];
+    const rows = [];
+    for (const [fix, info] of fixEntries) {
+        const share = totalDemand > 0 ? info.count / totalDemand : 0;
+        const fairRate = aar ? aar * share : null;
+        // Only suggest MIT when demand > fair share would be (i.e. fix is over-represented)
+        const airportSpacing = aar ? (60 / aar) * APPROACH_GS_NM_PER_MIN : null;
+        // MIT is applied when airport is over capacity (demand > AAR) AND fix share > 0
+        const needed = overCapacity && share > 0;
+        const suggested = needed ? suggestMit(aar, share) : null;
+        const override = mitOverride[icao]?.[fix];
+        const current = override ?? suggested;
+        rows.push({fix, share, fairRate, suggested, current, count: info.count, needed});
+    }
+
+    for (const r of rows) {
+        const pct = (r.share * 100).toFixed(0);
+        const barW = Math.min(100, r.share * 100);
+        const mitCell = r.needed
+            ? `<input type="number" class="mit-input" value="${r.current}" min="0" step="5" onchange="setMitOverride('${icao}','${r.fix}',this.value)"/>`
+            : '<span class="mit-under">—</span>';
+        html += `<tr>
+            <td>${r.fix}</td>
+            <td class="num">${r.count}</td>
+            <td class="num"><span class="mit-bar" style="width:${barW*0.6}px;"></span> ${pct}%</td>
+            <td class="num">${r.fairRate ? r.fairRate.toFixed(1) : '—'}</td>
+            <td class="num">${mitCell}</td>
+        </tr>`;
+    }
+    html += '</tbody></table>';
+
+    // Compose request text
+    const activeMits = rows.filter(r => r.needed && r.current);
+    if (activeMits.length > 0 && overCapacity) {
+        const now = new Date();
+        const end = new Date(now.getTime() + win * 60000);
+        const hh = d => String(d.getUTCHours()).padStart(2, '0') + String(d.getUTCMinutes()).padStart(2, '0');
+        const lines = activeMits.map(r => `  • ${r.current} MIT over ${r.fix}`).join('\n');
+        const msg = `${icao} FMP → adjacent centres:
+Request Miles in Trail effective ${hh(now)}Z until ${hh(end)}Z:
+${lines}
+${icao} AAR ${aar}/hr, observed demand ~${demandPerHr.toFixed(0)}/hr (${Math.round(demandPerHr/aar*100)}%).`;
+        html += `<textarea class="mit-text" readonly>${msg}</textarea>
+        <button class="mit-copy" onclick="navigator.clipboard.writeText(this.previousElementSibling.value); this.textContent='Copied ✓'; setTimeout(()=>this.textContent='Copy request text',1500);">Copy request text</button>`;
+    } else if (!overCapacity && aar) {
+        html += `<div class="muted" style="padding:0.3rem 0; font-size:0.68rem;">Demand is within AAR — no MIT needed.</div>`;
+    }
+
+    html += `<div class="muted" style="font-size:0.62rem; margin-top:0.4rem;">Suggested MIT uses 240 kt approach (4 nm/min) and rounds up to 5 nm. Adjust per local conditions. Fair/hr = AAR × share.</div>`;
+
+    body.innerHTML = html;
 }
 
 async function computeRates(icao) {
