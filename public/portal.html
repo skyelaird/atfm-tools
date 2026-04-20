@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>atfm-tools — Pilot Portal</title>
+    <style>
+        :root {
+            --bg: #0f1419; --bg-elev: #1a2028; --bg-elev-hi: #242c38;
+            --border: #2a3340;
+            --text: #d7dee8; --text-dim: #8a94a3; --text-bright: #f0f4fa;
+            --accent: #5eead4; --accent-dim: #2a6b5f;
+            --warn: #facc15; --warn-dim: #5e4a0f;
+            --alert: #f87171; --alert-dim: #5e1f1f;
+            --ok: #4ade80; --ok-dim: #1e4a2e;
+            --info: #60a5fa; --info-dim: #1e3a5f;
+            --mono: "SF Mono", Consolas, Monaco, monospace;
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; font-size: 14px; }
+        .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+        header { background: var(--bg-elev); border-bottom: 1px solid var(--border); padding: 0.6rem 1rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+        header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+        .auth-pill { margin-left: auto; padding: 0.25rem 0.7rem; border-radius: 3px; background: var(--bg-elev-hi); border: 1px solid var(--border); color: var(--text-dim); font-size: 0.78rem; text-decoration: none; }
+        .auth-pill:hover { color: var(--text); }
+        .auth-pill.authed { color: var(--accent); border-color: var(--accent-dim); }
+        .utc-clock { font-size: 0.95rem; color: var(--accent); font-variant-numeric: tabular-nums; padding: 0 0.6rem; border-left: 1px solid var(--border); font-family: var(--mono); }
+        a { color: var(--accent); text-decoration: none; }
+
+        main { max-width: 900px; margin: 0 auto; padding: 1rem; }
+
+        .search-bar { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+        .search-bar input { flex: 1; background: var(--bg-elev); color: var(--text-bright); border: 1px solid var(--border); border-radius: 6px; padding: 0.6rem 0.9rem; font-family: var(--mono); font-size: 1rem; }
+        .search-bar input:focus { border-color: var(--accent); outline: none; }
+        .search-bar button { background: var(--accent); color: var(--bg); border: 0; border-radius: 6px; padding: 0 1.2rem; cursor: pointer; font-weight: 600; }
+
+        /* Status banner — "Not yet time for start-up" */
+        .status-banner { border: 1px solid var(--warn-dim); background: rgba(250,204,21,0.05); border-radius: 6px; padding: 0.9rem 1rem; display: flex; align-items: center; gap: 0.8rem; margin-bottom: 1rem; color: var(--warn); }
+        .status-banner .icon { font-size: 1.5rem; flex-shrink: 0; }
+        .status-banner .msg { flex: 1; }
+        .status-banner .countdown { font-family: var(--mono); font-size: 1.3rem; font-weight: 700; }
+        .status-banner.ok { border-color: var(--ok-dim); background: rgba(74,222,128,0.05); color: var(--ok); }
+        .status-banner.alert { border-color: var(--alert-dim); background: rgba(248,113,113,0.05); color: var(--alert); }
+        .status-banner.info { border-color: var(--info-dim); background: rgba(96,165,250,0.05); color: var(--info); }
+
+        /* Two-column detail layout */
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+        @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+        .panel { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 6px; padding: 0.85rem; }
+        .panel h3 { margin: 0 0 0.6rem; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-dim); font-weight: 600; }
+
+        /* Flight details */
+        .details { display: grid; grid-template-columns: 6rem 1fr; gap: 0.3rem 0.75rem; font-size: 0.88rem; }
+        .details .label { color: var(--text-dim); text-transform: uppercase; font-size: 0.68rem; letter-spacing: 0.05em; padding-top: 0.25rem; }
+        .details .value { font-family: var(--mono); font-weight: 600; color: var(--text-bright); font-size: 1rem; }
+        .details .value.muted { color: var(--text-dim); font-weight: 400; }
+        .details .value.accent { color: var(--accent); }
+        .details .value.warn { color: var(--warn); }
+        .details .value.alert { color: var(--alert); }
+
+        /* Update panel */
+        .update-panel label { display: block; font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.4rem; }
+        .update-panel input { width: 100%; background: var(--bg); color: var(--text-bright); border: 1px solid var(--border); border-radius: 4px; padding: 0.55rem 0.7rem; font-family: var(--mono); font-size: 1rem; margin-bottom: 0.6rem; }
+        .update-panel input:focus { border-color: var(--accent); outline: none; }
+        .update-panel button { width: 100%; background: var(--warn); color: var(--bg); border: 0; border-radius: 4px; padding: 0.55rem; cursor: pointer; font-weight: 600; font-size: 0.9rem; }
+        .update-panel button:hover { filter: brightness(1.1); }
+        .update-panel button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .update-panel .hint { font-size: 0.68rem; color: var(--text-dim); margin-top: 0.3rem; }
+        .update-panel .result { font-size: 0.8rem; margin-top: 0.5rem; padding: 0.4rem 0.6rem; border-radius: 3px; }
+        .update-panel .result.ok { background: var(--ok-dim); color: var(--ok); }
+        .update-panel .result.err { background: var(--alert-dim); color: var(--alert); }
+
+        .toolbar { display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
+        .toolbar button { background: var(--bg-elev); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem 1rem; cursor: pointer; font-size: 0.85rem; }
+        .toolbar button:hover { background: var(--bg-elev-hi); border-color: var(--accent); color: var(--accent); }
+
+        .empty { text-align: center; padding: 3rem 1rem; color: var(--text-dim); }
+        .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid var(--text-dim); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.6s linear infinite; vertical-align: middle; margin-right: 0.3rem; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>atfm-tools <span style="color:var(--text-dim); font-weight:400;">Pilot Portal</span></h1>
+    <span class="utc-clock mono" id="utc-clock">––:––:––Z</span>
+    <a class="auth-pill" id="auth-pill" href="/oauth/vatsim/login">Sign in with VATSIM</a>
+    <a class="auth-pill" href="/dashboard.html">← dashboard</a>
+</header>
+
+<main>
+    <div class="search-bar">
+        <input type="text" id="cs-input" placeholder="Callsign (e.g. ACA123, WJA771, THY7JE)" autocomplete="off" spellcheck="false">
+        <button id="lookup-btn">Look up</button>
+    </div>
+
+    <div id="content">
+        <div class="empty">Enter a callsign above to see its slot status, CTOT, and update your TOBT.</div>
+    </div>
+</main>
+
+<script>
+function $(id) { return document.getElementById(id); }
+const pad = n => String(n).padStart(2, '0');
+const hhmmFromIso = iso => { if (!iso) return '----'; const d = new Date(iso); return pad(d.getUTCHours()) + pad(d.getUTCMinutes()); };
+
+function updateClock() {
+    const n = new Date();
+    $('utc-clock').textContent = `${pad(n.getUTCHours())}:${pad(n.getUTCMinutes())}:${pad(n.getUTCSeconds())}Z`;
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// Auth status pill
+async function refreshAuth() {
+    try {
+        const r = await fetch('/api/v1/auth/me').then(x => x.json());
+        const pill = $('auth-pill');
+        if (r.authenticated) {
+            pill.textContent = `${r.name} (${r.cid})` + (r.live?.callsign ? ` · ${r.live.callsign}` : '');
+            pill.href = '#';
+            pill.classList.add('authed');
+            pill.title = 'Click to sign out';
+            pill.onclick = async (e) => { e.preventDefault(); await fetch('/oauth/logout', {method: 'POST'}); location.reload(); };
+            // If logged in as a pilot with a callsign, auto-fill
+            if (r.live?.type === 'PILOT' && r.live.callsign && !$('cs-input').value) {
+                $('cs-input').value = r.live.callsign;
+                lookup();
+            }
+        }
+    } catch (e) {}
+}
+refreshAuth();
+
+function statusBanner(data) {
+    const n = data.narrative || '';
+    const sec = data.seconds_to_window;
+    let cls = 'info';
+    if (/window is now/i.test(n)) cls = 'ok';
+    else if (/expired|contact ATC|alert/i.test(n)) cls = 'alert';
+    else if (/not yet time|wait for/i.test(n)) cls = 'warn';
+    else cls = 'info';
+    let countdown = '';
+    if (sec !== null && sec !== undefined && sec > 0) {
+        const m = Math.floor(sec / 60), s = sec % 60;
+        countdown = `<div class="countdown">${pad(m)}:${pad(s)} to window</div>`;
+    }
+    const iconMap = { ok: '✓', warn: '⧖', alert: '⚠', info: 'ℹ' };
+    return `<div class="status-banner ${cls}">
+        <div class="icon">${iconMap[cls]}</div>
+        <div class="msg">${n}</div>
+        ${countdown}
+    </div>`;
+}
+
+function renderDetails(d) {
+    const eobt = hhmmFromIso(d.eobt);
+    const tobt = hhmmFromIso(d.tobt);
+    const tsat = hhmmFromIso(d.tsat);
+    const ttot = hhmmFromIso(d.ttot);
+    const ctot = hhmmFromIso(d.ctot);
+    const eldt = hhmmFromIso(d.eldt);
+    const aobt = hhmmFromIso(d.aobt);
+    const atot = hhmmFromIso(d.atot);
+    const taxi = d.planned_exot_min ? d.planned_exot_min + 'm' : '----';
+    const delay = d.delay_minutes ? (d.delay_minutes > 0 ? '+' : '') + d.delay_minutes + 'm' : '----';
+    const reason = d.restriction?.reason || '----';
+    const atfcm = d.restriction ? `L${d.restriction.op_level} · cap ${d.restriction.capacity}/hr` : '----';
+    const ctotCls = d.ctot ? 'value accent' : 'value muted';
+    const delayCls = d.delay_minutes > 15 ? 'alert' : d.delay_minutes > 5 ? 'warn' : 'muted';
+
+    return `
+<div class="grid">
+    <div class="panel">
+        <h3>Flight details</h3>
+        <div class="details">
+            <div class="label">Callsign</div><div class="value">${d.callsign}</div>
+            <div class="label">Route</div>    <div class="value mono">${d.adep || '?'} → ${d.ades || '?'}</div>
+            <div class="label">Type</div>     <div class="value">${d.aircraft_type || '----'}</div>
+            <div class="label">Phase</div>    <div class="value muted">${d.phase || '----'}</div>
+            <div class="label">EOBT</div>     <div class="value">${eobt}</div>
+            <div class="label">TOBT</div>     <div class="value">${tobt}${d.tobt_source === 'manual' ? ' <span style="font-size:0.6rem;color:var(--info)">manual</span>' : ''}</div>
+            <div class="label">TSAT</div>     <div class="value">${tsat}</div>
+            <div class="label">Taxi</div>     <div class="value">${taxi}</div>
+            <div class="label">TTOT</div>     <div class="value">${ttot}</div>
+            <div class="label">CTOT</div>     <div class="${ctotCls}">${ctot}</div>
+            <div class="label">Delay</div>    <div class="value ${delayCls}">${delay}</div>
+            <div class="label">ELDT</div>     <div class="value">${eldt}</div>
+            <div class="label">AOBT</div>     <div class="value">${aobt}</div>
+            <div class="label">ATOT</div>     <div class="value">${atot}</div>
+            <div class="label">Reason</div>   <div class="value muted">${reason}</div>
+            <div class="label">ATFCM</div>    <div class="value muted">${atfcm}</div>
+        </div>
+    </div>
+    <div class="panel update-panel">
+        <h3>Update ready time (TOBT)</h3>
+        <label>Target Off-Block Time (UTC HHMM)</label>
+        <input type="text" id="tobt-input" placeholder="e.g. 1715" maxlength="4" inputmode="numeric" pattern="[0-9]{4}">
+        <button id="tobt-submit">Submit TOBT</button>
+        <div class="hint">TSAT/TTOT/CTOT will re-compute within 2 min of submit. Use when ready to push — setting TOBT earlier than realistic wastes slots. Set to blank to revert to auto-calculated.</div>
+        <div id="tobt-result"></div>
+    </div>
+</div>`;
+}
+
+let currentCallsign = null;
+let autoTimer = null;
+
+async function lookup() {
+    const cs = $('cs-input').value.trim().toUpperCase();
+    if (!cs) return;
+    currentCallsign = cs;
+    $('content').innerHTML = '<div class="empty"><span class="spinner"></span> Fetching…</div>';
+    try {
+        const r = await fetch('/api/v1/pilot/' + encodeURIComponent(cs));
+        if (r.status === 404) {
+            $('content').innerHTML = '<div class="empty">Callsign <strong>' + cs + '</strong> not found in our tracked flights. Either not yet spawned, not destined/departing our scope (CYHZ/CYOW/CYUL/CYVR/CYWG/CYYC/CYYZ), or already arrived.</div>';
+            return;
+        }
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        const d = await r.json();
+        $('content').innerHTML = '<div class="toolbar"><button id="refresh-btn">Refresh</button></div>' + statusBanner(d) + renderDetails(d);
+        bindHandlers(d);
+    } catch (e) {
+        $('content').innerHTML = '<div class="empty" style="color:var(--alert)">Error: ' + e.message + '</div>';
+    }
+}
+
+function bindHandlers(d) {
+    $('refresh-btn').onclick = lookup;
+    const input = $('tobt-input');
+    const submit = $('tobt-submit');
+    submit.onclick = async () => {
+        const v = input.value.trim();
+        const result = $('tobt-result');
+        result.className = 'result';
+        result.textContent = '';
+        let tobtIso = null;
+        if (v) {
+            if (!/^\d{4}$/.test(v)) {
+                result.className = 'result err';
+                result.textContent = 'Format: HHMM (4 digits, UTC).';
+                return;
+            }
+            const hh = parseInt(v.slice(0, 2));
+            const mm = parseInt(v.slice(2, 4));
+            if (hh > 23 || mm > 59) {
+                result.className = 'result err';
+                result.textContent = 'Invalid time.';
+                return;
+            }
+            // Compose today's date (UTC) with the given HH:MM. If HH:MM is
+            // earlier than the current hour by more than an hour, assume
+            // next day (wraps midnight case).
+            const now = new Date();
+            const d1 = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), hh, mm, 0));
+            if (d1.getTime() < now.getTime() - 60 * 60 * 1000) d1.setUTCDate(d1.getUTCDate() + 1);
+            // Window check: must be between now+5m and now+2h
+            const diffMin = (d1.getTime() - now.getTime()) / 60000;
+            if (diffMin < 5) {
+                result.className = 'result err';
+                result.textContent = `TOBT must be at least 5 minutes from now (you entered ${Math.round(diffMin)}m from now).`;
+                return;
+            }
+            if (diffMin > 120) {
+                result.className = 'result err';
+                result.textContent = `TOBT must be within 2 hours from now (you entered ${Math.round(diffMin)}m from now).`;
+                return;
+            }
+            tobtIso = d1.toISOString();
+        }
+        submit.disabled = true;
+        submit.textContent = 'Submitting…';
+        try {
+            const r = await fetch('/api/v1/flights/' + encodeURIComponent(currentCallsign) + '/tobt', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tobt: tobtIso }),
+            });
+            if (!r.ok) {
+                const err = await r.json().catch(() => ({}));
+                throw new Error(err.error || ('HTTP ' + r.status));
+            }
+            result.className = 'result ok';
+            result.textContent = tobtIso ? `TOBT set to ${v}Z — TSAT/TTOT/CTOT will recompute within 2 min.` : 'TOBT cleared — reverted to auto.';
+            setTimeout(lookup, 1500);
+        } catch (e) {
+            result.className = 'result err';
+            result.textContent = 'Failed: ' + e.message;
+        } finally {
+            submit.disabled = false;
+            submit.textContent = 'Submit TOBT';
+        }
+    };
+}
+
+$('lookup-btn').onclick = lookup;
+$('cs-input').addEventListener('keydown', (e) => { if (e.key === 'Enter') lookup(); });
+
+// Deep-link ?callsign=X
+const urlCs = new URLSearchParams(location.search).get('callsign');
+if (urlCs) { $('cs-input').value = urlCs.toUpperCase(); lookup(); }
+
+// Auto-refresh every 30s when a callsign is loaded
+setInterval(() => { if (currentCallsign) lookup(); }, 30000);
+</script>
+</body>
+</html>

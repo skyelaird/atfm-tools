@@ -999,6 +999,104 @@ final class Kernel
 
     private static function registerTobtEndpoint(App $app): void
     {
+        // GET /api/v1/pilot/{callsign} — single-flight lookup for the
+        // Pilot Portal. Trust-based: anyone can query any callsign.
+        // Returns the fields the VDGS-style portal needs: CALLSIGN,
+        // EOBT, TOBT, TSAT, TTOT, CTOT, EXOT, Reason, ATFCM status.
+        $app->get('/api/v1/pilot/{callsign}', function ($req, $res, array $args) {
+            $callsign = strtoupper(trim($args['callsign']));
+            if (!preg_match('/^[A-Z0-9]{2,10}$/', $callsign)) {
+                return self::json($res->withStatus(400), ['error' => 'invalid callsign']);
+            }
+            $f = Flight::where('callsign', $callsign)
+                ->whereNotIn('phase', [Flight::PHASE_WITHDRAWN])
+                ->orderBy('last_updated_at', 'desc')
+                ->first();
+            if (!$f) {
+                return self::json($res->withStatus(404), ['error' => 'flight not found']);
+            }
+            // Restriction / ATFCM context — if the flight has a CTOT, what
+            // restriction is behind it? Fetch the active restriction at
+            // ADES for that info.
+            $restriction = null;
+            if ($f->ctot && $f->ades) {
+                $apt = Airport::where('icao', $f->ades)->first();
+                if ($apt) {
+                    $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+                    $restriction = AirportRestriction::where('airport_id', $apt->id)
+                        ->whereNull('deleted_at')
+                        ->where('active_from', '<=', $now->format('Y-m-d H:i:s'))
+                        ->where(function ($q) use ($now) {
+                            $q->whereNull('expires_at')
+                              ->orWhere('expires_at', '>=', $now->format('Y-m-d H:i:s'));
+                        })
+                        ->get()
+                        ->filter(fn (AirportRestriction $r) => $r->isActiveAt($now))
+                        ->first();
+                }
+            }
+            // Status narrative — "not yet time for start-up", "your window
+            // is now", etc. Computed from TSAT and current time.
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            $narrative = null;
+            $secondsToWindow = null;
+            $windowEarly = 5 * 60;
+            $windowLate  = 5 * 60;
+            if ($f->tsat) {
+                $secondsToTsat = $f->tsat->getTimestamp() - $now->getTimestamp();
+                if ($secondsToTsat > $windowEarly) {
+                    $narrative = 'Not yet time for start-up. Wait for your window or update TOBT.';
+                    $secondsToWindow = $secondsToTsat - $windowEarly;
+                } elseif ($secondsToTsat >= -$windowLate) {
+                    $narrative = 'Your start-up window is now. Request clearance.';
+                } else {
+                    $narrative = 'Window expired. Contact ATC or update TOBT for a new slot.';
+                }
+            } elseif ($f->aobt) {
+                $narrative = 'Pushed back — taxi to holding point.';
+            } elseif ($f->atot) {
+                $narrative = 'Airborne.';
+            } else {
+                $narrative = 'Flight plan on file. Awaiting TOBT or start-up time.';
+            }
+
+            return self::json($res, [
+                'callsign'       => $f->callsign,
+                'cid'            => $f->cid,
+                'adep'           => $f->adep,
+                'ades'           => $f->ades,
+                'phase'          => $f->phase,
+                'aircraft_type'  => $f->aircraft_type,
+                'route'          => $f->fp_route,
+                'fp_altitude_ft' => $f->fp_altitude_ft,
+                'eobt'           => $f->eobt?->format('c'),
+                'tobt'           => $f->tobt?->format('c'),
+                'tobt_source'    => $f->tobt_source,
+                'tsat'           => $f->tsat?->format('c'),
+                'ttot'           => $f->ttot?->format('c'),
+                'ctot'           => $f->ctot?->format('c'),
+                'eldt'           => $f->eldt?->format('c'),
+                'aobt'           => $f->aobt?->format('c'),
+                'atot'           => $f->atot?->format('c'),
+                'aldt'           => $f->aldt?->format('c'),
+                'planned_exot_min' => $f->planned_exot_min,
+                'delay_minutes'  => $f->delay_minutes,
+                'delay_status'   => $f->delay_status,
+                'ctl_type'       => $f->ctl_type,
+                'ctl_element'    => $f->ctl_element,
+                'narrative'      => $narrative,
+                'seconds_to_window' => $secondsToWindow,
+                'restriction'    => $restriction ? [
+                    'restriction_id' => $restriction->restriction_id,
+                    'airport'        => $restriction->airport?->icao,
+                    'capacity'       => (int) $restriction->capacity,
+                    'reason'         => $restriction->reason,
+                    'op_level'       => (int) $restriction->op_level,
+                ] : null,
+                'server_time'    => $now->format('c'),
+            ]);
+        });
+
         // PATCH /api/v1/flights/{callsign}/tobt
         // Body: { "tobt": "2026-04-16T14:30:00Z" }
         // Sets a manual TOBT. The next ingest cycle will cascade TSAT/TTOT
@@ -1039,6 +1137,23 @@ final class Kernel
                 } catch (\Exception $e) {
                     return self::json($res->withStatus(400), [
                         'error' => 'Invalid tobt format — use ISO 8601 (e.g. 2026-04-16T14:30:00Z)',
+                    ]);
+                }
+                // Window validation — matches vats.im/vdgs behaviour:
+                // TOBT must be between now+5m and now+2h. Earlier than +5m
+                // is past/impossible-to-push; later than +2h is aspirational
+                // and wastes a slot that couldn't be used if the pilot
+                // doesn't follow through.
+                $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+                $diffMin = ($tobt->getTimestamp() - $now->getTimestamp()) / 60;
+                if ($diffMin < 5) {
+                    return self::json($res->withStatus(400), [
+                        'error' => 'TOBT must be at least 5 minutes from now (got ' . round($diffMin) . 'm).',
+                    ]);
+                }
+                if ($diffMin > 120) {
+                    return self::json($res->withStatus(400), [
+                        'error' => 'TOBT must be within 2 hours from now (got ' . round($diffMin) . 'm).',
                     ]);
                 }
                 $flight->tobt        = $tobt;
