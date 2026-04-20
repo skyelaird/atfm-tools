@@ -587,7 +587,7 @@ ${icao} AAR ${aar}/hr, observed demand ~${demandPerHr.toFixed(0)}/hr (${Math.rou
         html += `<div class="muted" style="padding:0.3rem 0; font-size:0.68rem;">Demand is within AAR — no MIT needed.</div>`;
     }
 
-    html += `<div class="muted" style="font-size:0.62rem; margin-top:0.4rem;">Suggested MIT uses 240 kt approach (4 nm/min) and rounds up to 5 nm. Adjust per local conditions. Fair/hr = AAR × share.</div>`;
+    html += `<div class="muted" style="font-size:0.62rem; margin-top:0.4rem;">Fair/hr is the per-fix rate that keeps total demand ≤ AAR. The MIT suggestion is a bucket only — adjacent ATC will refine tactical spacing. Edit any value to override.</div>`;
 
     body.innerHTML = html;
 }

@@ -338,7 +338,7 @@ verifiable via `/api/v1/status`. Scheme: `MAJOR.MINOR.PATCH`.
 | Version | Milestone | Criteria |
 |---------|-----------|----------|
 | **0.5.x** | ETA & prediction quality | Shipped. GRIB wind, ETA cascade, TLDT validation, reports. |
-| **0.6.0** | CTOT issuance live | **Current.** Restriction creation UI on dashboard drawer with shadow-allocator preview + commit. FMP creates regulations in-browser, allocator issues real CTOTs. |
+| **0.6.0** | CTOT issuance live | **Current.** Restriction creation UI on dashboard drawer with shadow-allocator preview + commit. FMP creates regulations in-browser, allocator issues real CTOTs. MIT planner on AAR page (v0.6.4+). Demand distribution on dashboard + reports (v0.6.13-v0.6.17). Metering fix catalog authoritative via Navigraph (36 MFs across 7 airports). |
 | **0.7.0** | Operational hardening | Multi-session validation, wake-mix phase 2, multi-FMP confidence. |
 | **1.0.0** | Production-ready | Running reliably during a real VATCAN event — CTOTs flowing, CDM plugin consuming, no manual intervention. |
 

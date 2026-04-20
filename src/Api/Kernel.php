@@ -1627,9 +1627,21 @@ final class Kernel
                 $eldtBucket5 = 0;   // 3 < |err| <= 5
                 $eldtBucket10 = 0;  // 5 < |err| <= 10
                 $eldtBucketOver = 0; // |err| > 10
+                // Mid-connect partials skew stats badly — pilot joined the
+                // flight already airborne, so the first ELDT we computed was
+                // based on far less route than planned. Exclude any flight
+                // whose observed flight time is < 50% of its filed ETE.
+                $isPartial = function ($f) {
+                    if (!$f->atot || !$f->aldt) return false;
+                    $fte = $f->fp_enroute_time_min;
+                    if (!$fte || $fte <= 0) return false;
+                    $observedMin = ($f->aldt->getTimestamp() - $f->atot->getTimestamp()) / 60;
+                    return $observedMin < $fte * 0.5;
+                };
                 foreach ($arrivals as $f) {
                     if ($f->aldt && $f->eldt_locked
                         && $f->aldt->getTimestamp() !== $f->eldt_locked->getTimestamp() // exclude synthetic
+                        && !$isPartial($f)
                     ) {
                         $err = ($f->aldt->getTimestamp() - $f->eldt_locked->getTimestamp()) / 60;
                         if (abs($err) > 120) continue; // outlier cap — beyond 2h is bad data
@@ -1651,6 +1663,7 @@ final class Kernel
                 foreach ($arrivals as $f) {
                     if ($f->aldt && $f->eldt_locked && $f->eldt_locked_source
                         && $f->aldt->getTimestamp() !== $f->eldt_locked->getTimestamp()
+                        && !$isPartial($f)
                     ) {
                         $err = ($f->aldt->getTimestamp() - $f->eldt_locked->getTimestamp()) / 60;
                         if (abs($err) > 120) continue;
@@ -1685,7 +1698,7 @@ final class Kernel
                 $tldtBucket10 = 0;  // 5 < |err| <= 10
                 $tldtBucketOver = 0; // |err| > 10
                 foreach ($arrivals as $f) {
-                    if ($f->aldt && $f->tldt) {
+                    if ($f->aldt && $f->tldt && !$isPartial($f)) {
                         $err = ($f->aldt->getTimestamp() - $f->tldt->getTimestamp()) / 60;
                         $tldtErrors[]    = $err;
                         $tldtAbsErrors[] = abs($err);
