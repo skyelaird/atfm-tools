@@ -115,6 +115,23 @@
         .metar-raw.expanded { max-height: 5em; }
         .metar-toggle { font-size: 0.55rem; color: var(--text-dim); cursor: pointer; }
 
+        /* Demand distribution strip */
+        .demand-strip { margin-top: 0.4rem; border-top: 1px dashed var(--border); padding-top: 0.3rem; }
+        .demand-header { display: flex; justify-content: space-between; align-items: center; font-size: 0.7rem; color: var(--text-dim); margin-bottom: 0.25rem; }
+        .demand-label { text-transform: uppercase; letter-spacing: 0.04em; }
+        .demand-window-pills { display: flex; gap: 0.15rem; }
+        .demand-pill { padding: 0.05rem 0.35rem; font-size: 0.65rem; border: 1px solid var(--border); border-radius: 2px; cursor: pointer; color: var(--text-dim); font-family: var(--mono); }
+        .demand-pill:hover { color: var(--text); }
+        .demand-pill.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+        .demand-body { font-size: 0.72rem; }
+        .demand-row { display: flex; align-items: center; gap: 0.3rem; padding: 0.08rem 0; }
+        .demand-row .fix { font-family: var(--mono); width: 5em; color: var(--text); }
+        .demand-row .bar-wrap { flex: 1; background: var(--bg); border-radius: 2px; height: 8px; }
+        .demand-row .bar { background: var(--accent); height: 100%; border-radius: 2px; }
+        .demand-row .count { font-family: var(--mono); min-width: 3.5em; text-align: right; color: var(--text-dim); }
+        .demand-row.zero { opacity: 0.45; }
+        .demand-total { font-size: 0.65rem; color: var(--text-dim); margin-top: 0.2rem; font-family: var(--mono); }
+
         /* MIT planner */
         .mit-section { margin-top: 0.4rem; border-top: 1px dashed var(--border); padding-top: 0.3rem; }
         .mit-toggle { font-size: 0.7rem; background: none; border: none; color: var(--text-dim); cursor: pointer; padding: 0; font-family: inherit; }
@@ -373,6 +390,18 @@ function renderCard(icao) {
         </div>
         <div class="rate-sub" id="rate-detail-${icao}"></div>
         <div class="metar-raw" onclick="this.classList.toggle('expanded')">${st.metar || ''}</div>
+        <div class="demand-strip" id="demand-strip-${icao}">
+            <div class="demand-header">
+                <span class="demand-label">Current demand (next <span id="demand-win-${icao}">4h</span>)</span>
+                <span class="demand-window-pills">
+                    <span class="demand-pill" data-icao="${icao}" data-win="60">1h</span>
+                    <span class="demand-pill" data-icao="${icao}" data-win="120">2h</span>
+                    <span class="demand-pill active" data-icao="${icao}" data-win="240">4h</span>
+                    <span class="demand-pill" data-icao="${icao}" data-win="480">8h</span>
+                </span>
+            </div>
+            <div class="demand-body" id="demand-body-${icao}"><div class="muted" style="font-size:0.65rem;">Loading…</div></div>
+        </div>
         <div class="mit-section">
             <button class="mit-toggle" onclick="toggleMit('${icao}'); event.stopPropagation();">MIT planner ▾</button>
             <div class="mit-body" id="mit-body-${icao}" style="display:none;"></div>
@@ -636,6 +665,27 @@ async function computeRates(icao) {
         } catch (e) {}
     }
 
+    // Crossing-runway dependency penalty. When two active arrival (or A/D)
+    // runways are on physically crossing strips (e.g. CYYC 11:A + 17L:A
+    // pre-parallels era, CYWG 18:A + 13:A), they can't both operate at
+    // independent rates — intersections impose mandatory holds. Historical
+    // FAA/TC data: crossing-arr pairs deliver ~60% of independent sum.
+    // We detect any active arr-eligible pair in the airport's crossings
+    // list and apply a 0.6 multiplier once (not per-pair, to avoid
+    // over-penalising triples). Same treatment applied to dep sum below.
+    const crossings = configsByApt[icao]?._crossings || [];
+    const activeArrIdents = new Set(arrRwys.map(([id]) => id));
+    const activeDepIdents = new Set(depRwys.map(([id]) => id));
+    const arrCrossingActive = crossings.some(([a, b]) =>
+        activeArrIdents.has(a) && activeArrIdents.has(b));
+    const depCrossingActive = crossings.some(([a, b]) =>
+        activeDepIdents.has(a) && activeDepIdents.has(b));
+    if (arrCrossingActive) {
+        achievableArr = Math.round(achievableArr * 0.6);
+        calmArr = Math.round(calmArr * 0.6);
+        details.push('(-40% crossing dep)');
+    }
+
     // ADR: prefer declared. Fall back to legacy heuristic only if no config
     // is selected (manual runway toggles with no matching config).
     //
@@ -659,6 +709,12 @@ async function computeRates(icao) {
             const rate = r.role === 'D' ? 20 : Math.min(Math.round(achievableArr * 0.4 / 0.6), 12);
             totalDep += rate; details.push(`${ident}:${rate}D`);
         }
+    }
+    // Crossing-runway dep penalty. Two deps on crossing strips can't both
+    // launch independently — delivery drops to ~75% of independent sum.
+    if (depCrossingActive) {
+        totalDep = Math.round(totalDep * 0.75);
+        details.push('(-25% dep cross)');
     }
 
     // Operational AAR = min(declared, achievable). FAA facilities never
@@ -734,6 +790,79 @@ async function loadAll() {
 document.getElementById('refresh-btn').addEventListener('click', loadAll);
 loadAll();
 setInterval(loadAll, 300000);
+
+// ---- Demand distribution strip per airport card ----
+//
+// Forward-looking inbound demand grouped by metering fix, embedded under
+// each AAR card (below METAR, above MIT planner). Lets the FMP see
+// demand-vs-capacity side by side without leaving the page.
+//
+// Uses /api/v1/reports/current-demand for all airports, filters per card.
+const demandWindow = {}; // icao -> minutes
+async function refreshDemandStrip() {
+    // Determine largest active window across cards so we fetch once
+    const windows = new Set(Object.values(demandWindow));
+    // Default 240 for any airport that hasn't picked
+    windows.add(240);
+    // For simplicity: fetch per-airport window (one call each) — cheap endpoint
+    for (const icao of Object.keys(aptState || {})) {
+        const win = demandWindow[icao] || 240;
+        try {
+            const d = await fetch('/api/v1/reports/current-demand?window=' + win).then(r => r.json());
+            const apt = d.by_airport?.[icao];
+            const body = document.getElementById('demand-body-' + icao);
+            const label = document.getElementById('demand-win-' + icao);
+            if (label) label.textContent = (win >= 60) ? (win / 60 + 'h') : (win + 'm');
+            if (!body) continue;
+            if (!apt || !apt.fixes || apt.fixes.length === 0) {
+                body.innerHTML = '<div class="muted" style="font-size:0.65rem;">No MFs defined.</div>';
+                continue;
+            }
+            const total = apt.total || 0;
+            const resolved = apt.resolved || 0;
+            const rows = apt.fixes.map(f => {
+                const pct = f.pct || 0;
+                const barW = Math.min(100, pct);
+                const inf = f.inferred > 0 ? `<span class="muted" style="font-size:0.6rem;"> +${f.inferred}i</span>` : '';
+                const cls = f.count === 0 ? 'demand-row zero' : 'demand-row';
+                return `<div class="${cls}"><span class="fix" title="${f.corridor||''}">${f.fix}</span>` +
+                       `<div class="bar-wrap"><div class="bar" style="width:${barW}%;"></div></div>` +
+                       `<span class="count">${pct.toFixed(0)}% (${f.count}${inf})</span></div>`;
+            }).join('');
+            const aarTxt = document.getElementById('aar-'+icao)?.textContent?.trim() || '';
+            const aarNum = parseInt(aarTxt) || 0;
+            const perHr = win > 0 ? (total / (win/60)) : 0;
+            const pctCap = aarNum > 0 ? Math.round(perHr / aarNum * 100) : null;
+            const capClass = pctCap === null ? '' : (pctCap > 100 ? 'style="color:var(--warn);"' : '');
+            const capLine = aarNum > 0
+                ? ` <span ${capClass}>~${perHr.toFixed(1)}/hr = ${pctCap}% of AAR</span>`
+                : '';
+            const unres = apt.unresolved > 0 ? ` · ${apt.unresolved} no fix` : '';
+            body.innerHTML = rows + `<div class="demand-total">${total} total${unres}${capLine}</div>`;
+        } catch (e) {
+            const body = document.getElementById('demand-body-' + icao);
+            if (body) body.innerHTML = '<div style="font-size:0.65rem;color:var(--alert);">Failed: ' + e.message + '</div>';
+        }
+    }
+}
+
+// Wire up demand pill clicks (delegated)
+document.addEventListener('click', (e) => {
+    const p = e.target.closest('.demand-pill');
+    if (!p) return;
+    e.stopPropagation();
+    const icao = p.dataset.icao;
+    const win = parseInt(p.dataset.win);
+    demandWindow[icao] = win;
+    // Update pill active state
+    document.querySelectorAll(`.demand-pill[data-icao="${icao}"]`).forEach(x => x.classList.remove('active'));
+    p.classList.add('active');
+    refreshDemandStrip();
+});
+
+// Initial + periodic refresh once data is loaded
+setTimeout(refreshDemandStrip, 2000);
+setInterval(refreshDemandStrip, 60000);
 
 // UTC clock in header
 function updateUtcClock() {

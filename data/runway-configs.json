@@ -8,7 +8,10 @@
         "label": "05 Single",
         "mode": "single_interleaved",
         "runways": {
-          "05": { "role": "A/D", "hdg": 53 }
+          "05": {
+            "role": "A/D",
+            "hdg": 53
+          }
         },
         "primary_arr": "05",
         "primary_dep": "05",
@@ -19,10 +22,19 @@
         "name": "05-LAHSO-14",
         "label": "05 Arr / 14 Dep (LAHSO)",
         "mode": "lahso",
-        "requires": { "dry": true, "vmc": true },
+        "requires": {
+          "dry": true,
+          "vmc": true
+        },
         "runways": {
-          "05": { "role": "A", "hdg": 53 },
-          "14": { "role": "D", "hdg": 143 }
+          "14": {
+            "role": "D",
+            "hdg": 143
+          },
+          "05": {
+            "role": "A",
+            "hdg": 53
+          }
         },
         "primary_arr": "05",
         "primary_dep": "14",
@@ -33,10 +45,19 @@
         "name": "05-LAHSO-32",
         "label": "05 Arr / 32 Dep (LAHSO)",
         "mode": "lahso",
-        "requires": { "dry": true, "vmc": true },
+        "requires": {
+          "dry": true,
+          "vmc": true
+        },
         "runways": {
-          "05": { "role": "A", "hdg": 53 },
-          "32": { "role": "D", "hdg": 323 }
+          "32": {
+            "role": "D",
+            "hdg": 323
+          },
+          "05": {
+            "role": "A",
+            "hdg": 53
+          }
         },
         "primary_arr": "05",
         "primary_dep": "32",
@@ -48,7 +69,10 @@
         "label": "23 Single",
         "mode": "single_interleaved",
         "runways": {
-          "23": { "role": "A/D", "hdg": 233 }
+          "23": {
+            "role": "A/D",
+            "hdg": 233
+          }
         },
         "primary_arr": "23",
         "primary_dep": "23",
@@ -60,7 +84,10 @@
         "label": "14 Single",
         "mode": "single_interleaved",
         "runways": {
-          "14": { "role": "A/D", "hdg": 143 }
+          "14": {
+            "role": "A/D",
+            "hdg": 143
+          }
         },
         "primary_arr": "14",
         "primary_dep": "14",
@@ -74,11 +101,19 @@
         "mode": "dependent",
         "_note": "14 has ILS — preferred arrival in IMC. 05 for heavy departures (longer runway).",
         "runways": {
-          "14": { "role": "A", "hdg": 143 },
-          "05": { "role": "D", "hdg": 53 }
+          "14": {
+            "role": "A",
+            "hdg": 143
+          },
+          "05": {
+            "role": "D",
+            "hdg": 53
+          }
         },
-        "primary_arr": "14", "primary_dep": "05",
-        "declared_arr_rate": 22, "declared_dep_rate": 22,
+        "primary_arr": "14",
+        "primary_dep": "05",
+        "declared_arr_rate": 22,
+        "declared_dep_rate": 22,
         "ils": true
       },
       {
@@ -87,11 +122,19 @@
         "mode": "dependent",
         "_note": "14 has ILS. 23 opposite end of main runway for departures.",
         "runways": {
-          "14": { "role": "A", "hdg": 143 },
-          "23": { "role": "D", "hdg": 233 }
+          "14": {
+            "role": "A",
+            "hdg": 143
+          },
+          "23": {
+            "role": "D",
+            "hdg": 233
+          }
         },
-        "primary_arr": "14", "primary_dep": "23",
-        "declared_arr_rate": 22, "declared_dep_rate": 22,
+        "primary_arr": "14",
+        "primary_dep": "23",
+        "declared_arr_rate": 22,
+        "declared_dep_rate": 22,
         "ils": true
       },
       {
@@ -99,7 +142,10 @@
         "label": "32 Single",
         "mode": "single_interleaved",
         "runways": {
-          "32": { "role": "A/D", "hdg": 323 }
+          "32": {
+            "role": "A/D",
+            "hdg": 323
+          }
         },
         "primary_arr": "32",
         "primary_dep": "32",
@@ -111,110 +157,226 @@
         "label": "32 Arr / 05 Dep (dependent)",
         "mode": "dependent",
         "runways": {
-          "32": { "role": "A", "hdg": 323 },
-          "05": { "role": "D", "hdg": 53 }
+          "32": {
+            "role": "A",
+            "hdg": 323
+          },
+          "05": {
+            "role": "D",
+            "hdg": 53
+          }
         },
-        "primary_arr": "32", "primary_dep": "05",
-        "declared_arr_rate": 22, "declared_dep_rate": 22
+        "primary_arr": "32",
+        "primary_dep": "05",
+        "declared_arr_rate": 22,
+        "declared_dep_rate": 22
       }
+    ],
+    "_crossings": [
+      [
+        [
+          "14",
+          "32"
+        ],
+        [
+          "05",
+          "23"
+        ]
+      ]
     ]
   },
   "CYOW": {
-    "_vfr_only": ["04", "22"],
+    "_vfr_only": [
+      "04",
+      "22"
+    ],
     "calm_wind_config": "25",
     "configs": [
       {
         "name": "25",
         "label": "25 Single",
         "mode": "single_interleaved",
-        "runways": { "25": { "role": "A/D", "hdg": 251 } },
-        "primary_arr": "25", "primary_dep": "25",
-        "declared_arr_rate": 22, "declared_dep_rate": 22
+        "runways": {
+          "25": {
+            "role": "A/D",
+            "hdg": 251
+          }
+        },
+        "primary_arr": "25",
+        "primary_dep": "25",
+        "declared_arr_rate": 22,
+        "declared_dep_rate": 22
       },
       {
         "name": "07",
         "label": "07 Single",
         "mode": "single_interleaved",
-        "runways": { "07": { "role": "A/D", "hdg": 71 } },
-        "primary_arr": "07", "primary_dep": "07",
-        "declared_arr_rate": 22, "declared_dep_rate": 22
+        "runways": {
+          "07": {
+            "role": "A/D",
+            "hdg": 71
+          }
+        },
+        "primary_arr": "07",
+        "primary_dep": "07",
+        "declared_arr_rate": 22,
+        "declared_dep_rate": 22
       },
       {
         "name": "32",
         "label": "32 Single",
         "mode": "single_interleaved",
-        "runways": { "32": { "role": "A/D", "hdg": 320 } },
-        "primary_arr": "32", "primary_dep": "32",
-        "declared_arr_rate": 20, "declared_dep_rate": 20
+        "runways": {
+          "32": {
+            "role": "A/D",
+            "hdg": 320
+          }
+        },
+        "primary_arr": "32",
+        "primary_dep": "32",
+        "declared_arr_rate": 20,
+        "declared_dep_rate": 20
       },
       {
         "name": "25-32dep",
         "label": "25 Arr / 32 Dep (dependent)",
         "mode": "dependent",
-        "requires": { "dry": true, "vmc": true },
-        "runways": {
-          "25": { "role": "A", "hdg": 251 },
-          "32": { "role": "D", "hdg": 320 }
+        "requires": {
+          "dry": true,
+          "vmc": true
         },
-        "primary_arr": "25", "primary_dep": "32",
-        "declared_arr_rate": 26, "declared_dep_rate": 22
+        "runways": {
+          "25": {
+            "role": "A",
+            "hdg": 251
+          },
+          "32": {
+            "role": "D",
+            "hdg": 320
+          }
+        },
+        "primary_arr": "25",
+        "primary_dep": "32",
+        "declared_arr_rate": 26,
+        "declared_dep_rate": 22
       },
       {
         "name": "07-14dep",
         "label": "07 Arr / 14 Dep (dependent)",
         "mode": "dependent",
-        "requires": { "dry": true, "vmc": true },
-        "runways": {
-          "07": { "role": "A", "hdg": 71 },
-          "14": { "role": "D", "hdg": 140 }
+        "requires": {
+          "dry": true,
+          "vmc": true
         },
-        "primary_arr": "07", "primary_dep": "14",
-        "declared_arr_rate": 26, "declared_dep_rate": 22
+        "runways": {
+          "14": {
+            "role": "D",
+            "hdg": 140
+          },
+          "07": {
+            "role": "A",
+            "hdg": 71
+          }
+        },
+        "primary_arr": "07",
+        "primary_dep": "14",
+        "declared_arr_rate": 26,
+        "declared_dep_rate": 22
       },
       {
         "name": "25-14dep",
         "label": "25 Arr / 14 Dep (dependent)",
         "mode": "dependent",
-        "requires": { "dry": true, "vmc": true },
-        "runways": {
-          "25": { "role": "A", "hdg": 251 },
-          "14": { "role": "D", "hdg": 140 }
+        "requires": {
+          "dry": true,
+          "vmc": true
         },
-        "primary_arr": "25", "primary_dep": "14",
-        "declared_arr_rate": 26, "declared_dep_rate": 22
+        "runways": {
+          "14": {
+            "role": "D",
+            "hdg": 140
+          },
+          "25": {
+            "role": "A",
+            "hdg": 251
+          }
+        },
+        "primary_arr": "25",
+        "primary_dep": "14",
+        "declared_arr_rate": 26,
+        "declared_dep_rate": 22
       },
       {
         "name": "07-32dep",
         "label": "07 Arr / 32 Dep (dependent)",
         "mode": "dependent",
-        "requires": { "dry": true, "vmc": true },
-        "runways": {
-          "07": { "role": "A", "hdg": 71 },
-          "32": { "role": "D", "hdg": 320 }
+        "requires": {
+          "dry": true,
+          "vmc": true
         },
-        "primary_arr": "07", "primary_dep": "32",
-        "declared_arr_rate": 26, "declared_dep_rate": 22
+        "runways": {
+          "32": {
+            "role": "D",
+            "hdg": 320
+          },
+          "07": {
+            "role": "A",
+            "hdg": 71
+          }
+        },
+        "primary_arr": "07",
+        "primary_dep": "32",
+        "declared_arr_rate": 26,
+        "declared_dep_rate": 22
       },
       {
         "name": "14",
         "label": "14 Single",
         "mode": "single_interleaved",
-        "runways": { "14": { "role": "A/D", "hdg": 140 } },
-        "primary_arr": "14", "primary_dep": "14",
-        "declared_arr_rate": 20, "declared_dep_rate": 20
+        "runways": {
+          "14": {
+            "role": "A/D",
+            "hdg": 140
+          }
+        },
+        "primary_arr": "14",
+        "primary_dep": "14",
+        "declared_arr_rate": 20,
+        "declared_dep_rate": 20
       }
+    ],
+    "_crossings": [
+      [
+        [
+          "07",
+          "25"
+        ],
+        [
+          "14",
+          "32"
+        ]
+      ]
     ]
   },
   "CYVR": {
     "calm_wind_config": "08",
-    "_supplementary": ["13", "31"],
+    "_supplementary": [
+      "13",
+      "31"
+    ],
     "configs": [
       {
         "name": "08",
         "label": "08 Direction",
         "runways": {
-          "08L": { "role": "D", "hdg": 83 },
-          "08R": { "role": "A", "hdg": 83 }
+          "08L": {
+            "role": "D",
+            "hdg": 83
+          },
+          "08R": {
+            "role": "A",
+            "hdg": 83
+          }
         },
         "primary_arr": "08R",
         "primary_dep": "08L",
@@ -225,14 +387,42 @@
         "name": "26",
         "label": "26 Direction",
         "runways": {
-          "26L": { "role": "A", "hdg": 263 },
-          "26R": { "role": "D", "hdg": 263 }
+          "26L": {
+            "role": "A",
+            "hdg": 263
+          },
+          "26R": {
+            "role": "D",
+            "hdg": 263
+          }
         },
         "primary_arr": "26L",
         "primary_dep": "26R",
         "declared_arr_rate": 46,
         "declared_dep_rate": 30
       }
+    ],
+    "_crossings": [
+      [
+        [
+          "12",
+          "30"
+        ],
+        [
+          "08L",
+          "26R"
+        ]
+      ],
+      [
+        [
+          "12",
+          "30"
+        ],
+        [
+          "08R",
+          "26L"
+        ]
+      ]
     ]
   },
   "CYYC": {
@@ -242,8 +432,14 @@
         "name": "35",
         "label": "35 Direction",
         "runways": {
-          "35L": { "role": "A", "hdg": 345 },
-          "35R": { "role": "D", "hdg": 345 }
+          "35L": {
+            "role": "A",
+            "hdg": 345
+          },
+          "35R": {
+            "role": "D",
+            "hdg": 345
+          }
         },
         "primary_arr": "35L",
         "primary_dep": "35R",
@@ -254,8 +450,14 @@
         "name": "17",
         "label": "17 Direction",
         "runways": {
-          "17L": { "role": "D", "hdg": 165 },
-          "17R": { "role": "A", "hdg": 165 }
+          "17L": {
+            "role": "D",
+            "hdg": 165
+          },
+          "17R": {
+            "role": "A",
+            "hdg": 165
+          }
         },
         "primary_arr": "17R",
         "primary_dep": "17L",
@@ -266,18 +468,54 @@
         "name": "29",
         "label": "29 Single",
         "mode": "single_interleaved",
-        "runways": { "29": { "role": "A/D", "hdg": 285 } },
-        "primary_arr": "29", "primary_dep": "29",
-        "declared_arr_rate": 20, "declared_dep_rate": 20
+        "runways": {
+          "29": {
+            "role": "A/D",
+            "hdg": 285
+          }
+        },
+        "primary_arr": "29",
+        "primary_dep": "29",
+        "declared_arr_rate": 20,
+        "declared_dep_rate": 20
       },
       {
         "name": "11",
         "label": "11 Single",
         "mode": "single_interleaved",
-        "runways": { "11": { "role": "A/D", "hdg": 105 } },
-        "primary_arr": "11", "primary_dep": "11",
-        "declared_arr_rate": 20, "declared_dep_rate": 20
+        "runways": {
+          "11": {
+            "role": "A/D",
+            "hdg": 105
+          }
+        },
+        "primary_arr": "11",
+        "primary_dep": "11",
+        "declared_arr_rate": 20,
+        "declared_dep_rate": 20
       }
+    ],
+    "_crossings": [
+      [
+        [
+          "11",
+          "29"
+        ],
+        [
+          "35L",
+          "17R"
+        ]
+      ],
+      [
+        [
+          "11",
+          "29"
+        ],
+        [
+          "35R",
+          "17L"
+        ]
+      ]
     ]
   },
   "CYUL": {
@@ -287,8 +525,14 @@
         "name": "24",
         "label": "24 Direction",
         "runways": {
-          "24L": { "role": "A", "hdg": 237 },
-          "24R": { "role": "D", "hdg": 237 }
+          "24L": {
+            "role": "A",
+            "hdg": 237
+          },
+          "24R": {
+            "role": "D",
+            "hdg": 237
+          }
         },
         "primary_arr": "24L",
         "primary_dep": "24R",
@@ -299,125 +543,268 @@
         "name": "06",
         "label": "06 Direction",
         "runways": {
-          "06L": { "role": "D", "hdg": 57 },
-          "06R": { "role": "A", "hdg": 57 }
+          "06L": {
+            "role": "D",
+            "hdg": 57
+          },
+          "06R": {
+            "role": "A",
+            "hdg": 57
+          }
         },
         "primary_arr": "06R",
         "primary_dep": "06L",
         "declared_arr_rate": 42,
         "declared_dep_rate": 30
       }
+    ],
+    "_crossings": [
+      [
+        [
+          "10",
+          "28"
+        ],
+        [
+          "06L",
+          "24R"
+        ]
+      ],
+      [
+        [
+          "10",
+          "28"
+        ],
+        [
+          "06R",
+          "24L"
+        ]
+      ]
     ]
   },
   "CYWG": {
     "calm_wind_config": "36",
-    "_dependent_pairs": [["18", "36"], ["13", "31"]],
+    "_dependent_pairs": [
+      [
+        "18",
+        "36"
+      ],
+      [
+        "13",
+        "31"
+      ]
+    ],
     "_note": "Crossing runways — both pairs intersect. Opening both is dependent ops, not independent.",
     "configs": [
       {
         "name": "36",
         "label": "36 Single",
         "mode": "single_interleaved",
-        "runways": { "36": { "role": "A/D", "hdg": 5 } },
-        "primary_arr": "36", "primary_dep": "36",
-        "declared_arr_rate": 22, "declared_dep_rate": 22
+        "runways": {
+          "36": {
+            "role": "A/D",
+            "hdg": 5
+          }
+        },
+        "primary_arr": "36",
+        "primary_dep": "36",
+        "declared_arr_rate": 22,
+        "declared_dep_rate": 22
       },
       {
         "name": "36-13dep",
         "label": "36 Arr / 13 Dep (dependent)",
         "mode": "dependent",
-        "requires": { "dry": true, "vmc": true },
-        "runways": {
-          "36": { "role": "A", "hdg": 5 },
-          "13": { "role": "D", "hdg": 135 }
+        "requires": {
+          "dry": true,
+          "vmc": true
         },
-        "primary_arr": "36", "primary_dep": "13",
-        "declared_arr_rate": 24, "declared_dep_rate": 22
+        "runways": {
+          "13": {
+            "role": "D",
+            "hdg": 135
+          },
+          "36": {
+            "role": "A",
+            "hdg": 5
+          }
+        },
+        "primary_arr": "36",
+        "primary_dep": "13",
+        "declared_arr_rate": 24,
+        "declared_dep_rate": 22
       },
       {
         "name": "36-31dep",
         "label": "36 Arr / 31 Dep (dependent)",
         "mode": "dependent",
-        "requires": { "dry": true, "vmc": true },
-        "runways": {
-          "36": { "role": "A", "hdg": 5 },
-          "31": { "role": "D", "hdg": 315 }
+        "requires": {
+          "dry": true,
+          "vmc": true
         },
-        "primary_arr": "36", "primary_dep": "31",
-        "declared_arr_rate": 24, "declared_dep_rate": 22
+        "runways": {
+          "31": {
+            "role": "D",
+            "hdg": 315
+          },
+          "36": {
+            "role": "A",
+            "hdg": 5
+          }
+        },
+        "primary_arr": "36",
+        "primary_dep": "31",
+        "declared_arr_rate": 24,
+        "declared_dep_rate": 22
       },
       {
         "name": "18",
         "label": "18 Single",
         "mode": "single_interleaved",
-        "runways": { "18": { "role": "A/D", "hdg": 185 } },
-        "primary_arr": "18", "primary_dep": "18",
-        "declared_arr_rate": 22, "declared_dep_rate": 22
+        "runways": {
+          "18": {
+            "role": "A/D",
+            "hdg": 185
+          }
+        },
+        "primary_arr": "18",
+        "primary_dep": "18",
+        "declared_arr_rate": 22,
+        "declared_dep_rate": 22
       },
       {
         "name": "18-13dep",
         "label": "18 Arr / 13 Dep (dependent)",
         "mode": "dependent",
-        "requires": { "dry": true, "vmc": true },
-        "runways": {
-          "18": { "role": "A", "hdg": 185 },
-          "13": { "role": "D", "hdg": 135 }
+        "requires": {
+          "dry": true,
+          "vmc": true
         },
-        "primary_arr": "18", "primary_dep": "13",
-        "declared_arr_rate": 24, "declared_dep_rate": 22
+        "runways": {
+          "13": {
+            "role": "D",
+            "hdg": 135
+          },
+          "18": {
+            "role": "A",
+            "hdg": 185
+          }
+        },
+        "primary_arr": "18",
+        "primary_dep": "13",
+        "declared_arr_rate": 24,
+        "declared_dep_rate": 22
       },
       {
         "name": "18-LAHSO-13",
         "label": "18 Arr / 13 Dep (LAHSO)",
         "mode": "lahso",
-        "requires": { "dry": true, "vmc": true },
-        "runways": {
-          "18": { "role": "A", "hdg": 185 },
-          "13": { "role": "D", "hdg": 135 }
+        "requires": {
+          "dry": true,
+          "vmc": true
         },
-        "primary_arr": "18", "primary_dep": "13",
-        "declared_arr_rate": 24, "declared_dep_rate": 30
+        "runways": {
+          "13": {
+            "role": "D",
+            "hdg": 135
+          },
+          "18": {
+            "role": "A",
+            "hdg": 185
+          }
+        },
+        "primary_arr": "18",
+        "primary_dep": "13",
+        "declared_arr_rate": 24,
+        "declared_dep_rate": 30
       },
       {
         "name": "18-31dep",
         "label": "18 Arr / 31 Dep (dependent)",
         "mode": "dependent",
-        "requires": { "dry": true, "vmc": true },
-        "runways": {
-          "18": { "role": "A", "hdg": 185 },
-          "31": { "role": "D", "hdg": 315 }
+        "requires": {
+          "dry": true,
+          "vmc": true
         },
-        "primary_arr": "18", "primary_dep": "31",
-        "declared_arr_rate": 24, "declared_dep_rate": 22
+        "runways": {
+          "18": {
+            "role": "A",
+            "hdg": 185
+          },
+          "31": {
+            "role": "D",
+            "hdg": 315
+          }
+        },
+        "primary_arr": "18",
+        "primary_dep": "31",
+        "declared_arr_rate": 24,
+        "declared_dep_rate": 22
       },
       {
         "name": "18-LAHSO-31",
         "label": "18 Arr / 31 Dep (LAHSO)",
         "mode": "lahso",
-        "requires": { "dry": true, "vmc": true },
-        "runways": {
-          "18": { "role": "A", "hdg": 185 },
-          "31": { "role": "D", "hdg": 315 }
+        "requires": {
+          "dry": true,
+          "vmc": true
         },
-        "primary_arr": "18", "primary_dep": "31",
-        "declared_arr_rate": 24, "declared_dep_rate": 30
+        "runways": {
+          "18": {
+            "role": "A",
+            "hdg": 185
+          },
+          "31": {
+            "role": "D",
+            "hdg": 315
+          }
+        },
+        "primary_arr": "18",
+        "primary_dep": "31",
+        "declared_arr_rate": 24,
+        "declared_dep_rate": 30
       },
       {
         "name": "13",
         "label": "13 Single",
         "mode": "single_interleaved",
-        "runways": { "13": { "role": "A/D", "hdg": 135 } },
-        "primary_arr": "13", "primary_dep": "13",
-        "declared_arr_rate": 18, "declared_dep_rate": 18
+        "runways": {
+          "13": {
+            "role": "A/D",
+            "hdg": 135
+          }
+        },
+        "primary_arr": "13",
+        "primary_dep": "13",
+        "declared_arr_rate": 18,
+        "declared_dep_rate": 18
       },
       {
         "name": "31",
         "label": "31 Single",
         "mode": "single_interleaved",
-        "runways": { "31": { "role": "A/D", "hdg": 315 } },
-        "primary_arr": "31", "primary_dep": "31",
-        "declared_arr_rate": 18, "declared_dep_rate": 18
+        "runways": {
+          "31": {
+            "role": "A/D",
+            "hdg": 315
+          }
+        },
+        "primary_arr": "31",
+        "primary_dep": "31",
+        "declared_arr_rate": 18,
+        "declared_dep_rate": 18
       }
+    ],
+    "_crossings": [
+      [
+        [
+          "13",
+          "31"
+        ],
+        [
+          "18",
+          "36"
+        ]
+      ]
     ]
   },
   "CYYZ": {
@@ -427,9 +814,18 @@
         "name": "06",
         "label": "06 Direction",
         "runways": {
-          "05":  { "role": "A/D", "hdg": 57 },
-          "06L": { "role": "D",   "hdg": 57 },
-          "06R": { "role": "A",   "hdg": 57 }
+          "05": {
+            "role": "A/D",
+            "hdg": 57
+          },
+          "06L": {
+            "role": "D",
+            "hdg": 57
+          },
+          "06R": {
+            "role": "A",
+            "hdg": 57
+          }
         },
         "primary_arr": "06R",
         "primary_dep": "06L",
@@ -440,9 +836,18 @@
         "name": "24",
         "label": "24 Direction",
         "runways": {
-          "23":  { "role": "A/D", "hdg": 237 },
-          "24L": { "role": "A",   "hdg": 237 },
-          "24R": { "role": "D",   "hdg": 237 }
+          "23": {
+            "role": "A/D",
+            "hdg": 237
+          },
+          "24L": {
+            "role": "A",
+            "hdg": 237
+          },
+          "24R": {
+            "role": "D",
+            "hdg": 237
+          }
         },
         "primary_arr": "24L",
         "primary_dep": "24R",
@@ -454,8 +859,14 @@
         "label": "15 Direction",
         "exceptional": true,
         "runways": {
-          "15R": { "role": "A", "hdg": 147 },
-          "15L": { "role": "D", "hdg": 147 }
+          "15R": {
+            "role": "A",
+            "hdg": 147
+          },
+          "15L": {
+            "role": "D",
+            "hdg": 147
+          }
         },
         "primary_arr": "15R",
         "primary_dep": "15L",
@@ -467,14 +878,52 @@
         "label": "33 Direction",
         "exceptional": true,
         "runways": {
-          "33L": { "role": "A", "hdg": 327 },
-          "33R": { "role": "D", "hdg": 327 }
+          "33L": {
+            "role": "A",
+            "hdg": 327
+          },
+          "33R": {
+            "role": "D",
+            "hdg": 327
+          }
         },
         "primary_arr": "33L",
         "primary_dep": "33R",
         "declared_arr_rate": 44,
         "declared_dep_rate": 30
       }
+    ],
+    "_crossings": [
+      [
+        [
+          "15",
+          "33"
+        ],
+        [
+          "06L",
+          "24R"
+        ]
+      ],
+      [
+        [
+          "15",
+          "33"
+        ],
+        [
+          "06R",
+          "24L"
+        ]
+      ],
+      [
+        [
+          "15",
+          "33"
+        ],
+        [
+          "05",
+          "23"
+        ]
+      ]
     ]
   }
 }
