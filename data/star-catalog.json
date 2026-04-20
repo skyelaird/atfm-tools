@@ -3,29 +3,63 @@
   "metering_fixes": {
     "CYHZ": [
       {
-        "fix": "ILOTA",
-        "distance_nm": 14,
+        "fix": "MUVOX",
+        "distance_nm": 30,
         "stars": [
-          "FUNDY5",
-          "PEGGY5"
+          "FUNDY5"
         ],
-        "corridor": "west+south",
+        "corridor": "west (Bay of Fundy)",
         "coords": {
-          "lat": 44.853392,
-          "lon": -63.831867
+          "lat": 44.864169,
+          "lon": -64.203325
         }
       },
       {
-        "fix": "GABAP",
-        "distance_nm": 12,
+        "fix": "ETGAR",
+        "distance_nm": 39,
         "stars": [
-          "LIRLA5",
+          "PEGGY5"
+        ],
+        "corridor": "south (Atlantic)",
+        "coords": {
+          "lat": 44.419311,
+          "lon": -64.163006
+        }
+      },
+      {
+        "fix": "LIRLA",
+        "distance_nm": 30,
+        "stars": [
+          "LIRLA5"
+        ],
+        "corridor": "east (Atlantic)",
+        "coords": {
+          "lat": 45.020886,
+          "lon": -62.835517
+        }
+      },
+      {
+        "fix": "LOKRI",
+        "distance_nm": 33,
+        "stars": [
           "MINAS1"
         ],
-        "corridor": "east+north",
+        "corridor": "north (Minas Basin)",
         "coords": {
-          "lat": 44.853625,
-          "lon": -63.234078
+          "lat": 45.241781,
+          "lon": -64.08375
+        }
+      },
+      {
+        "fix": "BOSUB",
+        "distance_nm": 31,
+        "stars": [
+          "CABOT5"
+        ],
+        "corridor": "northeast (Cape Breton)",
+        "coords": {
+          "lat": 45.197206,
+          "lon": -62.925272
         }
       }
     ],
@@ -247,7 +281,7 @@
           "MODIR",
           "DUNUB"
         ],
-        "metering_fix": "ILOTA"
+        "metering_fix": "MUVOX"
       },
       "PEGGY5": {
         "entry_fix": "ETGAR",
@@ -261,7 +295,7 @@
           "MODIR",
           "DUNUB"
         ],
-        "metering_fix": "ILOTA"
+        "metering_fix": "ETGAR"
       },
       "LIRLA5": {
         "entry_fix": "AGMIR",
@@ -273,7 +307,7 @@
           "GABAP",
           "KIXIT"
         ],
-        "metering_fix": "GABAP"
+        "metering_fix": "LIRLA"
       },
       "MINAS1": {
         "entry_fix": "LOKRI",
@@ -285,7 +319,7 @@
           "GABAP",
           "KIXIT"
         ],
-        "metering_fix": "GABAP"
+        "metering_fix": "LOKRI"
       },
       "CABOT5": {
         "entry_fix": "BOSUB",
@@ -296,7 +330,7 @@
           "PEPTA",
           "OBNOM"
         ],
-        "metering_fix": null,
+        "metering_fix": "BOSUB",
         "note": "Independent corridor, no convergence"
       }
     },
