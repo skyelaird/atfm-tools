@@ -80,12 +80,15 @@ final class Kernel
         $s->last_seen_at = $now;
         $s->save();
         $d = $s->user_data ?: [];
+        // Attach live-connection info so downstream Gate checks can read it
+        // without re-polling the VATSIM feed. Cached feed read is cheap.
+        $live = self::lookupLiveConnection((int) $s->vatsim_cid);
         return [
             'cid'      => (int) $s->vatsim_cid,
             'name'     => $d['personal']['name_full'] ?? ('CID ' . $s->vatsim_cid),
             'rating'   => $d['vatsim']['rating']['short'] ?? null,
             'division' => $d['vatsim']['division']['id']  ?? null,
-            'raw'      => $d,
+            'raw'      => array_merge($d, ['live' => $live]),
         ];
     }
 
@@ -1014,6 +1017,12 @@ final class Kernel
                     'error' => 'Flight not found or already arrived/withdrawn',
                 ]);
             }
+            // Auth gate — permissive today, strict when AUTH_STRICT=true
+            if (!\Atfm\Auth\Gate::modifyFlight($req, $flight)) {
+                return self::json($res->withStatus(403), [
+                    'error' => 'not authorized to modify this flight',
+                ]);
+            }
 
             $body = (array) $req->getParsedBody();
             $raw  = $body['tobt'] ?? null;
@@ -1627,9 +1636,15 @@ final class Kernel
         });
 
         $app->post('/api/v1/airports/{icao}/restrictions', function ($req, $res, array $args) {
-            $airport = Airport::where('icao', strtoupper($args['icao']))->first();
+            $icao = strtoupper($args['icao']);
+            $airport = Airport::where('icao', $icao)->first();
             if (! $airport) {
                 return self::json($res->withStatus(404), ['error' => 'airport not found']);
+            }
+            if (!\Atfm\Auth\Gate::regulateAirport($req, $icao)) {
+                return self::json($res->withStatus(403), [
+                    'error' => 'not authorized to regulate this airport',
+                ]);
             }
             $body = (array) $req->getParsedBody();
             $r = new AirportRestriction();
@@ -1658,6 +1673,12 @@ final class Kernel
             $r = AirportRestriction::where('restriction_id', $args['id'])->first();
             if (! $r) {
                 return self::json($res->withStatus(404), ['error' => 'not found']);
+            }
+            $icao = $r->airport?->icao ?? '';
+            if (!\Atfm\Auth\Gate::regulateAirport($req, $icao)) {
+                return self::json($res->withStatus(403), [
+                    'error' => 'not authorized to lift this restriction',
+                ]);
             }
             $r->delete();
             return self::json($res, ['ok' => true]);
