@@ -353,8 +353,8 @@ Per EUROCONTROL Airport CDM Implementation Manual v5.0.
     </section>
 
     <section>
-        <h2>STAR usage <span class="muted">filed arrivals by STAR + transition (last <span id="star-window">24</span>h, retroactive from fp_route)</span></h2>
-        <div id="star-usage-panel"><div class="muted" style="padding:0.5rem 0;">Loading...</div></div>
+        <h2>Metering fix usage <span class="muted">historical arrivals by metering fix over the selected time window</span></h2>
+        <div id="mf-usage-panel"><div class="muted" style="padding:0.5rem 0;">Loading...</div></div>
     </section>
 
     <section>
@@ -726,65 +726,53 @@ async function refreshDemandDist() {
     }
 }
 
-// ---- Historical STAR usage panel ----
-async function refreshStarUsage() {
-    const el = document.getElementById('star-usage-panel');
-    const winEl = document.getElementById('star-window');
+// ---- Metering Fix Usage panel (historical, page time-window) ----
+async function refreshMfUsage() {
+    const el = document.getElementById('mf-usage-panel');
     if (!el) return;
-    if (winEl) winEl.textContent = currentHours;
     try {
-        const r = await fetch('/api/v1/reports/star-usage?hours=' + currentHours);
+        const r = await fetch('/api/v1/reports/demand-distribution?hours=' + currentHours);
         const d = await r.json();
-        const airports = Object.keys(d.by_airport || {});
-        if (airports.length === 0) {
-            el.innerHTML = '<div class="muted" style="padding:0.5rem 0;">No landed arrivals in this window.</div>';
-            return;
-        }
-        let html = '<div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(320px,1fr)); gap:0.75rem;">';
-        for (const apt of airports.sort(sortAirportsWE)) {
+        const airports = Object.keys(d.by_airport || {}).sort(sortAirportsWE);
+        let html = '<div style="display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:0.75rem;">';
+        for (const apt of airports) {
             const data = d.by_airport[apt];
-            const total = data.resolved + data.unresolved;
-            if (total === 0) continue;
-            const pctResolved = (data.resolved / total * 100).toFixed(0);
+            const resolvedPct = data.total > 0 ? ((data.resolved / data.total) * 100).toFixed(0) : 0;
             html += `<div class="stat-card" style="align-items:stretch; padding:0.6rem;">
                 <div class="lbl" style="display:flex; justify-content:space-between;">
                     <span>${apt}</span>
-                    <span class="mono" title="Resolved / total arrivals in window">${data.resolved}/${total} resolved (${pctResolved}%)</span>
+                    <span class="mono" title="resolved / total (%resolved)">${data.resolved}/${data.total}${data.total>0?' ('+resolvedPct+'%)':''}</span>
                 </div>`;
-            if (data.stars.length === 0) {
-                html += '<div class="muted" style="font-size:0.75rem; margin-top:0.3rem;">No STARs defined for this airport.</div>';
+            if (!data.fixes || data.fixes.length === 0) {
+                html += '<div class="muted" style="font-size:0.72rem; margin-top:0.3rem;">No MFs defined.</div>';
             } else {
                 html += '<table style="width:100%; margin-top:0.3rem; font-size:0.78rem;"><tbody>';
-                for (const s of data.stars) {
-                    const pct = data.resolved > 0 ? (s.count / data.resolved * 100) : 0;
+                for (const row of data.fixes) {
+                    const pct = row.pct || 0;
                     const barW = Math.min(100, pct);
-                    const transCount = Object.keys(s.transitions).length;
-                    const transTooltip = Object.entries(s.transitions)
-                        .map(([k,v]) => `${k}: ${v}`).join(' &#10; ');
-                    const fixLabel = s.metering_fix
-                        ? `<span class="muted" style="font-size:0.68rem;">→${s.metering_fix}</span>` : '';
-                    const dimStyle = s.count === 0 ? ' opacity:0.45;' : '';
-                    html += `<tr style="${dimStyle}">
-                        <td class="mono" style="padding:0.15rem 0.2rem; width:7em;" title="${transCount} distinct transition(s)&#10;${transTooltip}">${s.star} ${fixLabel}</td>
+                    const inf = row.inferred > 0 ? `<span class="muted" title="${row.inferred} inferred from bearing (pilot filed direct)" style="font-size:0.68rem;"> +${row.inferred}i</span>` : '';
+                    const dim = row.count === 0 ? ' opacity:0.45;' : '';
+                    html += `<tr style="${dim}">
+                        <td class="mono" style="padding:0.15rem 0.2rem; width:5em;" title="${row.corridor || ''}">${row.fix}</td>
                         <td style="padding:0.15rem 0.2rem;">
                             <div style="display:flex; align-items:center; gap:0.3rem;">
                                 <div style="flex:1; background:var(--bg); border-radius:2px; height:10px; position:relative;">
                                     <div style="background:var(--accent); height:100%; width:${barW}%; border-radius:2px;"></div>
                                 </div>
-                                <span class="mono" style="min-width:5em; text-align:right;">${pct.toFixed(0)}% <span class="muted" style="font-size:0.72rem;">(${s.count})</span></span>
+                                <span class="mono" style="min-width:5em; text-align:right;">${pct.toFixed(0)}% <span class="muted" style="font-size:0.72rem;">(${row.count}${inf})</span></span>
                             </div>
                         </td>
                     </tr>`;
                 }
                 html += '</tbody></table>';
-                html += '<div class="muted" style="font-size:0.62rem; margin-top:0.2rem;">Hover STAR name for transition breakdown.</div>';
             }
             html += '</div>';
         }
         html += '</div>';
+        html += '<div class="muted" style="font-size:0.62rem; margin-top:0.4rem;">"+Ni" = N direct-to filers assigned by bearing inference.</div>';
         el.innerHTML = html;
     } catch (err) {
-        el.innerHTML = '<div class="error">Failed to load STAR usage: ' + err.message + '</div>';
+        el.innerHTML = '<div class="error">Failed to load metering fix usage: ' + err.message + '</div>';
     }
 }
 
@@ -938,7 +926,7 @@ document.querySelectorAll('#window-pills .pill').forEach(p => {
         currentHours = Number(p.dataset.hours);
         refresh();
         refreshTldt();
-        refreshStarUsage();
+        refreshMfUsage();
         // demand dist is forward-looking, has its own window pills — don't re-fire it
     });
 });
@@ -946,9 +934,9 @@ document.querySelectorAll('#window-pills .pill').forEach(p => {
 refresh();
 refreshTldt();
 refreshMeter();
-refreshStarUsage();
+refreshMfUsage();
 refreshDemandDist();
-setInterval(() => { refresh(); refreshTldt(); refreshMeter(); refreshStarUsage(); refreshDemandDist(); }, 60000);
+setInterval(() => { refresh(); refreshTldt(); refreshMeter(); refreshMfUsage(); refreshDemandDist(); }, 60000);
 
 // UTC clock in header
 function updateUtcClock() {
