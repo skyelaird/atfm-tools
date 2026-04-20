@@ -201,8 +201,8 @@
     ],
     "CYVR": [
       {
-        "fix": "STAVE",
-        "distance_nm": 35,
+        "fix": "BOOTH",
+        "distance_nm": 49,
         "stars": [
           "CANUC6",
           "LIONN4",
@@ -210,35 +210,69 @@
         ],
         "corridor": "east",
         "coords": {
-          "lat": 49.401539,
-          "lon": -122.347997
+          "lat": 49.522369,
+          "lon": -122.045139
         }
       },
       {
-        "fix": "NAGUP",
-        "distance_nm": 18,
+        "fix": "KEINN",
+        "distance_nm": 43,
         "stars": [
           "CYPRS2",
-          "WHSLR8",
-          "SOUND6"
+          "WHSLR8"
         ],
-        "corridor": "north",
+        "corridor": "north (Squamish)",
         "coords": {
-          "lat": 49.347986,
-          "lon": -123.565228
+          "lat": 49.81625,
+          "lon": -123.732225
         }
       },
       {
-        "fix": "NAKMA",
-        "distance_nm": 14,
+        "fix": "VIGSO",
+        "distance_nm": 52,
         "stars": [
-          "GRIZZ9",
+          "SOUND6"
+        ],
+        "corridor": "northwest",
+        "coords": {
+          "lat": 49.637614,
+          "lon": -124.31635
+        }
+      },
+      {
+        "fix": "EGRET",
+        "distance_nm": 39,
+        "stars": [
+          "GRIZZ9"
+        ],
+        "corridor": "south (Bellingham)",
+        "coords": {
+          "lat": 48.711628,
+          "lon": -122.509447
+        }
+      },
+      {
+        "fix": "MEPMU",
+        "distance_nm": 19,
+        "stars": [
           "ILAND9"
         ],
-        "corridor": "southwest",
+        "corridor": "southwest (Victoria area, shared with CYYJ deps)",
         "coords": {
-          "lat": 49.133483,
-          "lon": -123.530761
+          "lat": 48.923208,
+          "lon": -123.426625
+        }
+      },
+      {
+        "fix": "FOCHE",
+        "distance_nm": 64,
+        "stars": [
+          "SHARK4"
+        ],
+        "corridor": "west (Pacific)",
+        "coords": {
+          "lat": 49.06405,
+          "lon": -124.796483
         }
       }
     ],
@@ -306,55 +340,55 @@
     ],
     "CYYC": [
       {
-        "fix": "FLAAM",
-        "distance_nm": 28,
+        "fix": "ADVOX",
+        "distance_nm": 35,
         "stars": [
           "ADVOX9",
           "FLAAM7"
         ],
         "corridor": "northwest",
         "coords": {
-          "lat": 51.477167,
-          "lon": -114.469667
+          "lat": 51.578,
+          "lon": -114.5875
         }
       },
       {
-        "fix": "TOTUB",
-        "distance_nm": 17,
+        "fix": "BIRKO",
+        "distance_nm": 36,
         "stars": [
           "BIRKO6",
           "TOTUB5"
         ],
         "corridor": "east",
         "coords": {
-          "lat": 51.277167,
-          "lon": -113.645333
+          "lat": 51.475833,
+          "lon": -113.263667
         }
       },
       {
-        "fix": "TIDUK",
-        "distance_nm": 17,
+        "fix": "EBGAL",
+        "distance_nm": 35,
         "stars": [
           "EBGAL7",
           "TIDUK7"
         ],
         "corridor": "southeast",
         "coords": {
-          "lat": 50.928333,
-          "lon": -113.687833
+          "lat": 50.697,
+          "lon": -113.372
         }
       },
       {
-        "fix": "VESGA",
-        "distance_nm": 17,
+        "fix": "IGVEP",
+        "distance_nm": 34,
         "stars": [
           "IGVEP7",
           "VESGA6"
         ],
         "corridor": "southwest",
         "coords": {
-          "lat": 50.917167,
-          "lon": -114.328333
+          "lat": 50.707833,
+          "lon": -114.658
         }
       }
     ],
@@ -676,7 +710,7 @@
           "APLEX",
           "VINLO"
         ],
-        "metering_fix": "STAVE",
+        "metering_fix": "BOOTH",
         "note": "South-flow variant of BOOTH corridor"
       },
       "LIONN4": {
@@ -692,7 +726,7 @@
           "APLEX",
           "VINLO"
         ],
-        "metering_fix": "STAVE",
+        "metering_fix": "BOOTH",
         "note": "Runway variant of CANUC6"
       },
       "VITEV5": {
@@ -708,7 +742,7 @@
           "METPO",
           "SEDUS"
         ],
-        "metering_fix": "STAVE",
+        "metering_fix": "BOOTH",
         "note": "North-flow variant of BOOTH corridor"
       },
       "CYPRS2": {
@@ -724,7 +758,7 @@
           "SAXAG",
           "SEDUS"
         ],
-        "metering_fix": "NAGUP"
+        "metering_fix": "KEINN"
       },
       "WHSLR8": {
         "entry_fix": "KEINN",
@@ -739,7 +773,7 @@
           "SAXAG",
           "SEDUS"
         ],
-        "metering_fix": "NAGUP",
+        "metering_fix": "KEINN",
         "note": "Runway variant of CYPRS2"
       },
       "SOUND6": {
@@ -754,7 +788,7 @@
           "SAXAG",
           "SEDUS"
         ],
-        "metering_fix": "NAGUP"
+        "metering_fix": "VIGSO"
       },
       "GRIZZ9": {
         "entry_fix": "EGRET",
@@ -767,7 +801,7 @@
           "NOTOK",
           "NAKMA"
         ],
-        "metering_fix": "NAKMA"
+        "metering_fix": "EGRET"
       },
       "ILAND9": {
         "entry_fix": "MEPMU",
@@ -778,7 +812,7 @@
           "ITLIM",
           "NAKMA"
         ],
-        "metering_fix": "NAKMA"
+        "metering_fix": "MEPMU"
       },
       "SHARK4": {
         "entry_fix": "FOCHE",
@@ -794,7 +828,7 @@
           "ONDUX",
           "PEMSU"
         ],
-        "metering_fix": null,
+        "metering_fix": "FOCHE",
         "note": "Independent west/Pacific corridor"
       }
     },
@@ -878,7 +912,7 @@
           "UBTON",
           "SEPSO"
         ],
-        "metering_fix": "FLAAM",
+        "metering_fix": "ADVOX",
         "note": "Northwest corridor, runway variant pair with FLAAM7"
       },
       "FLAAM7": {
@@ -891,7 +925,7 @@
           "UBTON",
           "SEPSO"
         ],
-        "metering_fix": "FLAAM"
+        "metering_fix": "ADVOX"
       },
       "BIRKO6": {
         "entry_fix": "BIRKO",
@@ -903,7 +937,7 @@
           "LETUT",
           "BOTAX"
         ],
-        "metering_fix": "TOTUB",
+        "metering_fix": "BIRKO",
         "note": "East corridor, runway variant pair with TOTUB5"
       },
       "TOTUB5": {
@@ -916,7 +950,7 @@
           "LETUT",
           "BOTAX"
         ],
-        "metering_fix": "TOTUB"
+        "metering_fix": "BIRKO"
       },
       "EBGAL7": {
         "entry_fix": "EBGAL",
@@ -928,7 +962,7 @@
           "MUPUV",
           "ELSOG"
         ],
-        "metering_fix": "TIDUK",
+        "metering_fix": "EBGAL",
         "note": "Southeast corridor, runway variant pair with TIDUK7"
       },
       "TIDUK7": {
@@ -941,7 +975,7 @@
           "MUPUV",
           "ELSOG"
         ],
-        "metering_fix": "TIDUK"
+        "metering_fix": "EBGAL"
       },
       "IGVEP7": {
         "entry_fix": "IGVEP",
@@ -956,7 +990,7 @@
           "VIMVO",
           "TEXIT"
         ],
-        "metering_fix": "VESGA",
+        "metering_fix": "IGVEP",
         "note": "Southwest corridor, runway variant pair with VESGA6"
       },
       "VESGA6": {
@@ -972,7 +1006,7 @@
           "VIMVO",
           "TEXIT"
         ],
-        "metering_fix": "VESGA"
+        "metering_fix": "IGVEP"
       }
     },
     "CYYZ": {
