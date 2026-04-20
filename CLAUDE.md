@@ -259,6 +259,7 @@ bin/
   ingest-events.php   cron: VATCAN event bookings (every 2 min)
   ingest-imports.php  cron: imported CTOTs (every 2 min)
   compute-wind-eldt.php  cron: GRIB wind-corrected ELDT (every 5 min)
+  compute-demand-history.php  cron: daily metering-fix demand rollup to data/cache/demand-history.json (trailing 30d)
   cleanup.php         cron: daily position_scratch purge + WITHDRAWN timeout
   deploy.sh           cron: auto-deploy (every 1 min)
   migrate.php         schema migrations (idempotent)

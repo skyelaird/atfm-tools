@@ -445,17 +445,11 @@ final class Kernel
         // ?hours=N (default 24, max 720)
         $app->get('/api/v1/reports/demand-distribution', function ($req, $res) {
             $hours = max(1, min(720, (int) ($req->getQueryParams()['hours'] ?? 24)));
-            $since = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
-                ->modify("-{$hours} hours")
-                ->format('Y-m-d H:i:s');
             $scope = ['CYHZ','CYOW','CYUL','CYVR','CYWG','CYYC','CYYZ'];
-
-            $flights = Flight::whereIn('ades', $scope)
-                ->whereNotNull('aldt')
-                ->where('aldt', '>=', $since)
-                ->get(['id', 'callsign', 'adep', 'ades', 'fp_route', 'last_lat', 'last_lon', 'aldt']);
-
             $catalog = \Atfm\Allocator\MeteringFix::loadCatalog();
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+
+            // Initialize result buckets — all catalog fixes with zero counts
             $byApt = [];
             foreach ($scope as $apt) {
                 $fixes = $catalog['metering_fixes'][$apt] ?? [];
@@ -463,14 +457,65 @@ final class Kernel
                     'total'      => 0,
                     'unresolved' => 0,
                     'fixes'      => array_map(fn($e) => [
-                        'fix'          => $e['fix'],
-                        'corridor'     => $e['corridor'] ?? null,
-                        'count'        => 0,
-                        'filed'        => 0,   // pilot explicitly filed STAR
-                        'inferred'     => 0,   // direct-to, we inferred
+                        'fix'      => $e['fix'],
+                        'corridor' => $e['corridor'] ?? null,
+                        'count'    => 0,
+                        'filed'    => 0,
+                        'inferred' => 0,
                     ], $fixes),
                 ];
             }
+
+            // Strategy: for windows > 24h, use daily cache where possible
+            // (full days >= today). Today's partial day is always computed
+            // fresh. Small windows (<=24h) always compute live.
+            $cacheFile = __DIR__ . '/../../data/cache/demand-history.json';
+            $cacheUsed = false;
+            $cachedDays = 0;
+            $liveSince = $now->modify("-{$hours} hours");
+
+            if ($hours > 24 && file_exists($cacheFile)) {
+                $raw = @file_get_contents($cacheFile);
+                $cache = $raw ? json_decode($raw, true) : null;
+                if (is_array($cache) && !empty($cache['days'])) {
+                    $today = $now->setTime(0, 0, 0);
+                    $cutoff = $today;
+                    $windowStart = $liveSince;
+                    // Iterate cached full days from windowStart up to (but not including) today
+                    $cursor = $today->modify("-{$hours} hours")->setTime(0, 0, 0);
+                    while ($cursor < $today) {
+                        $key = $cursor->format('Y-m-d');
+                        if (isset($cache['days'][$key])) {
+                            foreach ($cache['days'][$key] as $apt => $dayData) {
+                                if (!isset($byApt[$apt])) continue;
+                                $byApt[$apt]['total']      += (int) ($dayData['total'] ?? 0);
+                                $byApt[$apt]['unresolved'] += (int) ($dayData['unresolved'] ?? 0);
+                                foreach (($dayData['fixes'] ?? []) as $fixName => $count) {
+                                    foreach ($byApt[$apt]['fixes'] as &$row) {
+                                        if ($row['fix'] === $fixName) {
+                                            $row['count'] += (int) $count;
+                                            $row['filed'] += (int) $count; // cache doesn't split filed vs inferred
+                                            break;
+                                        }
+                                    }
+                                    unset($row);
+                                }
+                            }
+                            $cachedDays++;
+                        }
+                        $cursor = $cursor->modify('+1 day');
+                    }
+                    // For the live portion, restrict to today only
+                    $liveSince = $today;
+                    $cacheUsed = $cachedDays > 0;
+                }
+            }
+
+            // Live portion (today OR whole window when <= 24h)
+            $flights = Flight::whereIn('ades', $scope)
+                ->whereNotNull('aldt')
+                ->where('aldt', '>=', $liveSince->format('Y-m-d H:i:s'))
+                ->get(['id', 'callsign', 'adep', 'ades', 'fp_route', 'last_lat', 'last_lon', 'aldt']);
 
             foreach ($flights as $f) {
                 $apt = $f->ades;
@@ -496,7 +541,7 @@ final class Kernel
                 unset($row);
             }
 
-            // Compute percentages (out of total resolved = total - unresolved)
+            // Compute percentages + sort
             foreach ($byApt as $apt => &$data) {
                 $resolved = $data['total'] - $data['unresolved'];
                 foreach ($data['fixes'] as &$row) {
@@ -505,15 +550,16 @@ final class Kernel
                         : 0.0;
                 }
                 unset($row);
-                // Sort fixes by count desc so biggest demand is first
                 usort($data['fixes'], fn($a, $b) => $b['count'] <=> $a['count']);
                 $data['resolved'] = $resolved;
             }
             unset($data);
 
             return self::json($res, [
-                'generated_at' => (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('c'),
+                'generated_at' => $now->format('c'),
                 'hours'        => $hours,
+                'cache_used'   => $cacheUsed,
+                'cached_days'  => $cachedDays,
                 'by_airport'   => $byApt,
             ]);
         });
