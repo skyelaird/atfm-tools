@@ -215,6 +215,10 @@ function render() {
     const xMin = Math.floor(minBin / 60) * 60;
     const xMax = Math.ceil((maxBin + DATA.meta.bin_minutes) / 60) * 60;
 
+    // Fixed Y-axis scales for cross-sector relativity.
+    const YMAX_PAIR = 85;        // combined QMn+QXn charts
+    const YMAX_SECTOR = 60;      // individual sectors
+
     // Render pair cards first (hot rows)
     for (const p of (DATA.pairs || [])) {
         const card = document.createElement('div');
@@ -235,7 +239,7 @@ function render() {
             <svg viewBox="0 0 400 160" preserveAspectRatio="none" id="svg-${p.id}"></svg>
         `;
         pairGrid.appendChild(card);
-        drawChart(p.id, loadRows, xMin, xMax, {height: 160});
+        drawChart(p.id, loadRows, xMin, xMax, {height: 160, yMax: YMAX_PAIR});
     }
 
     // Then individual sector cards
@@ -258,7 +262,7 @@ function render() {
             <svg viewBox="0 0 400 120" preserveAspectRatio="none" id="svg-${s.id}"></svg>
         `;
         grid.appendChild(card);
-        drawChart(s.id, loadRows, xMin, xMax, {height: 120});
+        drawChart(s.id, loadRows, xMin, xMax, {height: 120, yMax: YMAX_SECTOR});
     }
 }
 
@@ -270,7 +274,10 @@ function drawChart(sectorId, rows, xMin, xMax, opts) {
     const plotH = H - M.t - M.b;
     const bin = DATA.meta.bin_minutes;
 
-    const maxCount = Math.max(CAP, ...rows.map(r => r.count), 10);
+    // Global Y max if supplied, else per-chart auto-scale
+    const maxCount = (opts && opts.yMax)
+        ? opts.yMax
+        : Math.max(CAP, ...rows.map(r => r.count), 10);
     const xScale = (t) => M.l + (t - xMin) / (xMax - xMin) * plotW;
     const yScale = (v) => M.t + plotH - (v / maxCount) * plotH;
 
