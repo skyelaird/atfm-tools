@@ -244,11 +244,16 @@ function autoPropose(icao) {
                 if (cfg.primary_dep !== cfg.primary_arr) { const d = st.runways[cfg.primary_dep]; if (!d || !d.avail) continue; }
                 const rate = cfg.declared_arr_rate || 0;
                 const hwBonus = Math.max(0, arrRwy.hw) * 0.5;
-                // ILS bonuses — CAT I adequate in IFR, CAT II essential
-                // in LIFR (ceiling <200ft). E.g. CYHZ 23 is CAT I+II, 14
-                // is CAT I only — in LIFR the +10 CAT II bonus forces 23.
+                // ILS bonuses — aligned with CZQM RunwayAdvisor (same
+                // physics, same planet):
+                //   CAT I adequate for ceiling ≥200ft (+3 ILS bonus)
+                //   CAT II required for ceiling <200ft (+10 extra)
+                //   We key off actual ceiling, NOT AVWX rules. LIFR
+                //   covers 100-500ft ceilings — in the 200-500 range
+                //   CAT I ILS still works, so don't force CAT II.
                 const ilsBonus = (!vmc && cfg.ils) ? 3 : 0;
-                const catIiBonus = (st.rules === 'LIFR' && cfg.ils_cat_ii) ? 10 : 0;
+                const catIiRequired = (st.ceilingHundreds !== null && st.ceilingHundreds < 2);
+                const catIiBonus = (catIiRequired && cfg.ils_cat_ii) ? 10 : 0;
                 const score = rate + hwBonus + ilsBonus + catIiBonus;
                 if (score > bestScore) { bestScore = score; best = cfg; }
             }
@@ -770,6 +775,22 @@ async function loadAll() {
         const windDir = (windDirTrue + (MAG_VAR[icao] || 0) + 360) % 360;
         const gustSpd = parseInt(m.wind_gust?.value || windSpd), effectiveWind = Math.max(windSpd, gustSpd);
         const wet = isWet(m), rules = m.flight_rules || '?';
+        // Ceiling in hundreds of ft — lowest BKN/OVC layer. VV (vertical
+        // visibility / indefinite ceiling) counts too. Needed to pick
+        // required approach CAT — not the AVWX rules classification
+        // (LIFR is ceiling<500ft which still allows CAT I above 200ft).
+        let ceilingHundreds = null;
+        for (const c of (m.clouds || [])) {
+            if ((c.type === 'BKN' || c.type === 'OVC' || c.type === 'VV') && c.altitude != null) {
+                if (ceilingHundreds === null || c.altitude < ceilingHundreds) {
+                    ceilingHundreds = c.altitude;
+                }
+            }
+        }
+        if (ceilingHundreds === null && m.raw) {
+            const vv = m.raw.match(/\bVV(\d{3})\b/);
+            if (vv) ceilingHundreds = parseInt(vv[1], 10);
+        }
         const vfrOnly = new Set(configsByApt[icao]?._vfr_only || []);
         const rwys = {};
         for (const t of (thresholdsByApt[icao] || [])) {
@@ -780,7 +801,7 @@ async function loadAll() {
             if (!avail) { const rs = []; if (wc.headwind < -MAX_TAILWIND) rs.push(`TW ${Math.abs(wc.headwind)}kt (max ${MAX_TAILWIND})`); if (xwAbs > xwLimit) rs.push(`XW ${xwAbs}kt (max ${xwLimit}${wet?' wet':''})`); unavailReason = rs.join(', '); }
             rwys[t.ident] = { hdg: t.hdg, hw: wc.headwind, xw: wc.crosswind, xwAbs, avail, unavailReason, role: 'off' };
         }
-        aptState[icao] = { windDir, windSpd, gustSpd, effectiveWind, wet, rules, runways: rwys, metar: m.raw || '', configName: '' };
+        aptState[icao] = { windDir, windSpd, gustSpd, effectiveWind, wet, rules, ceilingHundreds, runways: rwys, metar: m.raw || '', configName: '' };
         autoPropose(icao);
     }
     grid.innerHTML = '';
