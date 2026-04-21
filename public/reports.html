@@ -96,6 +96,8 @@
         #tldt-flights-table { font-size: 0.75rem; font-family: "SF Mono", Consolas, Monaco, monospace; font-variant-numeric: tabular-nums; }
         #tldt-flights-table thead th { padding: 0.25rem 0.4rem; font-size: 0.62rem; }
         #tldt-flights-table tbody td { padding: 0.25rem 0.4rem; white-space: nowrap; vertical-align: top; }
+        /* Pred cells clip the err-bar to their own content box */
+        #tldt-flights-table td.pred { overflow: hidden; position: relative; }
         #tldt-flights-table .num { text-align: right; }
         /* Zebra stripes + hover for rhythm */
         #tldt-flights-table tbody tr:nth-child(even) { background: rgba(255,255,255,0.015); }
@@ -112,26 +114,36 @@
 
         /* Prediction cell: time on top, tiny colour-bar under the number
            whose width scales with |err| (capped at 30 min = 100%). */
-        #tldt-flights-table .pred { position: relative; }
         #tldt-flights-table .pred .err { font-size: 0.68rem; margin-left: 0.3rem; font-weight: 600; }
         #tldt-flights-table .pred .err.ok    { color: var(--ok); }
         #tldt-flights-table .pred .err.warn  { color: var(--warn); }
         #tldt-flights-table .pred .err.alert { color: var(--alert); }
         #tldt-flights-table .pred .err.muted { color: var(--text-dim); }
+        /* Err-bar: thin coloured bar along the cell bottom, width scaled
+           to |err|/30m. Clipped by the td's overflow:hidden. Off-scale
+           (|err| > 30m) renders as a striped pattern so reader sees the
+           magnitude is "beyond the scale", not just capped. */
         #tldt-flights-table .err-bar {
-            display: block; height: 3px; margin-top: 2px; border-radius: 1px;
-            max-width: 100%;
+            position: absolute; left: 0; bottom: 0; height: 3px;
+            max-width: 100%; border-radius: 0;
         }
         #tldt-flights-table .err-bar.ok    { background: var(--ok); }
         #tldt-flights-table .err-bar.warn  { background: var(--warn); }
         #tldt-flights-table .err-bar.alert { background: var(--alert); }
+        #tldt-flights-table .err-bar.offscale.alert {
+            background: repeating-linear-gradient(45deg,
+                var(--alert) 0 4px, rgba(248,113,113,0.4) 4px 8px);
+        }
+        /* Off-scale arrow suffix on the err number */
+        #tldt-flights-table .err-offscale-mark { color: inherit; font-weight: 700; }
 
         /* Source chips — 1 letter, coloured background per tier */
         .src-chip { display: inline-block; font-size: 0.62rem; font-weight: 700; padding: 0.1rem 0.35rem; border-radius: 2px; min-width: 1.1em; text-align: center; }
-        .src-chip.src-G { background: rgba(74,222,128,0.15); color: var(--ok); }       /* WIND_GRIB */
-        .src-chip.src-O { background: rgba(96,165,250,0.15); color: var(--info); }     /* OBSERVED_POS */
-        .src-chip.src-F { background: rgba(250,204,21,0.15); color: var(--warn); }     /* FILED / FIR_EET */
-        .src-chip.src-C { background: rgba(248,113,113,0.15); color: var(--alert); }   /* CALC_* */
+        /* G (WIND_GRIB) is the common case — dim it so anomalies (O/F/C) pop */
+        .src-chip.src-G { background: var(--bg-elev-hi); color: var(--text-dim); border: 1px solid var(--border); }   /* WIND_GRIB — dim, baseline */
+        .src-chip.src-O { background: rgba(96,165,250,0.18); color: var(--info); }     /* OBSERVED_POS — stands out */
+        .src-chip.src-F { background: rgba(250,204,21,0.2); color: var(--warn); }      /* FILED / FIR_EET — warn */
+        .src-chip.src-C { background: rgba(248,113,113,0.2); color: var(--alert); }    /* CALC_* — alert */
         .src-chip.src-U { background: var(--bg); color: var(--text-dim); }             /* UNKNOWN */
         .table-wrap {
             background: var(--bg-elev);
@@ -911,16 +923,26 @@ async function refreshTldt() {
                 if (s.startsWith('CALC_')) return 'C';
                 return 'U';
             };
-            // Err bar width: |err|/30 capped at 100%. 30m chosen as the
-            // point where we'd stop caring about precision — anything
-            // beyond is "bad" regardless of exact value.
+            // Err bar width: |err|/30 capped at 100%. 30m is the "beyond
+            // here just means bad" threshold. Off-scale renders striped
+            // so ACA2071 (+141) isn't visually identical to WJA007 (+55).
             const barWidth = e => Math.min(100, Math.abs(e) / 30 * 100) + '%';
+            const offscale = e => Math.abs(e) > 30;
+            // Round errs to integer — decimal precision is noise
+            const etaErrInt = (f.filed_eta_err !== null) ? Math.round(f.filed_eta_err) : null;
+            const tldtErrInt = Math.round(f.tldt_err_min);
+            const etaSuffix = (etaErrInt !== null && offscale(etaErrInt)) ? '\u00bb' : '';
+            const tldtSuffix = offscale(tldtErrInt) ? '\u00bb' : '';
+            const etaErrTxt = (etaErrInt !== null) ? ((etaErrInt > 0 ? '+' : '') + etaErrInt + etaSuffix) : '\u2014';
+            const tldtErrTxt = (tldtErrInt > 0 ? '+' : '') + tldtErrInt + tldtSuffix;
+            const etaBarCls = (fEtaCls || 'muted') + ((etaErrInt !== null && offscale(etaErrInt)) ? ' offscale' : '');
+            const tldtBarCls = errCls + (offscale(tldtErrInt) ? ' offscale' : '');
             const etaBar = (f.filed_eta_err !== null)
-                ? `<span class="err-bar ${fEtaCls||'muted'}" style="width:${barWidth(f.filed_eta_err)}"></span>` : '';
-            const tldtBar = `<span class="err-bar ${errCls}" style="width:${barWidth(f.tldt_err_min)}"></span>`;
+                ? `<span class="err-bar ${etaBarCls}" style="width:${barWidth(f.filed_eta_err)}"></span>` : '';
+            const tldtBar = `<span class="err-bar ${tldtBarCls}" style="width:${barWidth(f.tldt_err_min)}"></span>`;
             const etaInline = (f.filed_eta_err !== null && f.filed_eta !== null)
-                ? `<span class="err ${fEtaCls||'muted'}">${fEtaErr}</span>` : '';
-            const tldtInline = `<span class="err ${errCls}">${errSign}${f.tldt_err_min}</span>`;
+                ? `<span class="err ${fEtaCls||'muted'}">${etaErrTxt}</span>` : '';
+            const tldtInline = `<span class="err ${errCls}">${tldtErrTxt}</span>`;
             const src = srcLetter(f.eta_source);
             $ftb.innerHTML += '<tr' + rowCls + '>' +
                 '<td class="tombstone">' +
