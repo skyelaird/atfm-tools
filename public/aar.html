@@ -410,19 +410,20 @@ function renderCard(icao) {
         <div class="metar-raw" onclick="this.classList.toggle('expanded')">${st.metar || ''}</div>
         <div class="demand-strip" id="demand-strip-${icao}">
             <div class="demand-header">
-                <span class="demand-label">Current demand (next <span id="demand-win-${icao}">4h</span>)</span>
+                <span class="demand-label">Current demand (next <span id="demand-win-${icao}">${((demandWindow[icao]||240) >= 60) ? ((demandWindow[icao]||240)/60 + 'h') : ((demandWindow[icao]||240) + 'm')}</span>)</span>
                 <span class="demand-window-pills">
-                    <span class="demand-pill" data-icao="${icao}" data-win="60">1h</span>
-                    <span class="demand-pill" data-icao="${icao}" data-win="120">2h</span>
-                    <span class="demand-pill active" data-icao="${icao}" data-win="240">4h</span>
-                    <span class="demand-pill" data-icao="${icao}" data-win="480">8h</span>
+                    ${[60, 120, 240, 480].map(m => {
+                        const label = m >= 60 ? (m/60 + 'h') : (m + 'm');
+                        const active = (demandWindow[icao]||240) === m ? ' active' : '';
+                        return `<span class="demand-pill${active}" data-icao="${icao}" data-win="${m}">${label}</span>`;
+                    }).join('')}
                 </span>
             </div>
             <div class="demand-body" id="demand-body-${icao}"><div class="muted" style="font-size:0.65rem;">Loading…</div></div>
         </div>
         <div class="mit-section">
-            <button class="mit-toggle" onclick="toggleMit('${icao}'); event.stopPropagation();">MIT planner ▾</button>
-            <div class="mit-body" id="mit-body-${icao}" style="display:none;"></div>
+            <button class="mit-toggle" onclick="toggleMit('${icao}'); event.stopPropagation();">MIT planner ${mitOpen[icao] ? '▴' : '▾'}</button>
+            <div class="mit-body" id="mit-body-${icao}" style="display:${mitOpen[icao] ? 'block' : 'none'};"></div>
         </div>
     `;
 }
@@ -489,10 +490,25 @@ function refreshCard(icao) {
 const APPROACH_GS_NM_PER_MIN = 4.0;  // 240 kt at the metering fix
 const MIT_ROUND_NM = 5;
 const MIT_MIN_NM = 10;
-const mitOpen = {};     // icao -> bool
-const mitWindow = {};   // icao -> minutes
-const mitOverride = {}; // icao -> {fix: nm}
-const mitCache = {};    // icao -> last fetched /metering payload
+
+// UI state persistence — survive page refresh. One key for all dicts so
+// we only touch localStorage on mutation, not on every read.
+const UI_STATE_KEY = 'atfm.aar.ui.v1';
+const uiStateInit = (() => {
+    try { return JSON.parse(localStorage.getItem(UI_STATE_KEY) || '{}'); }
+    catch { return {}; }
+})();
+const mitOpen     = uiStateInit.mitOpen     || {};  // icao -> bool
+const mitWindow   = uiStateInit.mitWindow   || {};  // icao -> minutes
+const mitOverride = uiStateInit.mitOverride || {};  // icao -> {fix: nm}
+const mitCache    = {};                             // icao -> last fetched /metering payload (not persisted)
+function saveUiState() {
+    try {
+        localStorage.setItem(UI_STATE_KEY, JSON.stringify({
+            mitOpen, mitWindow, mitOverride, demandWindow
+        }));
+    } catch (e) { /* quota / private mode: silently drop */ }
+}
 
 function toggleMit(icao) {
     const body = document.getElementById('mit-body-' + icao);
@@ -500,6 +516,7 @@ function toggleMit(icao) {
     const wasOpen = body.style.display !== 'none';
     body.style.display = wasOpen ? 'none' : 'block';
     mitOpen[icao] = !wasOpen;
+    saveUiState();
     // Update toggle text
     const btn = body.previousElementSibling;
     if (btn) btn.textContent = 'MIT planner ' + (wasOpen ? '▾' : '▴');
@@ -541,6 +558,7 @@ async function refreshMit(icao) {
 function setMitOverride(icao, fix, nm) {
     mitOverride[icao] = mitOverride[icao] || {};
     mitOverride[icao][fix] = Number(nm);
+    saveUiState();
     renderMitPanel(icao);
 }
 
@@ -565,7 +583,7 @@ function renderMitPanel(icao) {
     const demandPerHr = totalDemand / hoursWin;
     const overCapacity = aar && demandPerHr > aar;
 
-    const winSel = `<select class="mit-win" onchange="mitWindow['${icao}']=Number(this.value); refreshMit('${icao}')">` +
+    const winSel = `<select class="mit-win" onchange="mitWindow['${icao}']=Number(this.value); saveUiState(); refreshMit('${icao}')">` +
         [60, 120, 240].map(m => `<option value="${m}"${m===win?' selected':''}>${m}m</option>`).join('') +
         '</select>';
 
@@ -817,6 +835,8 @@ async function loadAll() {
     for (const icao of AIRPORTS) {
         const card = document.createElement('div'); card.className = 'apt-card'; card.setAttribute('data-card', icao);
         card.innerHTML = renderCard(icao); grid.appendChild(card); computeRates(icao);
+        // Rehydrate MIT panel body for airports that had it open pre-refresh
+        if (mitOpen[icao]) refreshMit(icao);
     }
     document.getElementById('last-update').textContent = `Updated ${new Date().toISOString().substring(11, 16)}Z`;
 }
@@ -832,7 +852,7 @@ setInterval(loadAll, 300000);
 // demand-vs-capacity side by side without leaving the page.
 //
 // Uses /api/v1/reports/current-demand for all airports, filters per card.
-const demandWindow = {}; // icao -> minutes
+const demandWindow = uiStateInit.demandWindow || {}; // icao -> minutes (persisted)
 async function refreshDemandStrip() {
     // Determine largest active window across cards so we fetch once
     const windows = new Set(Object.values(demandWindow));
@@ -888,6 +908,7 @@ document.addEventListener('click', (e) => {
     const icao = p.dataset.icao;
     const win = parseInt(p.dataset.win);
     demandWindow[icao] = win;
+    saveUiState();
     // Update pill active state
     document.querySelectorAll(`.demand-pill[data-icao="${icao}"]`).forEach(x => x.classList.remove('active'));
     p.classList.add('active');
