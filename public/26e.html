@@ -280,7 +280,7 @@ function render() {
             card.innerHTML = `
                 <div class="title">
                     <span class="name">${s.id}</span>
-                    <span class="label">${s.label || ''} · ${s.freq || ''} MHz</span>
+                    <span class="label">${s.freq || ''} MHz</span>
                     <span class="peak">${peakLabel(loadRows)}</span>
                 </div>
                 <svg viewBox="0 0 400 120" preserveAspectRatio="none" id="svg-${s.id}"></svg>
