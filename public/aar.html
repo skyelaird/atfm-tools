@@ -128,7 +128,7 @@
         .demand-row .fix { font-family: var(--mono); width: 5em; color: var(--text); }
         .demand-row .bar-wrap { flex: 1; background: var(--bg); border-radius: 2px; height: 8px; }
         .demand-row .bar { background: var(--accent); height: 100%; border-radius: 2px; }
-        .demand-row .count { font-family: var(--mono); min-width: 3.5em; text-align: right; color: var(--text-dim); }
+        .demand-row .count { font-family: var(--mono); width: 7em; flex: 0 0 auto; text-align: right; color: var(--text-dim); }
         .demand-row.zero { opacity: 0.45; }
         .demand-total { font-size: 0.65rem; color: var(--text-dim); margin-top: 0.2rem; font-family: var(--mono); }
 
@@ -477,15 +477,24 @@ function refreshCard(icao) {
 //
 // Concept: given the declared AAR at this airport and the observed
 // demand distribution over each metering fix in a forward window,
-// allocate the AAR proportionally to demand share. MIT at each fix is
-// suggested from the fair-share rate; FMP tweaks as needed and pastes
-// the request into a message to the adjacent centre / sector.
+// allocate fair-share flow rate to each fix and publish the implied
+// in-trail spacing as a baseline MIT request. FMP tweaks as needed
+// and pastes the request into a message to the adjacent centre.
+//
+// MIT is a floor on spacing, self-correcting: if aircraft present at
+// fix with > MIT, adjacent ATC does nothing; if < MIT, they add
+// vectors/speed. So a baseline MIT is useful even when demand is
+// within AAR — it prevents the bunches that cause pancake approaches
+// at the tactical stage.
 //
 // Math: fair_share_rate (per hr) = AAR * (fix_demand / total_demand).
-// MIT (nm) = airport_final_spacing / fix_share, where
-//   airport_final_spacing = (60 / AAR) * approach_GS_nm_per_min.
+// MIT (nm) = fix_GS / fair_share_rate = airport_final_spacing / share,
+//   where airport_final_spacing = (60 / AAR) * approach_GS_nm_per_min.
 // Defaults to 240 kt approach (4 nm/min), rounded up to nearest 5nm,
-// min 10nm. Fixes already under their fair share get no MIT (—).
+// min 10nm. Fixes with zero demand get —.
+//
+// When total demand > AAR the airport is flagged; MIT values stay on
+// the same formula (the fair-share spacing throttles flow back to AAR).
 
 const APPROACH_GS_NM_PER_MIN = 4.0;  // 240 kt at the metering fix
 const MIT_ROUND_NM = 5;
@@ -609,26 +618,24 @@ function renderMitPanel(icao) {
         <th>Fix</th><th class="num">N</th><th class="num">Share</th><th class="num">Fair/hr</th><th class="num">MIT (nm)</th>
     </tr></thead><tbody>`;
 
-    const tooHigh = [];
-    const okFixes = [];
     const rows = [];
     for (const [fix, info] of fixEntries) {
         const share = totalDemand > 0 ? info.count / totalDemand : 0;
         const fairRate = aar ? aar * share : null;
-        // Only suggest MIT when demand > fair share would be (i.e. fix is over-represented)
-        const airportSpacing = aar ? (60 / aar) * APPROACH_GS_NM_PER_MIN : null;
-        // MIT is applied when airport is over capacity (demand > AAR) AND fix share > 0
-        const needed = overCapacity && share > 0;
-        const suggested = needed ? suggestMit(aar, share) : null;
+        // Baseline MIT: always suggest if fix has demand. Formula is the
+        // fair-share spacing — self-correcting floor (ATC does nothing if
+        // traffic is naturally wider; adds spacing if tighter).
+        const hasShare = share > 0 && aar;
+        const suggested = hasShare ? suggestMit(aar, share) : null;
         const override = mitOverride[icao]?.[fix];
         const current = override ?? suggested;
-        rows.push({fix, share, fairRate, suggested, current, count: info.count, needed});
+        rows.push({fix, share, fairRate, suggested, current, count: info.count, hasShare});
     }
 
     for (const r of rows) {
         const pct = (r.share * 100).toFixed(0);
         const barW = Math.min(100, r.share * 100);
-        const mitCell = r.needed
+        const mitCell = r.hasShare
             ? `<input type="number" class="mit-input" value="${r.current}" min="0" step="5" onchange="setMitOverride('${icao}','${r.fix}',this.value)"/>`
             : '<span class="mit-under">—</span>';
         html += `<tr>
@@ -641,24 +648,37 @@ function renderMitPanel(icao) {
     }
     html += '</tbody></table>';
 
-    // Compose request text
-    const activeMits = rows.filter(r => r.needed && r.current);
-    if (activeMits.length > 0 && overCapacity) {
+    // Status + compose request text. Baseline MIT is always offered;
+    // framing changes based on whether airport is over AAR or not.
+    const activeMits = rows.filter(r => r.hasShare && r.current);
+    if (overCapacity && aar) {
+        html += `<div style="padding:0.3rem 0; font-size:0.68rem; color:var(--warn);">
+            <strong>⚠ Demand ${Math.round(demandPerHr/aar*100)}% of AAR</strong> —
+            MIT required for flow control. Adjacent ATC must honour to keep demand &le; AAR.
+        </div>`;
+    } else if (aar) {
+        html += `<div class="muted" style="padding:0.3rem 0; font-size:0.68rem;">
+            Demand within AAR. Baseline MIT shown for anti-bunching — optional but reduces tactical vectoring on final.
+        </div>`;
+    }
+    if (activeMits.length > 0 && aar) {
         const now = new Date();
         const end = new Date(now.getTime() + win * 60000);
         const hh = d => String(d.getUTCHours()).padStart(2, '0') + String(d.getUTCMinutes()).padStart(2, '0');
         const lines = activeMits.map(r => `  • ${r.current} MIT over ${r.fix}`).join('\n');
+        const pctStr = Math.round(demandPerHr/aar*100);
+        const header = overCapacity
+            ? `Request Miles in Trail (flow control) effective ${hh(now)}Z until ${hh(end)}Z:`
+            : `Suggested Miles in Trail (anti-bunching) effective ${hh(now)}Z until ${hh(end)}Z:`;
         const msg = `${icao} FMP → adjacent centres:
-Request Miles in Trail effective ${hh(now)}Z until ${hh(end)}Z:
+${header}
 ${lines}
-${icao} AAR ${aar}/hr, observed demand ~${demandPerHr.toFixed(0)}/hr (${Math.round(demandPerHr/aar*100)}%).`;
+${icao} AAR ${aar}/hr, observed demand ~${demandPerHr.toFixed(0)}/hr (${pctStr}%).`;
         html += `<textarea class="mit-text" readonly>${msg}</textarea>
         <button class="mit-copy" onclick="navigator.clipboard.writeText(this.previousElementSibling.value); this.textContent='Copied ✓'; setTimeout(()=>this.textContent='Copy request text',1500);">Copy request text</button>`;
-    } else if (!overCapacity && aar) {
-        html += `<div class="muted" style="padding:0.3rem 0; font-size:0.68rem;">Demand is within AAR — no MIT needed.</div>`;
     }
 
-    html += `<div class="muted" style="font-size:0.62rem; margin-top:0.4rem;">Fair/hr is the per-fix rate that keeps total demand ≤ AAR. The MIT suggestion is a bucket only — adjacent ATC will refine tactical spacing. Edit any value to override.</div>`;
+    html += `<div class="muted" style="font-size:0.62rem; margin-top:0.4rem;">Fair/hr is the per-fix rate that keeps total demand ≤ AAR. MIT is the in-trail spacing at the fix (240 kt assumed) implied by fair share — a floor, not a target. Self-correcting: adjacent ATC does nothing if traffic is already wider. Edit any value to override.</div>`;
 
     body.innerHTML = html;
 }
