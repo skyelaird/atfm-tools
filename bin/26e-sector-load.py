@@ -465,8 +465,20 @@ def main():
           f'points @ 300mb, {len(wind_grid["grids"].get("250", {}))} @ 250mb, '
           f'{len(wind_grid["grids"].get("200", {}))} @ 200mb', flush=True)
 
-    # Output: per-sector per-bin count
-    sector_bins = {s['id']: defaultdict(int) for s in sectors}
+    # Per-minute occupancy: count of flights instantaneously in each sector
+    # at each whole minute of the event window. 5-min chart bin takes
+    # the MAX across the 5 minutes (peak instantaneous occupancy).
+    # Each flight's [entry, exit] interval credits every minute it spans.
+    sector_minute = {s['id']: defaultdict(int) for s in sectors}
+    # Combined-pair occupancy: count of flights in (QMn ∪ QXn) at each minute
+    # A flight counts once per minute even if it straddles both sectors.
+    pair_map = {
+        'QM1+QX1': ['QM1', 'QX1'],
+        'QM2+QX2': ['QM2', 'QX2'],
+        'QM3+QX3': ['QM3', 'QX3'],
+        'QM4+QX4': ['QM4', 'QX4'],
+    }
+    pair_minute = {pid: defaultdict(int) for pid in pair_map}
     # Also track per-flight sector-entry records for debugging/detail
     flight_records = []
     flights_in_any_sector = 0
@@ -529,24 +541,46 @@ def main():
                 'dep': dep, 'arr': arr, 'ctot': ctot,
                 'sectors': {k: [[int(a), int(b)] for a, b in v] for k, v in touched.items()}
             })
-            # Bin: for each sector the flight was in, credit every bin that
-            # contains at least one second of that flight being present.
+            # Instantaneous occupancy: for each minute this flight's sector
+            # interval spans, +1 to that sector's minute count.
+            # Also track which minutes the flight is in each pair (union).
+            flight_minutes_per_pair = {pid: set() for pid in pair_map}
             for sec_id, intervals in touched.items():
                 for a, b in intervals:
-                    bin_a = int(a) // 60 // BIN_MIN * BIN_MIN
-                    bin_b = int(b) // 60 // BIN_MIN * BIN_MIN
-                    bn = bin_a
-                    while bn <= bin_b:
-                        sector_bins[sec_id][bn] += 1
-                        bn += BIN_MIN
+                    m_start = int(a) // 60
+                    m_end = int(b) // 60
+                    for m in range(m_start, m_end + 1):
+                        sector_minute[sec_id][m] += 1
+                        # Pair membership: flight in pair at minute m if in
+                        # either sector. Track set so we don't double-count.
+                        for pid, pair_sectors in pair_map.items():
+                            if sec_id in pair_sectors:
+                                flight_minutes_per_pair[pid].add(m)
+            for pid, minute_set in flight_minutes_per_pair.items():
+                for m in minute_set:
+                    pair_minute[pid][m] += 1
 
         n_parsed += 1
+
+    # Aggregate per-minute counts into 5-min bins using MAX (peak
+    # instantaneous occupancy in the bin).
+    def bin_max(minute_map):
+        out = defaultdict(int)
+        for m, c in minute_map.items():
+            bin_key = (m // BIN_MIN) * BIN_MIN
+            if c > out[bin_key]:
+                out[bin_key] = c
+        return out
+
+    sector_bins = {sid: bin_max(mm) for sid, mm in sector_minute.items()}
+    pair_bins = {pid: bin_max(mm) for pid, mm in pair_minute.items()}
 
     # Prepare output
     output = {
         'meta': {
             'generated_utc': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             'bin_minutes': BIN_MIN,
+            'metric': 'instantaneous_occupancy_peak_in_bin',
             'cruise_mach': CRUISE_MACH,
             'wind_source': 'Open-Meteo GFS',
             'wind_event_hour_utc': wind_grid.get('event_hour_utc'),
@@ -564,10 +598,19 @@ def main():
                 'polygon': s['polygon'],
             } for s in sectors
         ],
+        'pairs': [
+            {'id': pid, 'members': members, 'label': f'{members[0]}+{members[1]}'}
+            for pid, members in pair_map.items()
+        ],
         'load': {
             sid: sorted([{'bin_minute': b, 'count': c} for b, c in bins.items()],
                         key=lambda x: x['bin_minute'])
             for sid, bins in sector_bins.items()
+        },
+        'pair_load': {
+            pid: sorted([{'bin_minute': b, 'count': c} for b, c in bins.items()],
+                        key=lambda x: x['bin_minute'])
+            for pid, bins in pair_bins.items()
         },
         'flights': flight_records
     }
@@ -590,9 +633,9 @@ def main():
     if parse_stats['rejected_distant_fix']:
         rej = parse_stats['rejected_distant_fix'][:5]
         print(f'Rejected distant-fix collisions: {rej[:5]} (+{len(parse_stats["rejected_distant_fix"])-5} more)' if len(parse_stats['rejected_distant_fix']) > 5 else f'Rejected distant-fix collisions: {rej}')
-    # Print peak per sector
+    # Print peak per sector + pair
     print()
-    print(f'Sector peaks (count of concurrent flights per {BIN_MIN}m bin):')
+    print(f'Sector peaks (instantaneous occupancy, max per {BIN_MIN}m bin):')
     for sid in sorted(sector_bins):
         if not sector_bins[sid]:
             print(f'  {sid}: (no flights)')
@@ -601,6 +644,16 @@ def main():
         hh = peak_bin[0] // 60
         mm = peak_bin[0] % 60
         print(f'  {sid}: peak {peak_bin[1]} @ {hh:02d}{mm:02d}Z')
+    print()
+    print(f'Pair peaks (QMn + QXn combined, occupancy):')
+    for pid in sorted(pair_bins):
+        if not pair_bins[pid]:
+            print(f'  {pid}: (no flights)')
+            continue
+        peak_bin = max(pair_bins[pid].items(), key=lambda x: x[1])
+        hh = peak_bin[0] // 60
+        mm = peak_bin[0] % 60
+        print(f'  {pid}: peak {peak_bin[1]} @ {hh:02d}{mm:02d}Z')
 
 
 if __name__ == '__main__':

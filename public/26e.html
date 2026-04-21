@@ -43,6 +43,22 @@ h1 {
     grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
     gap: 0.75rem;
 }
+.section-header {
+    font-family: var(--mono);
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin: 1rem 0 0.5rem 0;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--border);
+}
+.card.pair .name {
+    color: var(--warn);
+}
+.card.pair svg {
+    height: 160px;
+}
 .card {
     background: var(--bg-elev);
     border: 1px solid var(--border);
@@ -142,11 +158,16 @@ svg {
 <h1>26E CTP Sector Load — CZQM / CZQX</h1>
 <div class="meta" id="meta">Loading…</div>
 <div class="controls">
-    <label>Capacity threshold (planes/bin):</label>
+    <label>Capacity threshold (occupancy):</label>
     <input type="number" id="capThreshold" value="20" min="0" step="1"/>
     <label>Bin:</label>
     <span id="binInfo">—</span>
+    <label>Metric:</label>
+    <span id="metricInfo">—</span>
 </div>
+<div class="section-header">Combined pairs — QMn + QXn (domestic feeds oceanic)</div>
+<div class="grid" id="pair-grid"></div>
+<div class="section-header">Individual sectors</div>
 <div class="grid" id="grid"></div>
 <div class="tooltip" id="tip"></div>
 
@@ -168,23 +189,56 @@ async function load() {
         `bin ${m.bin_minutes}m · ` +
         `generated ${m.generated_utc.slice(0, 16).replace('T', ' ')}Z`;
     document.getElementById('binInfo').textContent = `${m.bin_minutes}m`;
+    document.getElementById('metricInfo').textContent =
+        m.metric === 'instantaneous_occupancy_peak_in_bin'
+            ? 'peak-instantaneous occupancy'
+            : (m.metric || '—');
     render();
 }
 
 function render() {
     const grid = document.getElementById('grid');
+    const pairGrid = document.getElementById('pair-grid');
     grid.innerHTML = '';
+    pairGrid.innerHTML = '';
+
     const allBins = new Set();
     for (const sid in DATA.load) {
         for (const p of DATA.load[sid]) allBins.add(p.bin_minute);
     }
+    for (const pid in (DATA.pair_load || {})) {
+        for (const p of DATA.pair_load[pid]) allBins.add(p.bin_minute);
+    }
     const sortedBins = [...allBins].sort((a, b) => a - b);
-    const minBin = sortedBins[0] || 600;   // seconds-of-day: 10:00
+    const minBin = sortedBins[0] || 600;
     const maxBin = sortedBins[sortedBins.length - 1] || 960;
-    // Pad to whole hours for tidy axis
     const xMin = Math.floor(minBin / 60) * 60;
     const xMax = Math.ceil((maxBin + DATA.meta.bin_minutes) / 60) * 60;
 
+    // Render pair cards first (hot rows)
+    for (const p of (DATA.pairs || [])) {
+        const card = document.createElement('div');
+        card.className = 'card pair';
+        const loadRows = DATA.pair_load[p.id] || [];
+        const peak = loadRows.reduce((a, r) => r.count > a.count ? r : a, {count: 0, bin_minute: 0});
+        const peakHH = Math.floor(peak.bin_minute / 60);
+        const peakMM = peak.bin_minute % 60;
+        const peakStr = loadRows.length
+            ? `peak ${peak.count} @ ${String(peakHH).padStart(2,'0')}${String(peakMM).padStart(2,'0')}Z`
+            : '(no flights)';
+        card.innerHTML = `
+            <div class="title">
+                <span class="name">${p.label}</span>
+                <span class="label">combined occupancy</span>
+                <span class="peak">${peakStr}</span>
+            </div>
+            <svg viewBox="0 0 400 160" preserveAspectRatio="none" id="svg-${p.id}"></svg>
+        `;
+        pairGrid.appendChild(card);
+        drawChart(p.id, loadRows, xMin, xMax, {height: 160});
+    }
+
+    // Then individual sector cards
     for (const s of DATA.sectors) {
         const card = document.createElement('div');
         card.className = 'card';
@@ -204,14 +258,13 @@ function render() {
             <svg viewBox="0 0 400 120" preserveAspectRatio="none" id="svg-${s.id}"></svg>
         `;
         grid.appendChild(card);
-
-        drawChart(s.id, loadRows, xMin, xMax);
+        drawChart(s.id, loadRows, xMin, xMax, {height: 120});
     }
 }
 
-function drawChart(sectorId, rows, xMin, xMax) {
+function drawChart(sectorId, rows, xMin, xMax, opts) {
     const svg = document.getElementById(`svg-${sectorId}`);
-    const W = 400, H = 120;
+    const W = 400, H = (opts && opts.height) || 120;
     const M = {l: 28, r: 6, t: 8, b: 18};
     const plotW = W - M.l - M.r;
     const plotH = H - M.t - M.b;
