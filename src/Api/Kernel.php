@@ -3278,13 +3278,15 @@ final class Kernel
                         }
                     }
 
-                    // 4. Wind estimate comparison — did eldt_wind beat the lock?
-                    if ($f->eldt_wind) {
+                    // 4. Wind estimate comparison — lock was from a weaker
+                    // tier AND our independent GRIB estimate was closer to
+                    // truth. Means we locked the wrong source.
+                    if ($f->eldt_wind && $source !== 'WIND_GRIB') {
                         $windErr = round(($f->eldt_wind->getTimestamp() - $aldtEpoch) / 60);
                         if (abs($windErr) < abs($errMin) - 3) {
                             $errReasons[] = sprintf(
-                                'GRIB wind estimate would have been better (%+dm vs locked %+dm)',
-                                $windErr, $errMin
+                                'wrong tier locked — GRIB calc was closer (GRIB %+dm vs %s lock %+dm)',
+                                $windErr, $source, $errMin
                             );
                         }
                     }
@@ -3300,13 +3302,16 @@ final class Kernel
                         $errReasons[] = 'sparse / missing route (poor GRIB integration)';
                     }
 
-                    // 7. Pre-departure delay (big gap between EOBT and ATOT)
-                    if ($f->eobt && $atotEpoch - $f->eobt->getTimestamp() > 3600) {
-                        $delayMin = round(($atotEpoch - $f->eobt->getTimestamp()) / 60);
-                        $errReasons[] = "big pre-departure delay ({$delayMin}m after EOBT)";
+                    // 7. Short-haul — flight time < 90m means we never had a
+                    // chance to freeze from cruise WIND_GRIB (flight lands
+                    // before T-90m from cruise altitude). Lock inherited
+                    // from a weaker tier structurally.
+                    if ($filedEte && $filedEte < 90 && $flightTimeMin < 90) {
+                        $errReasons[] = "short-haul ({$flightTimeMin}m flight) — no cruise-GRIB window before freeze";
                     }
                 }
 
+                $shortHaul = ($filedEte && $filedEte < 90) || $flightTimeMin < 90;
                 $records[] = [
                     'callsign'      => $f->callsign,
                     'aircraft_type' => $f->aircraft_type,
@@ -3319,6 +3324,7 @@ final class Kernel
                     'sim_accel'     => $simAccel,
                     'sim_accel_mild'=> $simAccelMild,
                     'sim_accel_ratio' => $f->sim_accel_max_ratio !== null ? (float) $f->sim_accel_max_ratio : null,
+                    'short_haul'    => $shortHaul,
                     'atot'          => $f->atot->format('c'),
                     'filed_eta'     => $filedEta,
                     'filed_eta_err' => $filedEtaErr,

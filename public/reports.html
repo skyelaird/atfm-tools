@@ -108,9 +108,15 @@
         #tldt-flights-table .tombstone .cs { color: var(--text-bright); font-weight: 700; }
         #tldt-flights-table .tombstone .meta { color: var(--text-dim); font-size: 0.66rem; }
 
-        /* ALDT pivot — bordered both sides + slight bg highlight */
-        #tldt-flights-table .aldt-cell { border-left: 2px solid var(--border); border-right: 2px solid var(--border); background: rgba(94,234,212,0.04); color: var(--text-bright); font-weight: 700; padding-left: 0.5rem; padding-right: 0.5rem; }
+        /* ALDT pivot — bordered both sides + slight bg highlight, centered */
+        #tldt-flights-table .aldt-cell { border-left: 2px solid var(--border); border-right: 2px solid var(--border); background: rgba(94,234,212,0.04); color: var(--text-bright); font-weight: 700; padding-left: 0.5rem; padding-right: 0.5rem; text-align: center; }
         #tldt-flights-table th.aldt-cell { background: rgba(94,234,212,0.08); color: var(--accent); }
+
+        /* Short-haul marker — filed ETE < 90m or actual < 90m flights
+           can't reach the T-90m freeze horizon from cruise, so their
+           lock inherits from a weaker tier. Flag dimly so the reader
+           knows these are structurally harder to predict. */
+        #tldt-flights-table .short-haul-tag { display: inline-block; font-size: 0.55rem; padding: 0 0.25rem; margin-left: 0.3rem; border-radius: 2px; background: rgba(250,204,21,0.12); color: var(--warn); vertical-align: middle; }
 
         /* Prediction cell: time on top, tiny colour-bar under the number
            whose width scales with |err| (capped at 30 min = 100%). */
@@ -944,9 +950,14 @@ async function refreshTldt() {
                 ? `<span class="err ${fEtaCls||'muted'}">${etaErrTxt}</span>` : '';
             const tldtInline = `<span class="err ${errCls}">${tldtErrTxt}</span>`;
             const src = srcLetter(f.eta_source);
+            // Short-haul marker: ETE < 90m means we can't hit T-90m freeze
+            // from cruise, lock inherits weaker tier structurally.
+            const shortTag = f.short_haul
+                ? ' <span class="short-haul-tag" title="Flight time < 90 min — no cruise-GRIB window before T-90m freeze. Lock tier is inherently weaker.">short</span>'
+                : '';
             $ftb.innerHTML += '<tr' + rowCls + '>' +
                 '<td class="tombstone">' +
-                    '<div class="cs">' + f.callsign + partialTag + '</div>' +
+                    '<div class="cs">' + f.callsign + partialTag + shortTag + '</div>' +
                     '<div class="meta">' + (f.aircraft_type || '?') + ' · ' +
                         (f.adep || '?') + '\u2192' + (f.ades || '?') +
                         (f.dist_nm ? ' · ' + f.dist_nm + 'nm' : '') +
