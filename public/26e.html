@@ -159,9 +159,12 @@ async function load() {
     const r = await fetch('/26e-sector-load.json');
     DATA = await r.json();
     const m = DATA.meta;
+    const windInfo = m.wind_source
+        ? `${m.wind_source} @ ${m.wind_event_hour_utc?.slice(11,13) || '?'}Z`
+        : 'no wind';
     document.getElementById('meta').innerHTML =
         `<span class="hot">${m.flights_touching_sector}</span> of ${m.flights_total} flights transit these sectors · ` +
-        `cruise TAS ${m.cruise_tas_kt}kt (flat, no wind) · ` +
+        `cruise M${m.cruise_mach || '?'} · winds ${windInfo} · ` +
         `bin ${m.bin_minutes}m · ` +
         `generated ${m.generated_utc.slice(0, 16).replace('T', ' ')}Z`;
     document.getElementById('binInfo').textContent = `${m.bin_minutes}m`;

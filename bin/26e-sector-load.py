@@ -33,13 +33,214 @@ import math
 import re
 import os
 import sys
+import time
+import urllib.parse
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', '26E')
-CRUISE_TAS = 480.0  # kt, flat — no wind for v1
+try:
+    import requests as _requests
+except ImportError:
+    _requests = None
+
+REPO_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
+DATA_DIR = os.path.join(REPO_DATA, '26E')
+NAVDATA_WAYPOINTS = os.path.join(REPO_DATA, 'waypoints.json')
+WIND_CACHE = os.path.join(DATA_DIR, 'winds-cache.json')
+CRUISE_MACH = 0.82
 BIN_MIN = 5         # 5-minute bins (change to 15 for coarser chart)
 SAMPLE_STEP_SEC = 30  # trace position every 30 seconds for sector-edge precision
+MAX_LEG_NM = 800.0   # reject a resolved named fix if it's >N nm from the prior waypoint
+                     # (catches Navigraph duplicate-name collisions, e.g. LAKEY
+                     # resolving to Arizona instead of UK)
+
+# Wind grid covering NAT + North America (lat, lon box + step)
+WIND_LAT_MIN, WIND_LAT_MAX, WIND_LAT_STEP = 25, 70, 5
+WIND_LON_MIN, WIND_LON_MAX, WIND_LON_STEP = -100, 20, 5
+
+
+# ------------------------------------------------------------------
+#  Mach to TAS (ISA atmosphere)
+# ------------------------------------------------------------------
+
+def isa_temp_k(alt_ft):
+    """ISA temperature at alt_ft. Troposphere below 36089 ft, stratosphere above."""
+    if alt_ft < 36089:
+        return 288.15 - 1.9812 * (alt_ft / 1000.0)
+    return 216.65
+
+def mach_to_tas_kt(mach, alt_ft):
+    """TAS in knots for given Mach number at given altitude (ISA)."""
+    t_k = isa_temp_k(alt_ft)
+    # a (kt) = sqrt(gamma * R * T) in m/s, / (1852/3600) for kt.
+    # Precomputed constant 38.967 kt/sqrt(K).
+    a_kt = 38.967 * math.sqrt(t_k)
+    return mach * a_kt
+
+
+def fl_to_pressure_level(fl_ft):
+    """
+    Pick the nearest standard pressure level (mb) for the flight's cruise alt.
+    Our Open-Meteo fetch covers 200/250/300 hPa.
+      200 hPa ≈ FL385
+      250 hPa ≈ FL340
+      300 hPa ≈ FL300
+    """
+    if fl_ft >= 36000: return 200
+    if fl_ft >= 30000: return 250
+    return 300
+
+
+# ------------------------------------------------------------------
+#  Wind — Open-Meteo GFS fetch (cached)
+# ------------------------------------------------------------------
+
+def fetch_wind_grid(event_hour_utc, force=False):
+    """
+    Fetch wind at (lat_min..max, lon_min..max, step) from Open-Meteo GFS.
+    Returns a dict keyed by pressure level (200/250/300) → 2D array of
+    {u, v} (kt). Cached to WIND_CACHE (reused if < 6h old).
+    """
+    if not force and os.path.exists(WIND_CACHE):
+        age_hr = (time.time() - os.path.getmtime(WIND_CACHE)) / 3600
+        if age_hr < 6:
+            with open(WIND_CACHE) as f:
+                return json.load(f)
+
+    lats = list(range(WIND_LAT_MIN, WIND_LAT_MAX + 1, WIND_LAT_STEP))
+    lons = list(range(WIND_LON_MIN, WIND_LON_MAX + 1, WIND_LON_STEP))
+    points = [(la, lo) for la in lats for lo in lons]
+
+    print(f'Fetching winds from Open-Meteo: {len(points)} grid points '
+          f'(lat {WIND_LAT_MIN}..{WIND_LAT_MAX}/{WIND_LAT_STEP}°, '
+          f'lon {WIND_LON_MIN}..{WIND_LON_MAX}/{WIND_LON_STEP}°)...', flush=True)
+
+    grid = {lvl: {} for lvl in (200, 250, 300)}
+    # Open-Meteo accepts up to ~10 points per call (point-list semantics).
+    CHUNK = 10
+    for i in range(0, len(points), CHUNK):
+        batch = points[i:i+CHUNK]
+        lat_str = ','.join(str(p[0]) for p in batch)
+        lon_str = ','.join(str(p[1]) for p in batch)
+        vars_ = ['wind_speed_300hPa', 'wind_direction_300hPa',
+                 'wind_speed_250hPa', 'wind_direction_250hPa',
+                 'wind_speed_200hPa', 'wind_direction_200hPa']
+        params = {
+            'latitude': lat_str,
+            'longitude': lon_str,
+            'hourly': ','.join(vars_),
+            'wind_speed_unit': 'kn',
+            'forecast_days': 1,
+        }
+        url = 'https://api.open-meteo.com/v1/gfs'
+        try:
+            if _requests is not None:
+                r = _requests.get(url, params=params, timeout=60)
+                r.raise_for_status()
+                data = r.json()
+            else:
+                import urllib.request
+                full = url + '?' + urllib.parse.urlencode(params)
+                with urllib.request.urlopen(full, timeout=60) as resp:
+                    data = json.loads(resp.read().decode('utf-8'))
+        except Exception as e:
+            print(f'  batch {i}: ERROR {e}', flush=True)
+            continue
+        # data is a list when multiple points given
+        if not isinstance(data, list):
+            data = [data]
+        for pt_data, (la, lo) in zip(data, batch):
+            h = pt_data.get('hourly', {})
+            times = h.get('time', [])
+            # Find the hour index closest to event_hour_utc
+            target = event_hour_utc.strftime('%Y-%m-%dT%H:00')
+            idx = 0
+            for j, t in enumerate(times):
+                if t == target:
+                    idx = j
+                    break
+            for lvl in (200, 250, 300):
+                spd_k = f'wind_speed_{lvl}hPa'
+                dir_k = f'wind_direction_{lvl}hPa'
+                if spd_k not in h or dir_k not in h or idx >= len(h[spd_k]):
+                    continue
+                speed_kt = h[spd_k][idx]
+                dir_deg = h[dir_k][idx]
+                if speed_kt is None or dir_deg is None:
+                    continue
+                # Wind direction is the direction FROM which the wind blows.
+                # U (east component) = -speed * sin(dir), V (north) = -speed * cos(dir)
+                dr = math.radians(dir_deg)
+                u = -speed_kt * math.sin(dr)
+                v = -speed_kt * math.cos(dr)
+                grid[lvl][f'{la}_{lo}'] = [round(u, 2), round(v, 2)]
+        if (i // CHUNK) % 10 == 9:
+            print(f'  fetched {i+len(batch)} / {len(points)} points', flush=True)
+
+    # Normalize level keys to strings (JSON only supports string keys on
+    # disk; we keep them as strings in memory too so wind_at has a single
+    # code path whether data came from live fetch or cache reload).
+    grid_str = {str(k): v for k, v in grid.items()}
+    out = {
+        'fetched_utc': datetime.now(timezone.utc).isoformat(),
+        'event_hour_utc': event_hour_utc.isoformat(),
+        'lat_range': [WIND_LAT_MIN, WIND_LAT_MAX, WIND_LAT_STEP],
+        'lon_range': [WIND_LON_MIN, WIND_LON_MAX, WIND_LON_STEP],
+        'grids': grid_str,
+    }
+    with open(WIND_CACHE, 'w') as f:
+        json.dump(out, f)
+    return out
+
+
+def wind_at(grid_data, level_mb, lat, lon):
+    """
+    Bilinear interpolation of (u, v) wind vector (kt) at (lat, lon) from
+    the grid at the given pressure level. Returns (u_kt, v_kt) or (0, 0)
+    if the point is outside the grid.
+    """
+    g = grid_data['grids'].get(str(level_mb))
+    if g is None:
+        return (0.0, 0.0)
+
+    lat_min, lat_max, lat_step = grid_data['lat_range']
+    lon_min, lon_max, lon_step = grid_data['lon_range']
+    if not (lat_min <= lat <= lat_max and lon_min <= lon <= lon_max):
+        return (0.0, 0.0)
+
+    la0 = lat_min + math.floor((lat - lat_min) / lat_step) * lat_step
+    lo0 = lon_min + math.floor((lon - lon_min) / lon_step) * lon_step
+    la1 = min(la0 + lat_step, lat_max)
+    lo1 = min(lo0 + lon_step, lon_max)
+    fa = (lat - la0) / lat_step if lat_step else 0
+    fo = (lon - lo0) / lon_step if lon_step else 0
+
+    def corner(la, lo):
+        k = f'{int(la)}_{int(lo)}'
+        return g.get(k, [0.0, 0.0])
+
+    c00 = corner(la0, lo0); c01 = corner(la0, lo1)
+    c10 = corner(la1, lo0); c11 = corner(la1, lo1)
+    u = ((1 - fa) * ((1 - fo) * c00[0] + fo * c01[0]) +
+         fa * ((1 - fo) * c10[0] + fo * c11[0]))
+    v = ((1 - fa) * ((1 - fo) * c00[1] + fo * c01[1]) +
+         fa * ((1 - fo) * c10[1] + fo * c11[1]))
+    return (u, v)
+
+
+def bearing_deg(lat1, lon1, lat2, lon2):
+    """Initial great-circle bearing from (lat1,lon1) to (lat2,lon2), degrees."""
+    lat1r = math.radians(lat1); lat2r = math.radians(lat2)
+    dlon = math.radians(lon2 - lon1)
+    x = math.sin(dlon) * math.cos(lat2r)
+    y = math.cos(lat1r) * math.sin(lat2r) - math.sin(lat1r) * math.cos(lat2r) * math.cos(dlon)
+    return (math.degrees(math.atan2(x, y)) + 360) % 360
+
+
+def along_track_wind_kt(u_kt, v_kt, heading_deg):
+    """Positive = tailwind, negative = headwind."""
+    hr = math.radians(heading_deg)
+    return u_kt * math.sin(hr) + v_kt * math.cos(hr)
 
 
 # ------------------------------------------------------------------
@@ -73,23 +274,67 @@ def parse_coord_waypoint(tok):
     return None
 
 
-def parse_route(route_str, airports, dep, arr):
+def is_airway_or_procedure(tok):
+    """
+    Heuristic to skip airway identifiers, procedures, and DCT.
+    Airways typically start with letter followed by digits (e.g. J95, Q979, UL612).
+    """
+    if tok == 'DCT':
+        return True
+    # Single letter + digits: J95, Q979
+    if re.match(r'^[A-Z]\d+$', tok):
+        return True
+    # Two+ letters + digits (airways): UL612, UM605, T703
+    if re.match(r'^[A-Z]{1,3}\d+$', tok) and len(tok) >= 3:
+        return True
+    # SID/STAR-like: 7-char with digit (e.g. VERDO7, JCOBY4, MRSSH3)
+    if re.match(r'^[A-Z]+\d[A-Z]?$', tok) and any(c.isdigit() for c in tok):
+        return True
+    return False
+
+
+def parse_route(route_str, airports, waypoints, dep, arr, stats):
     """
     Parse filed route into a list of (lat, lon) pairs.
-    Starts at DEP coords, ends at ARR coords, with all resolvable
-    coordinate waypoints in between (in order).
+    Resolution order per token:
+      1. Coordinate waypoint (5690N, 66N050W, etc.)
+      2. Named fix in navdata (ELVUX -> 50.18, -96.91)
+         — with sanity check: reject if >MAX_LEG_NM from last fix
+      3. Airway/procedure/DCT token — skipped
+      4. Unknown — skipped, counted in stats
     """
     tokens = route_str.split()
     path = []
     if dep in airports:
         path.append(tuple(airports[dep]))
+
+    last = path[-1] if path else None
     for t in tokens:
-        # Skip the dep/arr tokens themselves
         if t == dep or t == arr:
             continue
+        # 1. Coord waypoint
         c = parse_coord_waypoint(t)
         if c is not None:
             path.append(c)
+            last = c
+            continue
+        # 2. Airway / procedure / DCT — skip quietly
+        if is_airway_or_procedure(t):
+            continue
+        # 3. Named fix lookup
+        if t in waypoints:
+            latlon = tuple(waypoints[t])
+            if last is not None:
+                d = gc_distance_nm(last, latlon)
+                if d > MAX_LEG_NM:
+                    stats['rejected_distant_fix'].append((t, d))
+                    continue
+            path.append(latlon)
+            last = latlon
+            continue
+        # 4. Unknown
+        stats['unresolved_tokens'][t] = stats['unresolved_tokens'].get(t, 0) + 1
+
     if arr in airports:
         path.append(tuple(airports[arr]))
     return path
@@ -130,23 +375,27 @@ def gc_interp(a, b, frac):
     return (to_deg(lat), to_deg(lon))
 
 
-def trace_path(path, speed_kt, step_sec):
+def trace_path(path, tas_kt, step_sec, wind_grid, press_mb):
     """
     Yield (t_sec_from_start, lat, lon) samples along the multi-leg path.
-    Samples every step_sec seconds, advancing along each leg at speed_kt.
+    Uses per-leg along-track wind to compute effective GS; samples every
+    step_sec seconds of wall-clock.
     """
     t = 0.0
     for i in range(len(path) - 1):
-        a = path[i]
-        b = path[i + 1]
+        a = path[i]; b = path[i + 1]
         d_nm = gc_distance_nm(a, b)
         if d_nm < 0.01:
             continue
-        leg_sec = (d_nm / speed_kt) * 3600.0
-        # Yield at 0-leg if this is the first leg
+        # Wind at leg midpoint — good enough for legs of the length we see
+        mid = gc_interp(a, b, 0.5)
+        u, v = wind_at(wind_grid, press_mb, mid[0], mid[1])
+        brg = bearing_deg(a[0], a[1], b[0], b[1])
+        wind_along = along_track_wind_kt(u, v, brg)
+        gs = max(150.0, min(tas_kt + wind_along, 700.0))
+        leg_sec = (d_nm / gs) * 3600.0
         if i == 0:
             yield (t, a[0], a[1])
-        # Step through this leg
         s = step_sec
         while s < leg_sec:
             frac = s / leg_sec
@@ -203,6 +452,18 @@ def main():
         airports = json.load(f)
     with open(os.path.join(DATA_DIR, 'sectors.json')) as f:
         sectors = json.load(f)
+    print(f'Loading navdata waypoints...', flush=True)
+    with open(NAVDATA_WAYPOINTS) as f:
+        waypoints = json.load(f)
+    print(f'  {len(waypoints):,} waypoints loaded', flush=True)
+
+    # Fetch current wind grid for event midpoint hour (13Z — middle of
+    # the 10Z-16Z event window).
+    event_hour = datetime.now(timezone.utc).replace(hour=13, minute=0, second=0, microsecond=0)
+    wind_grid = fetch_wind_grid(event_hour)
+    print(f'  wind grids: {len(wind_grid["grids"].get("300", {}))} '
+          f'points @ 300mb, {len(wind_grid["grids"].get("250", {}))} @ 250mb, '
+          f'{len(wind_grid["grids"].get("200", {}))} @ 200mb', flush=True)
 
     # Output: per-sector per-bin count
     sector_bins = {s['id']: defaultdict(int) for s in sectors}
@@ -213,6 +474,7 @@ def main():
     n_parsed = 0
     n_no_path = 0
     unresolved_deps = set()
+    parse_stats = {'unresolved_tokens': {}, 'rejected_distant_fix': []}
 
     with open(os.path.join(DATA_DIR, 'bookings.csv'), encoding='utf-8') as f:
         rows = list(csv.DictReader(f))
@@ -227,18 +489,27 @@ def main():
             unresolved_deps.add(dep)
             continue
 
-        path = parse_route(row['route'], airports, dep, arr)
+        path = parse_route(row['route'], airports, waypoints, dep, arr, parse_stats)
         if len(path) < 2:
             n_no_path += 1
             continue
 
         ctot_sec = ctot_to_dt(ctot)
+        # Convert filed FL (integer like 370 = FL370) to altitude ft and
+        # compute TAS for Mach 0.82 at that alt.
+        try:
+            fl = int(row['alt'])
+        except (ValueError, TypeError):
+            fl = 370
+        alt_ft = fl * 100  # FL → ft
+        tas = mach_to_tas_kt(CRUISE_MACH, alt_ft)
+        press_mb = fl_to_pressure_level(alt_ft)
 
         # Trace, recording sector transitions
         cur_sector = None
         entry_t = None
         touched = {}
-        for t_sec, lat, lon in trace_path(path, CRUISE_TAS, SAMPLE_STEP_SEC):
+        for t_sec, lat, lon in trace_path(path, tas, SAMPLE_STEP_SEC, wind_grid, press_mb):
             abs_sec = ctot_sec + t_sec
             sec = find_sector(lat, lon, sectors)
             if sec != cur_sector:
@@ -276,7 +547,9 @@ def main():
         'meta': {
             'generated_utc': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
             'bin_minutes': BIN_MIN,
-            'cruise_tas_kt': CRUISE_TAS,
+            'cruise_mach': CRUISE_MACH,
+            'wind_source': 'Open-Meteo GFS',
+            'wind_event_hour_utc': wind_grid.get('event_hour_utc'),
             'flights_total': len(rows),
             'flights_parsed': n_parsed,
             'flights_without_path': n_no_path,
@@ -308,6 +581,15 @@ def main():
     print(f'Touching : {flights_in_any_sector}')
     print(f'Unknown deps: {sorted(unresolved_deps)}')
     print(f'Output   : {out_path}')
+    # Diagnostic: most-common unresolved fix names (likely terminal-area fixes
+    # on arrival side, irrelevant to QM/QX loading)
+    unresolved = parse_stats['unresolved_tokens']
+    if unresolved:
+        top = sorted(unresolved.items(), key=lambda x: -x[1])[:10]
+        print(f'Top unresolved fixes: {top}')
+    if parse_stats['rejected_distant_fix']:
+        rej = parse_stats['rejected_distant_fix'][:5]
+        print(f'Rejected distant-fix collisions: {rej[:5]} (+{len(parse_stats["rejected_distant_fix"])-5} more)' if len(parse_stats['rejected_distant_fix']) > 5 else f'Rejected distant-fix collisions: {rej}')
     # Print peak per sector
     print()
     print(f'Sector peaks (count of concurrent flights per {BIN_MIN}m bin):')
