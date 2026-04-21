@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>26E Sector Load — CZQM / CZQX</title>
+<style>
+:root {
+    --bg: #0a0e1a;
+    --bg-elev: #121826;
+    --bg-elev-hi: #1a2133;
+    --text: #e8ecf4;
+    --text-dim: #7a8499;
+    --border: #2a3142;
+    --accent: #5ee0ba;
+    --accent-dim: rgba(94, 224, 186, 0.12);
+    --warn: #f5a05b;
+    --alert: #ef6464;
+    --mono: "SF Mono", "JetBrains Mono", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 1rem;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: 14px;
+}
+h1 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin: 0 0 0.5rem 0;
+}
+.meta {
+    font-family: var(--mono);
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    margin-bottom: 0.75rem;
+}
+.meta span.hot { color: var(--accent); }
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 0.75rem;
+}
+.card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem 0.4rem;
+}
+.card .title {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.3rem;
+}
+.card .name {
+    font-family: var(--mono);
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 0.95rem;
+}
+.card .label {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    font-family: var(--mono);
+}
+.card .peak {
+    color: var(--warn);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+}
+svg {
+    display: block;
+    width: 100%;
+    height: 120px;
+    background: var(--bg);
+    border-radius: 3px;
+}
+.axis-label {
+    fill: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 9px;
+}
+.bar {
+    fill: var(--accent);
+    opacity: 0.9;
+}
+.bar:hover {
+    fill: var(--warn);
+}
+.bar.peak {
+    fill: var(--warn);
+}
+.grid-line {
+    stroke: var(--border);
+    stroke-dasharray: 2 2;
+    stroke-width: 0.5;
+}
+.controls {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+}
+.controls label { color: var(--text-dim); }
+.controls input[type="number"] {
+    width: 3em;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.15rem 0.3rem;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+}
+.tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--bg-elev-hi);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.25rem 0.5rem;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.1s;
+}
+.cap-line {
+    stroke: var(--alert);
+    stroke-dasharray: 4 2;
+    stroke-width: 1;
+}
+</style>
+</head>
+<body>
+<h1>26E CTP Sector Load — CZQM / CZQX</h1>
+<div class="meta" id="meta">Loading…</div>
+<div class="controls">
+    <label>Capacity threshold (planes/bin):</label>
+    <input type="number" id="capThreshold" value="20" min="0" step="1"/>
+    <label>Bin:</label>
+    <span id="binInfo">—</span>
+</div>
+<div class="grid" id="grid"></div>
+<div class="tooltip" id="tip"></div>
+
+<script>
+const TIP = document.getElementById('tip');
+let DATA = null;
+let CAP = 20;
+
+async function load() {
+    const r = await fetch('/26e-sector-load.json');
+    DATA = await r.json();
+    const m = DATA.meta;
+    document.getElementById('meta').innerHTML =
+        `<span class="hot">${m.flights_touching_sector}</span> of ${m.flights_total} flights transit these sectors · ` +
+        `cruise TAS ${m.cruise_tas_kt}kt (flat, no wind) · ` +
+        `bin ${m.bin_minutes}m · ` +
+        `generated ${m.generated_utc.slice(0, 16).replace('T', ' ')}Z`;
+    document.getElementById('binInfo').textContent = `${m.bin_minutes}m`;
+    render();
+}
+
+function render() {
+    const grid = document.getElementById('grid');
+    grid.innerHTML = '';
+    const allBins = new Set();
+    for (const sid in DATA.load) {
+        for (const p of DATA.load[sid]) allBins.add(p.bin_minute);
+    }
+    const sortedBins = [...allBins].sort((a, b) => a - b);
+    const minBin = sortedBins[0] || 600;   // seconds-of-day: 10:00
+    const maxBin = sortedBins[sortedBins.length - 1] || 960;
+    // Pad to whole hours for tidy axis
+    const xMin = Math.floor(minBin / 60) * 60;
+    const xMax = Math.ceil((maxBin + DATA.meta.bin_minutes) / 60) * 60;
+
+    for (const s of DATA.sectors) {
+        const card = document.createElement('div');
+        card.className = 'card';
+        const loadRows = DATA.load[s.id] || [];
+        const peak = loadRows.reduce((a, r) => r.count > a.count ? r : a, {count: 0, bin_minute: 0});
+        const peakHH = Math.floor(peak.bin_minute / 60);
+        const peakMM = peak.bin_minute % 60;
+        const peakStr = loadRows.length
+            ? `peak ${peak.count} @ ${String(peakHH).padStart(2,'0')}${String(peakMM).padStart(2,'0')}Z`
+            : '(no flights)';
+        card.innerHTML = `
+            <div class="title">
+                <span class="name">${s.id}</span>
+                <span class="label">${s.label || ''} · ${s.freq || ''} MHz</span>
+                <span class="peak">${peakStr}</span>
+            </div>
+            <svg viewBox="0 0 400 120" preserveAspectRatio="none" id="svg-${s.id}"></svg>
+        `;
+        grid.appendChild(card);
+
+        drawChart(s.id, loadRows, xMin, xMax);
+    }
+}
+
+function drawChart(sectorId, rows, xMin, xMax) {
+    const svg = document.getElementById(`svg-${sectorId}`);
+    const W = 400, H = 120;
+    const M = {l: 28, r: 6, t: 8, b: 18};
+    const plotW = W - M.l - M.r;
+    const plotH = H - M.t - M.b;
+    const bin = DATA.meta.bin_minutes;
+
+    const maxCount = Math.max(CAP, ...rows.map(r => r.count), 10);
+    const xScale = (t) => M.l + (t - xMin) / (xMax - xMin) * plotW;
+    const yScale = (v) => M.t + plotH - (v / maxCount) * plotH;
+
+    let svgHtml = '';
+    // Axis lines (hours)
+    for (let t = xMin; t <= xMax; t += 60) {
+        const x = xScale(t);
+        svgHtml += `<line class="grid-line" x1="${x}" y1="${M.t}" x2="${x}" y2="${M.t + plotH}"/>`;
+        const hh = Math.floor(t / 60);
+        svgHtml += `<text class="axis-label" x="${x}" y="${H - 4}" text-anchor="middle">${String(hh).padStart(2,'0')}Z</text>`;
+    }
+    // Y-axis labels
+    for (let v = 0; v <= maxCount; v += Math.ceil(maxCount / 4)) {
+        const y = yScale(v);
+        svgHtml += `<line class="grid-line" x1="${M.l}" y1="${y}" x2="${M.l + plotW}" y2="${y}"/>`;
+        svgHtml += `<text class="axis-label" x="${M.l - 3}" y="${y + 3}" text-anchor="end">${v}</text>`;
+    }
+    // Capacity threshold
+    if (CAP > 0 && CAP <= maxCount) {
+        const y = yScale(CAP);
+        svgHtml += `<line class="cap-line" x1="${M.l}" y1="${y}" x2="${M.l + plotW}" y2="${y}"/>`;
+    }
+    // Bars
+    const binPx = (plotW / (xMax - xMin)) * bin;
+    const peakCount = rows.length ? Math.max(...rows.map(r => r.count)) : 0;
+    for (const r of rows) {
+        const x = xScale(r.bin_minute);
+        const y = yScale(r.count);
+        const h = plotH + M.t - y;
+        const cls = r.count === peakCount ? 'bar peak' : 'bar';
+        svgHtml += `<rect class="${cls}" x="${x}" y="${y}" width="${binPx - 0.5}" height="${h}" data-count="${r.count}" data-bin="${r.bin_minute}" data-sector="${sectorId}"/>`;
+    }
+    svg.innerHTML = svgHtml;
+
+    svg.addEventListener('mousemove', (e) => {
+        if (e.target.tagName === 'rect') {
+            const rect = e.target;
+            const c = rect.getAttribute('data-count');
+            const b = parseInt(rect.getAttribute('data-bin'));
+            const hh = Math.floor(b / 60);
+            const mm = b % 60;
+            TIP.textContent = `${String(hh).padStart(2,'0')}${String(mm).padStart(2,'0')}Z  ${c} flt`;
+            TIP.style.left = (e.clientX + 10) + 'px';
+            TIP.style.top = (e.clientY + 10) + 'px';
+            TIP.style.opacity = '1';
+        } else {
+            TIP.style.opacity = '0';
+        }
+    });
+    svg.addEventListener('mouseleave', () => TIP.style.opacity = '0');
+}
+
+document.getElementById('capThreshold').addEventListener('change', (e) => {
+    CAP = parseInt(e.target.value) || 0;
+    render();
+});
+
+load();
+</script>
+</body>
+</html>
