@@ -87,6 +87,12 @@
         thead th.sortable.sort-desc::after { content: '\2193'; opacity: 1; color: var(--accent); }
         tbody td { padding: 0.3rem 0.35rem; border-bottom: 1px solid var(--border); }
         tbody tr:hover { background: var(--bg-elev); }
+        /* Flight-detail table: 12 columns. Tighter padding + monospace
+           numerics so the eye can track across the row. */
+        #tldt-flights-table { font-size: 0.75rem; font-family: "SF Mono", Consolas, Monaco, monospace; font-variant-numeric: tabular-nums; }
+        #tldt-flights-table thead th { padding: 0.25rem 0.3rem; font-size: 0.62rem; }
+        #tldt-flights-table tbody td { padding: 0.2rem 0.3rem; }
+        #tldt-flights-table .num { text-align: right; }
         .table-wrap {
             background: var(--bg-elev);
             border: 1px solid var(--border);
@@ -217,11 +223,14 @@
 </table>
 
 <h2>TLDT flights table</h2>
-<p>Individual flight records showing ATOT, TLDT, ALDT, and errors. Key columns:</p>
+<p>Individual flight records — columns ordered to tell the story left-to-right: who the flight is → departed → naive baseline vs actual → our prediction vs actual → source tier.</p>
 <ul>
-    <li><strong>Flt time</strong> &mdash; observed flight time / filed ETE (e.g. <code>188m/570m</code>). Large discrepancy suggests mid-connect.</li>
-    <li><strong>ATOT+ETE</strong> &mdash; naive baseline: actual takeoff + filed enroute time. Compare against TLDT to see system improvement.</li>
-    <li><strong>PARTIAL</strong> badge &mdash; pilot connected mid-flight. ATOT is first-seen, not real departure. These are <strong>excluded</strong> from accuracy stats.</li>
+    <li><strong>Flt / ETE</strong> &mdash; observed flight time / filed ETE (e.g. <code>188/570</code>). Large discrepancy suggests mid-connect.</li>
+    <li><strong>ATOT+ETE</strong> &mdash; naive baseline prediction: actual takeoff + filed enroute time.</li>
+    <li><strong>ALDT</strong> &mdash; actual landing. Placed between the two predictions so both errors can be read visually.</li>
+    <li><strong>ETA err</strong> &mdash; (ATOT+ETE) &minus; ALDT. How wrong the naive baseline was.</li>
+    <li><strong>TLDT / TLDT err</strong> &mdash; our frozen prediction at T-90m and its error vs ALDT. Compare with ETA err to see the gain from our model.</li>
+    <li><strong>PARTIAL</strong> / <strong>SIM Nx</strong> badges &mdash; outliers. PARTIAL = pilot connected mid-flight; SIM = accelerated sim rate. Both dim and <strong>excluded</strong> from accuracy stats.</li>
     <li>Error colour: <span style="color:var(--ok)">green</span> &le;3m, <span style="color:var(--warn)">yellow</span> 3&ndash;5m, <span style="color:var(--alert)">red</span> &gt;5m.</li>
 </ul>
 
@@ -374,8 +383,18 @@ Per EUROCONTROL Airport CDM Implementation Manual v5.0.
         <div class="table-wrap" style="margin-top:0.75rem;">
             <table id="tldt-flights-table">
                 <thead><tr>
-                    <th>Callsign</th><th>Type</th><th>Route</th><th class="num" title="Great-circle distance in nautical miles">Dist</th><th class="num" title="Observed flight time / filed ETE. Large gap = mid-connect (pilot joined mid-flight).">Flt time</th>
-                    <th title="Actual Take-Off Time (first seen airborne — may be mid-flight for reconnects)">ATOT</th><th title="ATOT + filed enroute time. Naive baseline — unreliable for mid-connect flights.">ATOT+ETE</th><th class="num" title="(ATOT+ETE) minus ALDT in minutes.">err</th><th title="Target Landing Time — system prediction (GRIB wind / geometric / filed, frozen at T-90m)">TLDT</th><th title="Actual Landing Time">ALDT</th><th class="num" title="TLDT minus ALDT in minutes. Positive = predicted late, negative = early.">TLDT err</th><th title="ETA source tier used at freeze time">Source</th>
+                    <th>Callsign</th>
+                    <th>Type</th>
+                    <th>Route</th>
+                    <th class="num" title="Great-circle distance in nautical miles">Dist</th>
+                    <th class="num" title="Observed flight time / filed ETE. Large gap = mid-connect (pilot joined mid-flight).">Flt / ETE</th>
+                    <th title="Actual Take-Off Time (first seen airborne — may be mid-flight for reconnects)">ATOT</th>
+                    <th title="ATOT + filed enroute time. Naive baseline prediction — unreliable for mid-connect flights.">ATOT+ETE</th>
+                    <th title="Actual Landing Time">ALDT</th>
+                    <th class="num" title="(ATOT+ETE) minus ALDT in minutes. Naive baseline error — useful to compare vs TLDT err.">ETA err</th>
+                    <th title="Target Landing Time — system prediction (GRIB wind / geometric / filed, frozen at T-90m)">TLDT</th>
+                    <th class="num" title="TLDT minus ALDT in minutes. Positive = predicted late, negative = early.">TLDT err</th>
+                    <th title="ETA source tier used at freeze time">Source</th>
                 </tr></thead>
                 <tbody id="tldt-flights-tbody">
                     <tr><td colspan="12" class="empty-row">Loading...</td></tr>
@@ -841,19 +860,25 @@ async function refreshTldt() {
             const whyMarker = hasReasons
                 ? ` <span style="cursor:help; color:var(--info); font-size:0.7rem;" title="${whyTip}">ⓘ</span>`
                 : '';
+            // Column order tells the story:
+            //   who (callsign/type/route/dist/flt-time) →
+            //   took off (ATOT) →
+            //   naive prediction (ATOT+ETE) vs actual (ALDT) — ETA err is delta →
+            //   our prediction (TLDT) vs actual (ALDT just left) — TLDT err is delta →
+            //   which source tier our prediction used
             $ftb.innerHTML += '<tr' + rowCls + '>' +
-                '<td class="mono">' + f.callsign + partialTag + '</td>' +
+                '<td>' + f.callsign + partialTag + '</td>' +
                 '<td>' + (f.aircraft_type || '') + '</td>' +
-                '<td class="mono" style="font-size:0.75rem">' + (f.adep || '') + '\u2192' + (f.ades || '') + '</td>' +
+                '<td>' + (f.adep || '') + '\u2192' + (f.ades || '') + '</td>' +
                 '<td class="num">' + (f.dist_nm || '\u2014') + '</td>' +
-                '<td class="num">' + f.flight_time + 'm' + (f.filed_ete ? '/' + f.filed_ete + 'm' : '') + '</td>' +
-                '<td class="mono">' + fmtTime(f.atot) + '</td>' +
-                '<td class="mono">' + fmtTime(f.filed_eta) + '</td>' +
+                '<td class="num">' + f.flight_time + (f.filed_ete ? '/' + f.filed_ete : '') + '</td>' +
+                '<td>' + fmtTime(f.atot) + '</td>' +
+                '<td>' + fmtTime(f.filed_eta) + '</td>' +
+                '<td>' + fmtTime(f.aldt) + '</td>' +
                 '<td class="num"' + (fEtaCls ? ' style="color:var(--' + fEtaCls + ')"' : '') + '>' + fEtaErr + '</td>' +
-                '<td class="mono">' + fmtTime(f.tldt) + '</td>' +
-                '<td class="mono">' + fmtTime(f.aldt) + '</td>' +
+                '<td>' + fmtTime(f.tldt) + '</td>' +
                 '<td class="num" style="color:var(--' + errCls + ')">' + errSign + f.tldt_err_min + whyMarker + '</td>' +
-                '<td class="mono" style="font-size:0.75rem">' + (f.eta_source || '') + '</td></tr>';
+                '<td>' + (f.eta_source || '') + '</td></tr>';
         }
         if ((d.flights || []).length === 0) $ftb.innerHTML = '<tr><td colspan="12" class="empty-row">No TLDT data yet \u2014 need flights with ATOT + TLDT + ALDT.</td></tr>';
     } catch (e) {
