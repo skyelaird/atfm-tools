@@ -553,7 +553,10 @@ function suggestMit(aar, share) {
 async function refreshMit(icao) {
     const body = document.getElementById('mit-body-' + icao);
     if (!body) return;
-    const win = mitWindow[icao] || 120;
+    // Default MIT window to whatever the demand strip is showing — if
+    // the FMP is looking at 4h demand, MIT should plan against the same
+    // set of flights, not a narrower 2h slice.
+    const win = mitWindow[icao] || demandWindow[icao] || 240;
     body.innerHTML = '<div class="muted">Loading demand…</div>';
     try {
         const r = await fetch(`/api/v1/metering?airport=${icao}&window=${win}`);
@@ -578,7 +581,7 @@ function renderMitPanel(icao) {
     const body = document.getElementById('mit-body-' + icao);
     if (!body) return;
     const aar = getAar(icao);
-    const win = mitWindow[icao] || 120;
+    const win = mitWindow[icao] || demandWindow[icao] || 240;
     const fixesByIcao = (data.by_airport && data.by_airport[icao]) || {};
     const fixEntries = Object.entries(fixesByIcao);
 
@@ -594,7 +597,10 @@ function renderMitPanel(icao) {
     const overCapacity = aar && demandPerHr > aar;
 
     const winSel = `<select class="mit-win" onchange="mitWindow['${icao}']=Number(this.value); saveUiState(); refreshMit('${icao}')">` +
-        [60, 120, 240].map(m => `<option value="${m}"${m===win?' selected':''}>${m}m</option>`).join('') +
+        [60, 120, 240, 480].map(m => {
+            const label = m >= 60 ? (m/60 + 'h') : (m + 'm');
+            return `<option value="${m}"${m===win?' selected':''}>${label}</option>`;
+        }).join('') +
         '</select>';
 
     let html = `<div class="mit-controls">
