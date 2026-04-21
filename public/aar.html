@@ -476,30 +476,37 @@ async function refreshCard(icao) {
 
 // ---------- MIT planner ----------
 //
-// Concept: given the declared AAR at this airport and the observed
-// demand distribution over each metering fix in a forward window,
-// allocate fair-share flow rate to each fix and publish the implied
-// in-trail spacing as a baseline MIT request. FMP tweaks as needed
-// and pastes the request into a message to the adjacent centre.
+// Concept: take the final-approach spacing implied by AAR and allocate
+// it across fixes by demand share. Publish the implied in-trail at
+// each fix as a MIT request for adjacent ATC. Self-correcting floor:
+// when demand > fair share, it throttles; when demand < fair share,
+// traffic is naturally wider and ATC does nothing.
 //
-// MIT is a floor on spacing, self-correcting: if aircraft present at
-// fix with > MIT, adjacent ATC does nothing; if < MIT, they add
-// vectors/speed. So a baseline MIT is useful even when demand is
-// within AAR — it prevents the bunches that cause pancake approaches
-// at the tactical stage.
+// Math (industry convention — final-speed reference, no fix-GS
+// correction, because rates propagate as rates regardless of where
+// they're measured):
+//   final_spacing = V_final / AAR
+//   MIT_at_fix    = final_spacing / fix_share
 //
-// Math: fair_share_rate (per hr) = AAR * (fix_demand / total_demand).
-// MIT (nm) = fix_GS / fair_share_rate = airport_final_spacing / share,
-//   where airport_final_spacing = (60 / AAR) * approach_GS_nm_per_min.
-// Defaults to 240 kt approach (4 nm/min), rounded up to nearest 5nm,
-// min 10nm. Fixes with zero demand get —.
+// Worked example: 1 runway, 5 nm final, 4 fixes evenly contributing
+//   → AAR = 130/5 = 26, final_spacing = 5 nm
+//   → MIT per fix = 5 / 0.25 = 20 nm.
+// AAR 46, IMEBA 50% / BOXUM-NUBER-RAGID 17%
+//   → final_spacing = 130/46 = 2.83 nm
+//   → IMEBA 2.83/0.50 = 5.7 → 10 nm
+//   → others 2.83/0.17 = 16.6 → 20 nm
 //
-// When total demand > AAR the airport is flagged; MIT values stay on
-// the same formula (the fair-share spacing throttles flow back to AAR).
+// Rounded up to nearest 5 nm for presentability. No hard floor —
+// the fair-share formula is itself the floor.
 
-const APPROACH_GS_NM_PER_MIN = 4.0;  // 240 kt at the metering fix
+// Final-approach GS in nm/min. 130 kt ≈ 2.17 nm/min. Compression is
+// real (aircraft cross metering fixes faster than V_final) but applies
+// uniformly to every aircraft in the stream, so the relative rate /
+// spacing is preserved — it balances out. Final-speed reference is
+// the operational norm.
+const APPROACH_GS_NM_PER_MIN = 130 / 60;  // 2.17 nm/min at 130 kt
 const MIT_ROUND_NM = 5;
-const MIT_MIN_NM = 10;
+const MIT_MIN_NM = 5;
 
 // UI state persistence — survive page refresh. One key for all dicts so
 // we only touch localStorage on mutation, not on every read.
