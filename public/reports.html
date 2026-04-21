@@ -87,12 +87,26 @@
         thead th.sortable.sort-desc::after { content: '\2193'; opacity: 1; color: var(--accent); }
         tbody td { padding: 0.3rem 0.35rem; border-bottom: 1px solid var(--border); }
         tbody tr:hover { background: var(--bg-elev); }
-        /* Flight-detail table: 12 columns. Tighter padding + monospace
-           numerics so the eye can track across the row. */
+        /* Flight-detail table: narrowed, tighter, err glued to its
+           prediction time. 10 columns, max ~1000px wide, monospace +
+           tabular-nums so times align vertically. Two logical groups
+           separated by a thicker border: "actual outcome" (ATOT,
+           ATOT+ETE, ALDT) and "our prediction" (TLDT — with err). */
+        #tldt-flights-wrap { max-width: 1100px; margin: 0.75rem auto 0; }
         #tldt-flights-table { font-size: 0.75rem; font-family: "SF Mono", Consolas, Monaco, monospace; font-variant-numeric: tabular-nums; }
-        #tldt-flights-table thead th { padding: 0.25rem 0.3rem; font-size: 0.62rem; }
-        #tldt-flights-table tbody td { padding: 0.2rem 0.3rem; }
+        #tldt-flights-table thead th { padding: 0.22rem 0.3rem; font-size: 0.62rem; }
+        #tldt-flights-table tbody td { padding: 0.2rem 0.3rem; white-space: nowrap; }
         #tldt-flights-table .num { text-align: right; }
+        /* Group boundary: thin accent bar between actual-outcome and
+           our-prediction columns. ALDT ends the actual group. */
+        #tldt-flights-table td.group-end, #tldt-flights-table th.group-end { border-right: 2px solid var(--border); padding-right: 0.5rem; }
+        #tldt-flights-table td.group-start, #tldt-flights-table th.group-start { padding-left: 0.5rem; }
+        /* Err inline after prediction time: small, colour-coded, dim separator */
+        #tldt-flights-table .err-inline { font-size: 0.68rem; margin-left: 0.25rem; font-weight: 600; }
+        #tldt-flights-table .err-inline.ok    { color: var(--ok); }
+        #tldt-flights-table .err-inline.warn  { color: var(--warn); }
+        #tldt-flights-table .err-inline.alert { color: var(--alert); }
+        #tldt-flights-table .err-inline.muted { color: var(--text-dim); }
         .table-wrap {
             background: var(--bg-elev);
             border: 1px solid var(--border);
@@ -380,24 +394,22 @@ Per EUROCONTROL Airport CDM Implementation Manual v5.0.
                 <tbody id="tldt-airport-tbody"><tr><td colspan="8" class="empty-row">Loading...</td></tr></tbody></table>
             </div>
         </div>
-        <div class="table-wrap" style="margin-top:0.75rem;">
+        <div class="table-wrap" id="tldt-flights-wrap">
             <table id="tldt-flights-table">
                 <thead><tr>
                     <th>Callsign</th>
                     <th>Type</th>
                     <th>Route</th>
                     <th class="num" title="Great-circle distance in nautical miles">Dist</th>
-                    <th class="num" title="Observed flight time / filed ETE. Large gap = mid-connect (pilot joined mid-flight).">Flt / ETE</th>
+                    <th class="num" title="Observed flight time / filed ETE. Large gap = mid-connect.">Flt / ETE</th>
                     <th title="Actual Take-Off Time (first seen airborne — may be mid-flight for reconnects)">ATOT</th>
-                    <th title="ATOT + filed enroute time. Naive baseline prediction — unreliable for mid-connect flights.">ATOT+ETE</th>
-                    <th title="Actual Landing Time">ALDT</th>
-                    <th class="num" title="(ATOT+ETE) minus ALDT in minutes. Naive baseline error — useful to compare vs TLDT err.">ETA err</th>
-                    <th title="Target Landing Time — system prediction (GRIB wind / geometric / filed, frozen at T-90m)">TLDT</th>
-                    <th class="num" title="TLDT minus ALDT in minutes. Positive = predicted late, negative = early.">TLDT err</th>
+                    <th title="ATOT + filed enroute time (naive baseline prediction). Err shown inline in red/yellow/green — delta vs ALDT in minutes.">ATOT+ETE ±err</th>
+                    <th class="group-end" title="Actual Landing Time. Ends the "actual outcome" group; predictions to the right.">ALDT</th>
+                    <th class="group-start" title="Target Landing Time — our frozen prediction at T-90m. Err inline = TLDT minus ALDT in minutes (positive = predicted late).">TLDT ±err</th>
                     <th title="ETA source tier used at freeze time">Source</th>
                 </tr></thead>
                 <tbody id="tldt-flights-tbody">
-                    <tr><td colspan="12" class="empty-row">Loading...</td></tr>
+                    <tr><td colspan="10" class="empty-row">Loading...</td></tr>
                 </tbody>
             </table>
         </div>
@@ -860,12 +872,19 @@ async function refreshTldt() {
             const whyMarker = hasReasons
                 ? ` <span style="cursor:help; color:var(--info); font-size:0.7rem;" title="${whyTip}">ⓘ</span>`
                 : '';
-            // Column order tells the story:
-            //   who (callsign/type/route/dist/flt-time) →
-            //   took off (ATOT) →
-            //   naive prediction (ATOT+ETE) vs actual (ALDT) — ETA err is delta →
-            //   our prediction (TLDT) vs actual (ALDT just left) — TLDT err is delta →
-            //   which source tier our prediction used
+            // Column order tells the story left-to-right:
+            //   who         : callsign/type/route/dist/flt-time
+            //   took off    : ATOT
+            //   naive       : ATOT+ETE ±err (prediction + err inline)
+            //   actual      : ALDT  (group-end — thicker right border)
+            //   ours        : TLDT ±err (group-start)
+            //   tier        : SOURCE
+            // Merging each prediction with its err saves 2 columns AND
+            // glues the prediction to its own accuracy score visually.
+            const etaInline = (f.filed_eta_err !== null && f.filed_eta !== null)
+                ? ` <span class="err-inline ${fEtaCls||'muted'}">${fEtaErr}</span>`
+                : '';
+            const tldtInline = ` <span class="err-inline ${errCls}">${errSign}${f.tldt_err_min}</span>`;
             $ftb.innerHTML += '<tr' + rowCls + '>' +
                 '<td>' + f.callsign + partialTag + '</td>' +
                 '<td>' + (f.aircraft_type || '') + '</td>' +
@@ -873,14 +892,12 @@ async function refreshTldt() {
                 '<td class="num">' + (f.dist_nm || '\u2014') + '</td>' +
                 '<td class="num">' + f.flight_time + (f.filed_ete ? '/' + f.filed_ete : '') + '</td>' +
                 '<td>' + fmtTime(f.atot) + '</td>' +
-                '<td>' + fmtTime(f.filed_eta) + '</td>' +
-                '<td>' + fmtTime(f.aldt) + '</td>' +
-                '<td class="num"' + (fEtaCls ? ' style="color:var(--' + fEtaCls + ')"' : '') + '>' + fEtaErr + '</td>' +
-                '<td>' + fmtTime(f.tldt) + '</td>' +
-                '<td class="num" style="color:var(--' + errCls + ')">' + errSign + f.tldt_err_min + whyMarker + '</td>' +
+                '<td>' + fmtTime(f.filed_eta) + etaInline + '</td>' +
+                '<td class="group-end">' + fmtTime(f.aldt) + '</td>' +
+                '<td class="group-start">' + fmtTime(f.tldt) + tldtInline + whyMarker + '</td>' +
                 '<td>' + (f.eta_source || '') + '</td></tr>';
         }
-        if ((d.flights || []).length === 0) $ftb.innerHTML = '<tr><td colspan="12" class="empty-row">No TLDT data yet \u2014 need flights with ATOT + TLDT + ALDT.</td></tr>';
+        if ((d.flights || []).length === 0) $ftb.innerHTML = '<tr><td colspan="10" class="empty-row">No TLDT data yet \u2014 need flights with ATOT + TLDT + ALDT.</td></tr>';
     } catch (e) {
         console.error('TLDT refresh failed:', e);
     }
