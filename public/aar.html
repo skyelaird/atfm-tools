@@ -254,7 +254,16 @@ function autoPropose(icao) {
                 const ilsBonus = (!vmc && cfg.ils) ? 3 : 0;
                 const catIiRequired = (st.ceilingHundreds !== null && st.ceilingHundreds < 2);
                 const catIiBonus = (catIiRequired && cfg.ils_cat_ii) ? 10 : 0;
-                const score = rate + hwBonus + ilsBonus + catIiBonus;
+                // Preferred-runway bonus — calm-wind / VMC operational
+                // default per airport (e.g. CYHZ=23). +10 when the
+                // config's primary arrival runway matches the airport's
+                // preferred runway AND we're in VMC. In IFR/LIFR the
+                // ILS+CAT II bonuses take over so preferred yields.
+                // Preferred is declared in runway-configs.json at the
+                // airport level.
+                const preferredId = aptCfg._preferred || aptCfg.preferred || null;
+                const prefBonus = (vmc && preferredId && cfg.primary_arr === preferredId) ? 10 : 0;
+                const score = rate + hwBonus + ilsBonus + catIiBonus + prefBonus;
                 if (score > bestScore) { bestScore = score; best = cfg; }
             }
             return best;
