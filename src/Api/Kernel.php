@@ -2747,6 +2747,11 @@ final class Kernel
                 ];
             }
 
+            // CORS-enabled: public read-only rate lookup, consumed by
+            // external tools (e.g. CZQM-vACC RunwayAdvisor) so both
+            // systems display the same physics-derived AAR for the
+            // same (airport × wind) input. Allow-Origin: * is safe
+            // here — no cookies, no PII, no mutation.
             return self::json($res, [
                 'airport'        => $icao,
                 'headwind_kt'    => $headwindKt,
@@ -2756,7 +2761,9 @@ final class Kernel
                 'mix_source'     => $mixSource,
                 'categories'     => $catDetail,
                 'separation_nm'  => $sepMatrix,
-            ]);
+            ])->withHeader('Access-Control-Allow-Origin', '*')
+              ->withHeader('Access-Control-Allow-Methods', 'GET')
+              ->withHeader('Cache-Control', 'public, max-age=60');
         });
 
         // ------------------------------------------------------------------
