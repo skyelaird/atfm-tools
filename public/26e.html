@@ -216,8 +216,11 @@ function render() {
     const xMax = Math.ceil((maxBin + DATA.meta.bin_minutes) / 60) * 60;
 
     // Fixed Y-axis scales for cross-sector relativity.
-    const YMAX_PAIR = 85;        // combined QMn+QXn charts
     const YMAX_SECTOR = 60;      // individual sectors
+    const YMAX_PAIR = 85;        // default for pair charts (QMn+QXn)
+    const PAIR_YMAX = {          // per-pair overrides
+        'QX6+QX7': 60,
+    };
 
     // Render pair cards first (hot rows)
     for (const p of (DATA.pairs || [])) {
@@ -239,7 +242,7 @@ function render() {
             <svg viewBox="0 0 400 160" preserveAspectRatio="none" id="svg-${p.id}"></svg>
         `;
         pairGrid.appendChild(card);
-        drawChart(p.id, loadRows, xMin, xMax, {height: 160, yMax: YMAX_PAIR});
+        drawChart(p.id, loadRows, xMin, xMax, {height: 160, yMax: PAIR_YMAX[p.id] || YMAX_PAIR});
     }
 
     // Then individual sector cards

@@ -472,6 +472,7 @@ def main():
         'QM2+QX2': ['QM2', 'QX2'],
         'QM3+QX3': ['QM3', 'QX3'],
         'QM4+QX4': ['QM4', 'QX4'],
+        'QX6+QX7': ['QX6', 'QX7'],
     }
     pair_minute = {pid: defaultdict(int) for pid in pair_map}
     # Also track per-flight sector-entry records for debugging/detail
