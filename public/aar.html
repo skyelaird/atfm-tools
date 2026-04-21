@@ -509,13 +509,12 @@ const uiStateInit = (() => {
     catch { return {}; }
 })();
 const mitOpen     = uiStateInit.mitOpen     || {};  // icao -> bool
-const mitWindow   = uiStateInit.mitWindow   || {};  // icao -> minutes
 const mitOverride = uiStateInit.mitOverride || {};  // icao -> {fix: nm}
 const mitCache    = {};                             // icao -> last fetched /metering payload (not persisted)
 function saveUiState() {
     try {
         localStorage.setItem(UI_STATE_KEY, JSON.stringify({
-            mitOpen, mitWindow, mitOverride, demandWindow
+            mitOpen, mitOverride, demandWindow
         }));
     } catch (e) { /* quota / private mode: silently drop */ }
 }
@@ -553,10 +552,9 @@ function suggestMit(aar, share) {
 async function refreshMit(icao) {
     const body = document.getElementById('mit-body-' + icao);
     if (!body) return;
-    // Default MIT window to whatever the demand strip is showing — if
-    // the FMP is looking at 4h demand, MIT should plan against the same
-    // set of flights, not a narrower 2h slice.
-    const win = mitWindow[icao] || demandWindow[icao] || 240;
+    // MIT window is slaved to the demand pill — one source of truth per
+    // card. Clicking the demand pill refreshes both.
+    const win = demandWindow[icao] || 240;
     body.innerHTML = '<div class="muted">Loading demand…</div>';
     try {
         const r = await fetch(`/api/v1/metering?airport=${icao}&window=${win}`);
@@ -581,7 +579,7 @@ function renderMitPanel(icao) {
     const body = document.getElementById('mit-body-' + icao);
     if (!body) return;
     const aar = getAar(icao);
-    const win = mitWindow[icao] || demandWindow[icao] || 240;
+    const win = demandWindow[icao] || 240;
     const fixesByIcao = (data.by_airport && data.by_airport[icao]) || {};
     const fixEntries = Object.entries(fixesByIcao);
 
@@ -596,15 +594,10 @@ function renderMitPanel(icao) {
     const demandPerHr = totalDemand / hoursWin;
     const overCapacity = aar && demandPerHr > aar;
 
-    const winSel = `<select class="mit-win" onchange="mitWindow['${icao}']=Number(this.value); saveUiState(); refreshMit('${icao}')">` +
-        [60, 120, 240, 480].map(m => {
-            const label = m >= 60 ? (m/60 + 'h') : (m + 'm');
-            return `<option value="${m}"${m===win?' selected':''}>${label}</option>`;
-        }).join('') +
-        '</select>';
-
+    const winLabel = win >= 60 ? (win/60 + 'h') : (win + 'm');
     let html = `<div class="mit-controls">
-        window ${winSel}
+        window <span class="mono" style="color:var(--text)">${winLabel}</span>
+        <span style="color:var(--text-dim); font-size:0.6rem;">(tied to demand)</span>
         · AAR <span class="mono" style="color:var(--text)">${aar || '—'}/hr</span>
     </div>`;
 
@@ -911,6 +904,8 @@ document.addEventListener('click', (e) => {
     document.querySelectorAll(`.demand-pill[data-icao="${icao}"]`).forEach(x => x.classList.remove('active'));
     p.classList.add('active');
     refreshDemandStrip();
+    // MIT window is tied to demand window — refresh panel if open
+    if (mitOpen[icao]) refreshMit(icao);
 });
 
 // Initial + periodic refresh once data is loaded
