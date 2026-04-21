@@ -45,8 +45,9 @@ except ImportError:
 
 REPO_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data')
 DATA_DIR = os.path.join(REPO_DATA, '26E')
-NAVDATA_WAYPOINTS = os.path.join(REPO_DATA, 'waypoints.json')
+CTP_ROUTES = os.path.join(DATA_DIR, 'ctp-routes.jsonl')
 WIND_CACHE = os.path.join(DATA_DIR, 'winds-cache.json')
+DEFAULT_FL = 370  # fallback cruise alt if slot has none (CTP doesn't publish filed FL)
 CRUISE_MACH = 0.82
 BIN_MIN = 5         # 5-minute bins (change to 15 for coarser chart)
 SAMPLE_STEP_SEC = 30  # trace position every 30 seconds for sector-edge precision
@@ -448,14 +449,8 @@ def ctot_to_dt(s):
 
 def main():
     # Load inputs
-    with open(os.path.join(DATA_DIR, 'airports.json')) as f:
-        airports = json.load(f)
     with open(os.path.join(DATA_DIR, 'sectors.json')) as f:
         sectors = json.load(f)
-    print(f'Loading navdata waypoints...', flush=True)
-    with open(NAVDATA_WAYPOINTS) as f:
-        waypoints = json.load(f)
-    print(f'  {len(waypoints):,} waypoints loaded', flush=True)
 
     # Fetch current wind grid for event midpoint hour (13Z — middle of
     # the 10Z-16Z event window).
@@ -485,35 +480,29 @@ def main():
 
     n_parsed = 0
     n_no_path = 0
-    unresolved_deps = set()
-    parse_stats = {'unresolved_tokens': {}, 'rejected_distant_fix': []}
 
-    with open(os.path.join(DATA_DIR, 'bookings.csv'), encoding='utf-8') as f:
-        rows = list(csv.DictReader(f))
+    # Consume CTP-resolved routes — each line = {slot_id, dep, arr, ctot, route: [{name, lat, lon}], facilities}
+    rows = []
+    with open(CTP_ROUTES) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            rows.append(json.loads(line))
 
     for row in rows:
-        dep = row['dep']
-        arr = row['arr']
-        ctot = row['ctot']
-        callsign = row['callsign']
-
-        if dep not in airports:
-            unresolved_deps.add(dep)
-            continue
-
-        path = parse_route(row['route'], airports, waypoints, dep, arr, parse_stats)
-        if len(path) < 2:
+        dep = row['dep']; arr = row['arr']; ctot = row['ctot']
+        callsign = f"slot_{row['slot_id']}"
+        route_points = row['route']
+        if len(route_points) < 2:
             n_no_path += 1
             continue
+        # Build a list of (lat, lon) tuples in order
+        path = [(p['lat'], p['lon']) for p in route_points]
 
         ctot_sec = ctot_to_dt(ctot)
-        # Convert filed FL (integer like 370 = FL370) to altitude ft and
-        # compute TAS for Mach 0.82 at that alt.
-        try:
-            fl = int(row['alt'])
-        except (ValueError, TypeError):
-            fl = 370
-        alt_ft = fl * 100  # FL → ft
+        # CTP slot export doesn't publish filed FL; use DEFAULT_FL.
+        alt_ft = DEFAULT_FL * 100
         tas = mach_to_tas_kt(CRUISE_MACH, alt_ft)
         press_mb = fl_to_pressure_level(alt_ft)
 
@@ -582,13 +571,14 @@ def main():
             'bin_minutes': BIN_MIN,
             'metric': 'instantaneous_occupancy_peak_in_bin',
             'cruise_mach': CRUISE_MACH,
+            'cruise_fl_default': DEFAULT_FL,
+            'route_source': 'CTP simulator-data (revision 141)',
             'wind_source': 'Open-Meteo GFS',
             'wind_event_hour_utc': wind_grid.get('event_hour_utc'),
             'flights_total': len(rows),
             'flights_parsed': n_parsed,
             'flights_without_path': n_no_path,
             'flights_touching_sector': flights_in_any_sector,
-            'unresolved_deps': sorted(unresolved_deps),
         },
         'sectors': [
             {
@@ -622,17 +612,7 @@ def main():
     print(f'Parsed   : {n_parsed} / {len(rows)}')
     print(f'No path  : {n_no_path}')
     print(f'Touching : {flights_in_any_sector}')
-    print(f'Unknown deps: {sorted(unresolved_deps)}')
     print(f'Output   : {out_path}')
-    # Diagnostic: most-common unresolved fix names (likely terminal-area fixes
-    # on arrival side, irrelevant to QM/QX loading)
-    unresolved = parse_stats['unresolved_tokens']
-    if unresolved:
-        top = sorted(unresolved.items(), key=lambda x: -x[1])[:10]
-        print(f'Top unresolved fixes: {top}')
-    if parse_stats['rejected_distant_fix']:
-        rej = parse_stats['rejected_distant_fix'][:5]
-        print(f'Rejected distant-fix collisions: {rej[:5]} (+{len(parse_stats["rejected_distant_fix"])-5} more)' if len(parse_stats['rejected_distant_fix']) > 5 else f'Rejected distant-fix collisions: {rej}')
     # Print peak per sector + pair
     print()
     print(f'Sector peaks (instantaneous occupancy, max per {BIN_MIN}m bin):')
