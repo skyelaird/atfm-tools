@@ -159,7 +159,7 @@ svg {
 <div class="meta" id="meta">Loading…</div>
 <div class="controls">
     <label>Capacity threshold (occupancy):</label>
-    <input type="number" id="capThreshold" value="20" min="0" step="1"/>
+    <input type="number" id="capThreshold" value="55" min="0" step="1"/>
     <label>Bin:</label>
     <span id="binInfo">—</span>
     <label>Metric:</label>
@@ -174,7 +174,7 @@ svg {
 <script>
 const TIP = document.getElementById('tip');
 let DATA = null;
-let CAP = 20;
+let CAP = 55;
 
 async function load() {
     const r = await fetch('/26e-sector-load.json');
