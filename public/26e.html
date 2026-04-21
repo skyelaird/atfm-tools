@@ -53,6 +53,9 @@ h1 {
     padding-bottom: 0.25rem;
     border-bottom: 1px solid var(--border);
 }
+section.group {
+    margin-bottom: 0.8rem;
+}
 .card.pair .name {
     color: var(--warn);
 }
@@ -165,10 +168,7 @@ svg {
     <label>Metric:</label>
     <span id="metricInfo">—</span>
 </div>
-<div class="section-header">Combined pairs — QMn + QXn (domestic feeds oceanic)</div>
-<div class="grid" id="pair-grid"></div>
-<div class="section-header">Individual sectors</div>
-<div class="grid" id="grid"></div>
+<div id="groups"></div>
 <div class="tooltip" id="tip"></div>
 
 <script>
@@ -196,11 +196,19 @@ async function load() {
     render();
 }
 
+// Layout groups — the 1s, 2s, 3s, 4s, then north
+// Each group = a header + a row of cards: [pair?, ...individuals]
+const GROUPS = [
+    {title: '1 · QM1 feeds QX1',  pair: 'QM1+QX1', sectors: ['QM1', 'QX1']},
+    {title: '2 · QM2 feeds QX2',  pair: 'QM2+QX2', sectors: ['QM2', 'QX2']},
+    {title: '3 · QM3 feeds QX3',  pair: 'QM3+QX3', sectors: ['QM3', 'QX3']},
+    {title: '4 · QM4 feeds QX4',  pair: 'QM4+QX4', sectors: ['QM4', 'QX4']},
+    {title: 'North · QX5 / QX6+QX7', pair: 'QX6+QX7', sectors: ['QX5', 'QX6', 'QX7']},
+];
+
 function render() {
-    const grid = document.getElementById('grid');
-    const pairGrid = document.getElementById('pair-grid');
-    grid.innerHTML = '';
-    pairGrid.innerHTML = '';
+    const root = document.getElementById('groups');
+    root.innerHTML = '';
 
     const allBins = new Set();
     for (const sid in DATA.load) {
@@ -215,57 +223,78 @@ function render() {
     const xMin = Math.floor(minBin / 60) * 60;
     const xMax = Math.ceil((maxBin + DATA.meta.bin_minutes) / 60) * 60;
 
-    // Fixed Y-axis scales for cross-sector relativity.
-    const YMAX_SECTOR = 60;      // individual sectors
-    const YMAX_PAIR = 85;        // default for pair charts (QMn+QXn)
-    const PAIR_YMAX = {          // per-pair overrides
-        'QX6+QX7': 60,
+    const YMAX_SECTOR = 60;
+    const YMAX_PAIR = 85;
+    const PAIR_YMAX = {'QX6+QX7': 60};
+
+    const sectorById = Object.fromEntries(DATA.sectors.map(s => [s.id, s]));
+    const pairById = Object.fromEntries((DATA.pairs || []).map(p => [p.id, p]));
+
+    const peakLabel = (rows) => {
+        if (!rows.length) return '(no flights)';
+        const p = rows.reduce((a, r) => r.count > a.count ? r : a);
+        const hh = String(Math.floor(p.bin_minute / 60)).padStart(2, '0');
+        const mm = String(p.bin_minute % 60).padStart(2, '0');
+        return `peak ${p.count} @ ${hh}${mm}Z`;
     };
 
-    // Render pair cards first (hot rows)
-    for (const p of (DATA.pairs || [])) {
-        const card = document.createElement('div');
-        card.className = 'card pair';
-        const loadRows = DATA.pair_load[p.id] || [];
-        const peak = loadRows.reduce((a, r) => r.count > a.count ? r : a, {count: 0, bin_minute: 0});
-        const peakHH = Math.floor(peak.bin_minute / 60);
-        const peakMM = peak.bin_minute % 60;
-        const peakStr = loadRows.length
-            ? `peak ${peak.count} @ ${String(peakHH).padStart(2,'0')}${String(peakMM).padStart(2,'0')}Z`
-            : '(no flights)';
-        card.innerHTML = `
-            <div class="title">
-                <span class="name">${p.label}</span>
-                <span class="label">combined occupancy</span>
-                <span class="peak">${peakStr}</span>
-            </div>
-            <svg viewBox="0 0 400 160" preserveAspectRatio="none" id="svg-${p.id}"></svg>
-        `;
-        pairGrid.appendChild(card);
-        drawChart(p.id, loadRows, xMin, xMax, {height: 160, yMax: PAIR_YMAX[p.id] || YMAX_PAIR});
+    const toRender = [];   // queued (elementId, rows, opts) for drawChart after innerHTML
+
+    for (const g of GROUPS) {
+        const section = document.createElement('section');
+        section.className = 'group';
+        const header = document.createElement('div');
+        header.className = 'section-header';
+        header.textContent = g.title;
+        section.appendChild(header);
+
+        const gridEl = document.createElement('div');
+        gridEl.className = 'grid';
+        section.appendChild(gridEl);
+
+        // Pair card first (if present)
+        if (g.pair && pairById[g.pair]) {
+            const p = pairById[g.pair];
+            const loadRows = DATA.pair_load[p.id] || [];
+            const card = document.createElement('div');
+            card.className = 'card pair';
+            card.innerHTML = `
+                <div class="title">
+                    <span class="name">${p.label}</span>
+                    <span class="label">combined occupancy</span>
+                    <span class="peak">${peakLabel(loadRows)}</span>
+                </div>
+                <svg viewBox="0 0 400 160" preserveAspectRatio="none" id="svg-${p.id}"></svg>
+            `;
+            gridEl.appendChild(card);
+            toRender.push([p.id, loadRows, {height: 160, yMax: PAIR_YMAX[p.id] || YMAX_PAIR}]);
+        }
+
+        // Then individual member cards
+        for (const sid of g.sectors) {
+            const s = sectorById[sid];
+            if (!s) continue;
+            const loadRows = DATA.load[s.id] || [];
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
+                <div class="title">
+                    <span class="name">${s.id}</span>
+                    <span class="label">${s.label || ''} · ${s.freq || ''} MHz</span>
+                    <span class="peak">${peakLabel(loadRows)}</span>
+                </div>
+                <svg viewBox="0 0 400 120" preserveAspectRatio="none" id="svg-${s.id}"></svg>
+            `;
+            gridEl.appendChild(card);
+            toRender.push([s.id, loadRows, {height: 120, yMax: YMAX_SECTOR}]);
+        }
+
+        root.appendChild(section);
     }
 
-    // Then individual sector cards
-    for (const s of DATA.sectors) {
-        const card = document.createElement('div');
-        card.className = 'card';
-        const loadRows = DATA.load[s.id] || [];
-        const peak = loadRows.reduce((a, r) => r.count > a.count ? r : a, {count: 0, bin_minute: 0});
-        const peakHH = Math.floor(peak.bin_minute / 60);
-        const peakMM = peak.bin_minute % 60;
-        const peakStr = loadRows.length
-            ? `peak ${peak.count} @ ${String(peakHH).padStart(2,'0')}${String(peakMM).padStart(2,'0')}Z`
-            : '(no flights)';
-        card.innerHTML = `
-            <div class="title">
-                <span class="name">${s.id}</span>
-                <span class="label">${s.label || ''} · ${s.freq || ''} MHz</span>
-                <span class="peak">${peakStr}</span>
-            </div>
-            <svg viewBox="0 0 400 120" preserveAspectRatio="none" id="svg-${s.id}"></svg>
-        `;
-        grid.appendChild(card);
-        drawChart(s.id, loadRows, xMin, xMax, {height: 120, yMax: YMAX_SECTOR});
+    // Draw all the charts after DOM attachment
+    for (const [id, rows, opts] of toRender) {
+        drawChart(id, rows, xMin, xMax, opts);
     }
 }
 
