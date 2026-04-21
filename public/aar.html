@@ -552,7 +552,10 @@ function suggestMit(aar, share) {
     if (!aar || !share || share <= 0) return null;
     const airportSpacingNm = (60 / aar) * APPROACH_GS_NM_PER_MIN;
     const raw = airportSpacingNm / share;
-    const rounded = Math.ceil(raw / MIT_ROUND_NM) * MIT_ROUND_NM;
+    // Round to NEAREST multiple of 5, not ceil. Ceil always inflated
+    // MIT → wider spacing → flow throttled below AAR. Nearest keeps
+    // per-fix error unbiased so the summed delivery tracks AAR.
+    const rounded = Math.round(raw / MIT_ROUND_NM) * MIT_ROUND_NM;
     return Math.max(MIT_MIN_NM, rounded);
 }
 
