@@ -463,14 +463,15 @@ function toggleRwy(icao, ident) {
 
 function propose(icao) { autoPropose(icao); refreshCard(icao); }
 
-function refreshCard(icao) {
+async function refreshCard(icao) {
     const card = document.querySelector(`[data-card="${icao}"]`);
-    if (card) {
-        card.innerHTML = renderCard(icao);
-        computeRates(icao);
-        // Rehydrate MIT panel if it was open
-        if (mitOpen[icao]) refreshMit(icao);
-    }
+    if (!card) return;
+    card.innerHTML = renderCard(icao);
+    // Await computeRates so the #aar-<icao> DOM text is populated before
+    // refreshMit runs getAar() against it. Otherwise there's a race where
+    // the /metering fetch returns first and MIT sees aar=null.
+    await computeRates(icao);
+    if (mitOpen[icao]) refreshMit(icao);
 }
 
 // ---------- MIT planner ----------
@@ -648,38 +649,6 @@ function renderMitPanel(icao) {
     }
     html += '</tbody></table>';
 
-    // Status + compose request text. Baseline MIT is always offered;
-    // framing changes based on whether airport is over AAR or not.
-    const activeMits = rows.filter(r => r.hasShare && r.current);
-    if (overCapacity && aar) {
-        html += `<div style="padding:0.3rem 0; font-size:0.68rem; color:var(--warn);">
-            <strong>⚠ Demand ${Math.round(demandPerHr/aar*100)}% of AAR</strong> —
-            MIT required for flow control. Adjacent ATC must honour to keep demand &le; AAR.
-        </div>`;
-    } else if (aar) {
-        html += `<div class="muted" style="padding:0.3rem 0; font-size:0.68rem;">
-            Demand within AAR. Baseline MIT shown for anti-bunching
-        </div>`;
-    }
-    if (activeMits.length > 0 && aar) {
-        const now = new Date();
-        const end = new Date(now.getTime() + win * 60000);
-        const hh = d => String(d.getUTCHours()).padStart(2, '0') + String(d.getUTCMinutes()).padStart(2, '0');
-        const lines = activeMits.map(r => `  • ${r.current} MIT over ${r.fix}`).join('\n');
-        const pctStr = Math.round(demandPerHr/aar*100);
-        const header = overCapacity
-            ? `Request Miles in Trail (flow control) effective ${hh(now)}Z until ${hh(end)}Z:`
-            : `Suggested Miles in Trail (anti-bunching) effective ${hh(now)}Z until ${hh(end)}Z:`;
-        const msg = `${icao} FMP → adjacent centres:
-${header}
-${lines}
-${icao} AAR ${aar}/hr, observed demand ~${demandPerHr.toFixed(0)}/hr (${pctStr}%).`;
-        html += `<textarea class="mit-text" readonly>${msg}</textarea>
-        <button class="mit-copy" onclick="navigator.clipboard.writeText(this.previousElementSibling.value); this.textContent='Copied ✓'; setTimeout(()=>this.textContent='Copy request text',1500);">Copy request text</button>`;
-    }
-
-    html += `<div class="muted" style="font-size:0.62rem; margin-top:0.4rem;">Fair/hr is the per-fix rate that keeps total demand ≤ AAR. MIT is the in-trail spacing at the fix (240 kt assumed) implied by fair share — a floor, not a target. Self-correcting: adjacent ATC does nothing if traffic is already wider. Edit any value to override.</div>`;
-
     body.innerHTML = html;
 }
 
@@ -854,9 +823,12 @@ async function loadAll() {
     grid.innerHTML = '';
     for (const icao of AIRPORTS) {
         const card = document.createElement('div'); card.className = 'apt-card'; card.setAttribute('data-card', icao);
-        card.innerHTML = renderCard(icao); grid.appendChild(card); computeRates(icao);
-        // Rehydrate MIT panel body for airports that had it open pre-refresh
-        if (mitOpen[icao]) refreshMit(icao);
+        card.innerHTML = renderCard(icao); grid.appendChild(card);
+        // Chain MIT rehydration after rates so getAar() sees the populated AAR
+        (async () => {
+            await computeRates(icao);
+            if (mitOpen[icao]) refreshMit(icao);
+        })();
     }
     document.getElementById('last-update').textContent = `Updated ${new Date().toISOString().substring(11, 16)}Z`;
 }
