@@ -136,13 +136,8 @@ final class WindEta
             return 'outside_grid';
         }
 
-        // Still climbing — GRIB would use cruise-altitude winds for a
-        // flight that isn't there yet; skip it.
-        $curAlt = (int) ($f->last_altitude_ft ?? 0);
-        $filedAlt = (int) ($f->fp_altitude_ft ?? 35000);
-        if ($curAlt > 0 && $curAlt < $filedAlt - 5000) {
-            return 'climbing';
-        }
+        // Climbing flights are now handled — climb wind is integrated at
+        // 500mb separately from cruise wind (v0.6.42+). No early exit here.
 
         if ($dest !== null) {
             $routeCoords = Geo::parseRouteCoordinates($f->fp_route ?? '');
@@ -195,6 +190,15 @@ final class WindEta
     /**
      * Compute wind-corrected ELDT for a single flight.
      *
+     * Integrates wind across all three airborne phases:
+     *   - Climb (if still climbing below cruise)  — 500mb grid
+     *   - Cruise                                  — altitude-selected grid
+     *   - Descent above FL100                     — 500mb grid
+     *   - Below FL100                             — speed profile, no wind
+     *
+     * Short-haul flights (<90m) benefit most from the climb+descent
+     * integration because those phases dominate total flight time.
+     *
      * @param array<int, array{lats: float[], lons: float[], u: float[][], v: float[][]}> $grids keyed by mb
      * @param array{lat: float, lon: float, elev: int} $dest
      */
@@ -219,16 +223,27 @@ final class WindEta
         $destElev = $dest['elev'];
 
         $cruiseKt = self::selectTas($f);
+        $actype = $f->aircraft_type ?? '';
 
-        $cruiseAlt = ($f->last_altitude_ft && $f->last_altitude_ft > 10000)
-            ? (int) $f->last_altitude_ft
-            : (int) ($f->fp_altitude_ft ?? 35000);
+        $curAlt = (int) ($f->last_altitude_ft ?? 0);
+        $filedAlt = (int) ($f->fp_altitude_ft ?? 35000);
 
-        // Select wind level closest to cruise altitude
-        $grid = self::selectLevel($grids, $cruiseAlt);
-        if ($grid === null) {
+        // Effective cruise altitude: if at cruise (above FL100 and within
+        // 5k of filed), use current alt. Otherwise use filed alt as the
+        // planned cruise level.
+        $cruiseAlt = ($curAlt > 10000 && $curAlt >= $filedAlt - 5000)
+            ? $curAlt
+            : $filedAlt;
+
+        // Select cruise wind level closest to cruise altitude
+        $cruiseGrid = self::selectLevel($grids, $cruiseAlt);
+        if ($cruiseGrid === null) {
             return null;
         }
+
+        // Low-altitude grid for climb + descent (500mb ≈ FL180).
+        // Fall back to cruise grid if 500mb not available (rare).
+        $lowGrid = $grids[500] ?? $cruiseGrid;
 
         // Route resolution + along-route legs
         $routeCoords = Geo::parseRouteCoordinates($f->fp_route ?? '');
@@ -242,12 +257,50 @@ final class WindEta
             return null;
         }
 
-        // Wind-corrected ETA: integrate wind per grid cell along route
+        // -------- Phase boundaries (distance from current position) --------
+        //
+        //  [0 ──── climbEnd ──── cruiseEnd ──── fl100Start ──── distNm]
+        //        climb          cruise         descent>FL100    <FL100
+        //
+        // climbDist  = how much climb is LEFT (0 if already at cruise)
+        // todDist    = TOD to destination (standard 3° / 318 nm-per-kft)
+        // fl100Dist  = FL100 to destination (low-level profile segment)
+
+        // Climb remaining: standard ~300 ft/nm climb gradient for jets.
+        // If aircraft is ground or very low (<3000 AAL) assume all climb ahead.
+        $climbDist = 0.0;
+        if ($curAlt < $cruiseAlt - 2000) {
+            $climbGap = max(0, $cruiseAlt - max(3000, $curAlt));
+            $climbDist = $climbGap / 300.0; // ~300 ft/nm avg climb gradient
+        }
+
         $altAbove = max(0, $cruiseAlt - $destElev);
         $todDist = $altAbove / 318.0;
-        $cruiseRemaining = max(0.0, $distNm - $todDist);
+        $fl100Agl = max(0, 10000 - $destElev);
+        $fl100Dist = $fl100Agl / 318.0;
 
-        $windCruiseMin = 0.0;
+        // Clamp: climb + descent can't exceed total route (short-haul sanity)
+        if ($climbDist + $todDist > $distNm) {
+            // Reduce climb proportionally — typical on a 45m flight at 8000ft
+            $avail = max(0.0, $distNm - $todDist);
+            $climbDist = min($climbDist, $avail);
+        }
+
+        $climbEnd  = $climbDist;                          // end of climb phase
+        $cruiseEnd = max($climbEnd, $distNm - $todDist);  // end of cruise phase (= TOD)
+        $fl100Start = max($cruiseEnd, $distNm - $fl100Dist); // FL100 crossing inbound
+
+        // Average TAS for climb and descent-above-FL100 segments.
+        // Climb: jets climb ~280-320 IAS, TAS avg ~0.80 of cruise TAS.
+        // Descent above FL100: IAS_high * ~1.3 for avg GS in TAS terms.
+        $climbTasAvg = (int) round($cruiseKt * 0.80);
+        $descentIasHigh = AircraftTas::descentIasHigh($actype);
+        $descentTasAvg = (int) round($descentIasHigh * 1.30);
+
+        // -------- Walk legs once, integrating wind per grid cell --------
+        $windClimbMin   = 0.0;
+        $windCruiseMin  = 0.0;
+        $windDescentMin = 0.0;
         $distAccum = 0.0;
 
         foreach ($legs as [$fromLat, $fromLon, $toLat, $toLon]) {
@@ -257,34 +310,66 @@ final class WindEta
                 if ($cellNm < 0.1) {
                     continue;
                 }
-                $cruiseInCell = min($cellNm, max(0.0, $cruiseRemaining - $distAccum));
-                if ($cruiseInCell <= 0) {
-                    break;
-                }
+
+                $cellStart = $distAccum;
+                $cellEnd   = $distAccum + $cellNm;
 
                 $midLat = ($cLat1 + $cLat2) / 2;
                 $midLon = ($cLon1 + $cLon2) / 2;
-                [$uKt, $vKt] = self::interpolateWind($grid, $midLat, $midLon);
                 $cellBearing = self::bearingDeg($cLat1, $cLon1, $cLat2, $cLon2);
-                $wAlong = self::windAlongTrack($uKt, $vKt, $cellBearing);
 
-                $effKt = max(150.0, min($cruiseKt + $wAlong, 700.0));
-                $windCruiseMin += ($cruiseInCell / $effKt) * 60.0;
+                // CLIMB portion within this cell (500mb wind)
+                if ($cellStart < $climbEnd) {
+                    $segNm = min($cellEnd, $climbEnd) - $cellStart;
+                    if ($segNm > 0) {
+                        [$uKt, $vKt] = self::interpolateWind($lowGrid, $midLat, $midLon);
+                        $wAlong = self::windAlongTrack($uKt, $vKt, $cellBearing);
+                        $effKt = max(150.0, min($climbTasAvg + $wAlong, 600.0));
+                        $windClimbMin += ($segNm / $effKt) * 60.0;
+                    }
+                }
+
+                // CRUISE portion within this cell (selected-level wind)
+                if ($cellEnd > $climbEnd && $cellStart < $cruiseEnd) {
+                    $segStart = max($cellStart, $climbEnd);
+                    $segEnd   = min($cellEnd, $cruiseEnd);
+                    $segNm = $segEnd - $segStart;
+                    if ($segNm > 0) {
+                        [$uKt, $vKt] = self::interpolateWind($cruiseGrid, $midLat, $midLon);
+                        $wAlong = self::windAlongTrack($uKt, $vKt, $cellBearing);
+                        $effKt = max(150.0, min($cruiseKt + $wAlong, 700.0));
+                        $windCruiseMin += ($segNm / $effKt) * 60.0;
+                    }
+                }
+
+                // DESCENT >FL100 portion within this cell (500mb wind)
+                if ($cellEnd > $cruiseEnd && $cellStart < $fl100Start) {
+                    $segStart = max($cellStart, $cruiseEnd);
+                    $segEnd   = min($cellEnd, $fl100Start);
+                    $segNm = $segEnd - $segStart;
+                    if ($segNm > 0) {
+                        [$uKt, $vKt] = self::interpolateWind($lowGrid, $midLat, $midLon);
+                        $wAlong = self::windAlongTrack($uKt, $vKt, $cellBearing);
+                        $effKt = max(150.0, min($descentTasAvg + $wAlong, 600.0));
+                        $windDescentMin += ($segNm / $effKt) * 60.0;
+                    }
+                }
+
                 $distAccum += $cellNm;
+                if ($distAccum >= $fl100Start) {
+                    break;
+                }
             }
-
-            if ($distAccum >= $cruiseRemaining) {
+            if ($distAccum >= $fl100Start) {
                 break;
             }
         }
 
-        // Descent (no wind correction — low-level wind not representative)
-        $descentIasHigh = AircraftTas::descentIasHigh($f->aircraft_type ?? '');
-        $fl100Agl = max(0, 10000 - $destElev);
-        $fl100Dist = $fl100Agl / 318.0;
-        $descentMin = self::descentSegmentMinutes($todDist, $fl100Dist, $descentIasHigh);
+        // Below-FL100 segment: standard speed profile, no wind
+        // (low-level wind is not well-represented by pressure-level data)
+        $belowFl100Min = self::belowFl100SegmentMinutes($fl100Dist);
 
-        $totalMin = $windCruiseMin + $descentMin;
+        $totalMin = $windClimbMin + $windCruiseMin + $windDescentMin + $belowFl100Min;
         $epochSec = time() + (int) round($totalMin * 60);
 
         return new DateTimeImmutable('@' . $epochSec);
@@ -476,16 +561,22 @@ final class WindEta
     }
 
     // ------------------------------------------------------------------
-    //  Descent
+    //  Below-FL100 speed profile (no wind — low-level GRIB not representative)
     // ------------------------------------------------------------------
 
-    private static function descentSegmentMinutes(float $distNm, float $fl100DistNm, int $iasHighKt = 280): float
+    /**
+     * Time (minutes) to fly the below-FL100 portion of arrival:
+     *  last 2 nm final @ 140 kt, 2-5 nm @ 180 kt, 5-20 nm @ 220 kt,
+     *  20 nm → FL100 @ 250 kt. Total distance ≈ fl100DistNm (from FL100
+     *  down to threshold at standard 3° glidepath).
+     */
+    private static function belowFl100SegmentMinutes(float $fl100DistNm): float
     {
-        if ($distNm <= 0) {
+        if ($fl100DistNm <= 0) {
             return 0.0;
         }
         $time = 0.0;
-        $remaining = $distNm;
+        $remaining = $fl100DistNm;
 
         foreach ([[2.0, 140], [3.0, 180], [5.0, 220], [10.0, 220]] as [$seg, $spd]) {
             $s = min($seg, $remaining);
@@ -494,14 +585,10 @@ final class WindEta
             if ($remaining <= 0) return $time;
         }
 
-        $belowFl100 = max(0.0, $fl100DistNm - 20.0);
-        $s = min($belowFl100, $remaining);
-        $time += ($s / 250.0) * 60;
-        $remaining -= $s;
-        if ($remaining <= 0) return $time;
-
-        $gsHighKt = (int) round($iasHighKt * 1.3);
-        $time += ($remaining / $gsHighKt) * 60;
+        // Beyond 20 nm but still below FL100: 250 kt IAS profile
+        if ($remaining > 0) {
+            $time += ($remaining / 250.0) * 60;
+        }
         return $time;
     }
 

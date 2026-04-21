@@ -45,8 +45,11 @@ These are explicitly out of scope for v1 (and in some cases permanently):
   ADES filters, not waypoints or sector counts.
 - **Deterministic GDP with Ration-By-Schedule.** See §9 for why. We run a
   rate-based tactical controller instead of a classical FAA TFMS GDP.
-- **Wind modelling / GRIB parsing.** Filed TAS preferred for cruise speed
-  (wind-neutral), GS fallback, type-table last resort. No meteorology.
+- ~~**Wind modelling / GRIB parsing.**~~ **Reversed v0.5.66.** Authoritative
+  wind-corrected ELDT now ships via `WindEta::computeForFlight()` — pure-PHP
+  multi-level GFS GRIB integration (250/300/500mb) feeding the WIND_GRIB
+  cascade tier (conf 92). 3-phase model (climb/cruise/descent) since v0.6.42.
+  Filed TAS still feeds the wind-neutral OBSERVED_POS fallback tier.
 - **Authoring UI for restrictions.** vIFF or PERTI owns the flow-manager web
   form. atfm-tools consumes the resulting state, it doesn't compete for the
   authoring role.
@@ -735,16 +738,19 @@ new flight record. The old one ends up WITHDRAWN after 10 h.
 
 VATSIM's data feed does not publish a computed ETA. The allocator needs
 a usable arrival time for every flight inbound to a regulated airport.
-`src/Allocator/EtaEstimator.php` implements a 5-tier cascade and
+`src/Allocator/EtaEstimator.php` implements a multi-tier cascade and
 returns the highest-tier estimate it can compute:
 
 | Tier | Source | Applies when | Formula | Confidence |
 |---|---|---|---|---|
-| **1** | **FILED** | Pilot filed `enroute_time` (HHMM) in the flight plan, flight is on ground | `EOBT + taxi + enroute_time` | 90 |
-| **2** | **OBSERVED_POS** | Flight is airborne with known lat/lon | `now + descent_aware_eta(pos, dest, filed_TAS‖GS, alt, type)` | 85–88 |
-| **3** | **CALC_FILED_TAS** | On ground, filed `cruise_tas` is present and plausible (120-650 kt) | `EOBT + taxi + descent_aware_eta(adep, dest, TAS, FL, type)` | 70 |
-| **4** | **CALC_TYPE_TAS** | On ground, aircraft_type is in `AircraftTas::TABLE` | `EOBT + taxi + descent_aware_eta(adep, dest, type_TAS, FL, type)` | 55 |
-| **5** | **CALC_DEFAULT** | On ground, unknown type | `EOBT + taxi + descent_aware_eta(adep, dest, 430, FL350, default)` | 40 |
+| **0** | **WIND_GRIB** | Airborne, in GRIB grid, route resolves | `now + 3-phase wind integration (climb/cruise/descent)` | 92 |
+| **1** | **OBSERVED_POS** | Flight is airborne with known lat/lon | `now + descent_aware_eta(pos, dest, filed_TAS‖GS, alt, type)` | 85–88 |
+| **2** | **FILED (airborne)** | Airborne fallback when position unusable | `ATOT + filed enroute_time` | 85 |
+| **3** | **FILED (ground)** | Pilot filed `enroute_time` (HHMM), on ground | `EOBT + taxi + enroute_time` | 90 |
+| **3b** | **FIR_EET** | ICAO EET/ remarks present | `EOBT + Σ(EET) + taxi + approach` | 80 |
+| **4** | **CALC_FILED_TAS** | On ground, filed `cruise_tas` plausible (120-650 kt) | `EOBT + taxi + descent_aware_eta(adep, dest, TAS, FL, type)` | 70 |
+| **5** | **CALC_TYPE_TAS** | On ground, aircraft_type in `AircraftTas::TABLE` | `EOBT + taxi + descent_aware_eta(adep, dest, type_TAS, FL, type)` | 55 |
+| **6** | **CALC_DEFAULT** | On ground, unknown type | `EOBT + taxi + descent_aware_eta(adep, dest, 430, FL350, default)` | 40 |
 | —  | **NONE** | No EOBT, no position, or unknown ADEP coords | (skip flight this cycle) | 0 |
 
 ### 7.1.1 Descent-aware ETA (v0.5.6+)
@@ -819,7 +825,41 @@ EOBT + planned_exot + 10 min grace, the ingestor flags
 `delay_status = FLS_NRA`. Mirrors vIFF's status logic. Rendered as a
 yellow warning badge in the dashboard.
 
-See §2 for why we deliberately don't integrate wind/GRIB data.
+### 7.1.5 Wind-corrected ELDT (3-phase, v0.6.42+)
+
+`src/Allocator/WindEta.php` is the WIND_GRIB tier (conf 92). Pure-PHP
+multi-level GFS GRIB integration — no Python, no numpy. Downloads a 1°
+subregion (LAT 15–70, LON -170 to +30) at three pressure levels (250mb
+≈ FL340, 300mb ≈ FL300, 500mb ≈ FL180) from NOAA NOMADS in one HTTP
+call, cached 6h.
+
+The route from current position to threshold is split into four segments,
+each integrated per grid cell at the wind level appropriate to its
+altitude band:
+
+| Phase | Wind grid | Avg TAS | Distance basis |
+|-------|-----------|---------|----------------|
+| Climb (if still climbing) | 500mb | `cruiseTas × 0.80` | `(cruiseAlt − curAlt) / 300` ft/nm |
+| Cruise | level closest to `cruiseAlt` | filed or type TAS | remainder to TOD |
+| Descent above FL100 | 500mb | `descentIasHigh × 1.30` | `(cruiseAlt − 10000) / 318` |
+| Below FL100 | (no wind, profile only) | 140-250 kt schedule | `fl100AGL / 318` + 20 nm approach |
+
+If 500mb is unavailable, the cruise-level grid is used as fallback for
+climb/descent. If the flight is outside the GRIB bounds, climb+descent
+sums exceed total route, or route resolution fails → null and the
+cascade falls through to OBSERVED_POS.
+
+Prior to v0.6.42 only the cruise phase had wind applied; descent used a
+no-wind geometric model. Observed effect was a systematic ~−4 min early
+bias on the WIND_GRIB tier and ~−7 min on OBSERVED_POS, consistent with
+~15-25 kt of uncounted descent-layer tailwind over ~15 min of descent.
+Short-haul flights (<90m, dominated by climb+descent) barely benefited
+from GRIB before this change.
+
+`eldt_wind` is also written as a column on the flights table so the
+PERTI page can show a three-way QA comparison (our ELDT / GRIB wind /
+PERTI). `bin/compute-wind-eldt.php` runs the same logic as a standalone
+batch cron.
 
 ## 8. Allocation algorithm — TLDT-primary (v0.5.0+)
 
@@ -1257,7 +1297,7 @@ Tracked but not in v1:
   fallback behavior for partial flight plans.
 - **ECFMP consumer-side research** to understand their pop-up handling for
   comparison / validation.
-- **GRIB wind integration** — intentionally not planned. See §2.
+- ~~**GRIB wind integration**~~ — shipped v0.5.66, 3-phase model v0.6.42 (climb + cruise + descent). See §7.1.
 
 ## 16. Glossary
 

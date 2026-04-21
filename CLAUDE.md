@@ -147,15 +147,32 @@ resolved waypoints instead of 2.
 AIRAC data + PMDG SidStars. The Python `wind-shadow.py` mirrors the same
 4-layer parsing.
 
-## Wind-corrected ELDT (v0.5.66+, authoritative)
+## Wind-corrected ELDT (v0.5.66+, 3-phase integration v0.6.42+)
 
 `src/Allocator/WindEta.php` — pure PHP multi-level GRIB wind integration.
 Downloads GFS 1° subregion at **3 pressure levels** (250mb ≈ FL340,
 300mb ≈ FL300, 500mb ≈ FL180) from NOAA NOMADS in one call (cached 6h).
-Level selected by cruise altitude — turboprops at FL180 get 500mb winds,
-jets at FL380 get 250mb. Integrates wind per grid cell along the resolved
-route; descent segment uses no-wind model. Grid coverage: LAT 25-65,
-LON -170 to -30.
+
+**3-phase wind model** (v0.6.42): the route from current position to the
+threshold is split into four segments, each integrated per grid cell:
+
+| Phase | Wind grid | Avg TAS | Notes |
+|-------|-----------|---------|-------|
+| Climb (if still climbing) | 500mb | cruise × 0.80 | climb gradient 300 ft/nm |
+| Cruise | alt-selected (250/300/500) | filed or type TAS | main enroute segment |
+| Descent above FL100 | 500mb | descent IAS_high × 1.30 | ~FL180-FL340 traverse |
+| Below FL100 | (no wind) | 140-250 kt profile | short, low-level GRIB not representative |
+
+Climb distance = `(cruiseAlt - curAlt) / 300` (clamped so climb + descent
+can't exceed total route — short-haul sanity). TOD at `altAbove / 318.0`.
+FL100 crossing at `fl100AGL / 318.0` before threshold.
+
+Prior behavior (pre-v0.6.42): only cruise phase had wind applied; descent
+used a no-wind geometric model. That created a systematic -4 to -7 min
+early bias on OBSERVED_POS and ~-3 min on WIND_GRIB because jetstream
+tailwinds on descent went uncounted. Short-haul flights (<90m, almost
+all climb+descent) barely benefited from GRIB at all. Grid coverage:
+LAT 15-70, LON -170 to +30.
 
 **Authoritative in the ETA cascade**: `WIND_GRIB` is the top-priority
 airborne tier (conf 92). Computed inline during ingest by

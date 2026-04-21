@@ -387,7 +387,7 @@ ILS_bonus      = 3 (only in IFR/LIFR conditions, for ILS-equipped runways)</pre>
 <h3>Airborne Tiers (at cruise)</h3>
 <table>
     <tr><th>Priority</th><th>Tier</th><th>Source</th><th>Confidence</th></tr>
-    <tr><td>1</td><td><code>WIND_GRIB</code></td><td>GRIB 250/300/500mb wind along resolved route</td><td>92</td></tr>
+    <tr><td>1</td><td><code>WIND_GRIB</code></td><td>GRIB wind along resolved route, 3-phase (climb/cruise/descent)</td><td>92</td></tr>
     <tr><td>2</td><td><code>OBSERVED_POS</code></td><td>Along-route distance &divide; filed TAS (or GS)</td><td>91 / 88</td></tr>
     <tr><td>3</td><td><code>FILED</code></td><td>ATOT + filed ETE (defensive fallback)</td><td>85</td></tr>
 </table>
@@ -425,16 +425,29 @@ ILS_bonus      = 3 (only in IFR/LIFR conditions, for ILS-equipped runways)</pre>
     <tr><td>500 mb</td><td>FL180</td><td>Turboprops (below FL280)</td></tr>
 </table>
 
-<h3>How It Works</h3>
+<h3>How It Works (3-phase wind model, v0.6.42+)</h3>
+<p>The route from the current position to the threshold is split into four segments, each integrated per grid cell with the appropriate wind level:</p>
+
+<table>
+    <tr><th>Phase</th><th>Wind Grid</th><th>Avg TAS</th><th>Notes</th></tr>
+    <tr><td>Climb (if still climbing)</td><td>500 mb</td><td>cruise &times; 0.80</td><td>climb gradient ~300 ft/nm</td></tr>
+    <tr><td>Cruise</td><td>altitude-selected</td><td>filed or type TAS</td><td>main enroute segment</td></tr>
+    <tr><td>Descent above FL100</td><td>500 mb</td><td>descent IAS<sub>high</sub> &times; 1.30</td><td>TOD to FL100 traverse</td></tr>
+    <tr><td>Below FL100</td><td>(no wind)</td><td>140&ndash;250 kt profile</td><td>low-level GRIB not representative; short segment</td></tr>
+</table>
+
 <ol>
     <li>Resolve the filed route to a coordinate waypoint array (4-layer parsing)</li>
-    <li>For each grid cell along the route from the current position to destination, interpolate wind U/V components</li>
-    <li>Compute headwind/tailwind component and adjust ground speed per segment</li>
-    <li>Sum segment times; add descent time using the no-wind model</li>
+    <li>Compute phase boundaries: climb distance from <code>(cruiseAlt &minus; curAlt) / 300</code>, TOD at <code>altAbove / 318</code>, FL100 crossing at <code>fl100AGL / 318</code></li>
+    <li>For each grid cell along the route, integrate wind at the level appropriate to the phase (500mb for climb + descent, cruise-level for cruise)</li>
+    <li>Compute headwind/tailwind component and adjust TAS per segment</li>
+    <li>Sum all four phase times</li>
 </ol>
 
+<p><strong>Why 3-phase matters:</strong> prior to v0.6.42, only cruise had wind applied; descent used a no-wind geometric model. That caused a systematic ~&minus;4 min early bias because jetstream tailwinds on descent (typically 15&ndash;25 kt for ~15 min) went uncounted. Short-haul flights (&lt;90 min, dominated by climb+descent) barely benefited from GRIB at all. The 3-phase model applies wind to the whole airborne portion where it&rsquo;s well-represented.</p>
+
 <h3>Grid Coverage</h3>
-<p>LAT 25&ndash;65&deg;N, LON 130&ndash;30&deg;W. Covers CONUS, Caribbean, and eastern Atlantic to catch transatlantic traffic. Flights outside the grid fall back to OBSERVED_POS or FILED tiers.</p>
+<p>LAT 15&ndash;70&deg;N, LON 170&deg;W&ndash;30&deg;E. Covers CONUS, Caribbean, NAT tracks, Europe, and trans-Pacific east of the dateline. Flights outside the grid fall back to OBSERVED_POS or FILED tiers.</p>
 
 <h3>Route Resolution</h3>
 <p>Filed routes (e.g. <code>SSM V300 YVV DCT TONNY BOXUM7</code>) are resolved to coordinate arrays via a 4-layer pipeline:</p>
