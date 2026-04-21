@@ -244,8 +244,12 @@ function autoPropose(icao) {
                 if (cfg.primary_dep !== cfg.primary_arr) { const d = st.runways[cfg.primary_dep]; if (!d || !d.avail) continue; }
                 const rate = cfg.declared_arr_rate || 0;
                 const hwBonus = Math.max(0, arrRwy.hw) * 0.5;
+                // ILS bonuses — CAT I adequate in IFR, CAT II essential
+                // in LIFR (ceiling <200ft). E.g. CYHZ 23 is CAT I+II, 14
+                // is CAT I only — in LIFR the +10 CAT II bonus forces 23.
                 const ilsBonus = (!vmc && cfg.ils) ? 3 : 0;
-                const score = rate + hwBonus + ilsBonus;
+                const catIiBonus = (st.rules === 'LIFR' && cfg.ils_cat_ii) ? 10 : 0;
+                const score = rate + hwBonus + ilsBonus + catIiBonus;
                 if (score > bestScore) { bestScore = score; best = cfg; }
             }
             return best;
