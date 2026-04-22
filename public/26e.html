@@ -243,6 +243,20 @@ function render() {
     const sectorById = Object.fromEntries(DATA.sectors.map(s => [s.id, s]));
     const pairById = Object.fromEntries((DATA.pairs || []).map(p => [p.id, p]));
 
+    // Total distinct flights that transit each sector / pair over the
+    // whole event window (independent of binning/metric).
+    const totalsBySector = {};
+    for (const s of DATA.sectors) totalsBySector[s.id] = 0;
+    const totalsByPair = {};
+    for (const p of (DATA.pairs || [])) totalsByPair[p.id] = 0;
+    for (const fr of (DATA.flights || [])) {
+        const secs = new Set(Object.keys(fr.sectors || {}));
+        for (const sid of secs) if (sid in totalsBySector) totalsBySector[sid]++;
+        for (const p of (DATA.pairs || [])) {
+            if (p.members.some(m => secs.has(m))) totalsByPair[p.id]++;
+        }
+    }
+
     // Row -> max value (counts both 'count' and in+out for events)
     const rowMax = r => r.count !== undefined ? r.count : (r.in || 0) + (r.out || 0);
     const peakLabel = (rows) => {
@@ -288,11 +302,12 @@ function render() {
             const loadRows = pairLoad[p.id] || [];
             const card = document.createElement('div');
             card.className = 'card pair';
+            const total = totalsByPair[p.id] || 0;
             card.innerHTML = `
                 <div class="title">
                     <span class="name">${p.label}</span>
                     <span class="label">combined ${labelSuffix}</span>
-                    <span class="peak">${peakLabel(loadRows)}</span>
+                    <span class="peak">${peakLabel(loadRows)} · ${total} flt total</span>
                 </div>
                 <svg viewBox="0 0 400 160" preserveAspectRatio="none" id="svg-${p.id}"></svg>
             `;
@@ -307,11 +322,12 @@ function render() {
             const loadRows = sectorLoad[s.id] || [];
             const card = document.createElement('div');
             card.className = 'card';
+            const total = totalsBySector[s.id] || 0;
             card.innerHTML = `
                 <div class="title">
                     <span class="name">${s.id}</span>
                     <span class="label">${s.freq || ''} MHz</span>
-                    <span class="peak">${peakLabel(loadRows)}</span>
+                    <span class="peak">${peakLabel(loadRows)} · ${total} flt total</span>
                 </div>
                 <svg viewBox="0 0 400 120" preserveAspectRatio="none" id="svg-${s.id}"></svg>
             `;
