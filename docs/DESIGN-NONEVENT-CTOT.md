@@ -1,7 +1,7 @@
 # Non-event CTOT portal for CTP — design note (not built)
 
 **Status:** design only. Parked pending CTP authority confirmation.
-**Owner:** atfm-tools (Joel), coordinated with Ramon Puig (vIFF/CDM).
+**Owner:** atfm-tools (Joel), coordinated with Roger Puig (vIFF/CDM, `rpuig2001`).
 
 ## Problem
 
