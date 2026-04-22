@@ -48,6 +48,11 @@ DATA_DIR = os.path.join(REPO_DATA, '26E')
 CTP_ROUTES = os.path.join(DATA_DIR, 'ctp-routes.jsonl')
 WIND_CACHE = os.path.join(DATA_DIR, 'winds-cache.json')
 DEFAULT_FL = 370  # fallback cruise alt if slot has none (CTP doesn't publish filed FL)
+
+# Event day + hour for wind snapshot. CTP 26E runs 2026-04-25; peak is
+# ~14-16Z. We anchor the wind grid at 14Z on the event day. GFS 10-day
+# forecast via Open-Meteo covers this well.
+EVENT_DATE_UTC = datetime(2026, 4, 25, 14, 0, 0, tzinfo=timezone.utc)
 CRUISE_MACH = 0.82
 BIN_MIN = 5         # 5-minute bins (change to 15 for coarser chart)
 SAMPLE_STEP_SEC = 30  # trace position every 30 seconds for sector-edge precision
@@ -126,12 +131,16 @@ def fetch_wind_grid(event_hour_utc, force=False):
         vars_ = ['wind_speed_300hPa', 'wind_direction_300hPa',
                  'wind_speed_250hPa', 'wind_direction_250hPa',
                  'wind_speed_200hPa', 'wind_direction_200hPa']
+        # forecast_days sized to cover today + the event date. Open-Meteo
+        # GFS goes to 16 days; we compute the span dynamically so this
+        # works both for near-event and mid-event runs.
+        days_to_event = max(1, (event_hour_utc.date() - datetime.now(timezone.utc).date()).days + 1)
         params = {
             'latitude': lat_str,
             'longitude': lon_str,
             'hourly': ','.join(vars_),
             'wind_speed_unit': 'kn',
-            'forecast_days': 1,
+            'forecast_days': min(16, days_to_event),
         }
         url = 'https://api.open-meteo.com/v1/gfs'
         try:
@@ -452,10 +461,11 @@ def main():
     with open(os.path.join(DATA_DIR, 'sectors.json')) as f:
         sectors = json.load(f)
 
-    # Fetch current wind grid for event midpoint hour (13Z — middle of
-    # the 10Z-16Z event window).
-    event_hour = datetime.now(timezone.utc).replace(hour=13, minute=0, second=0, microsecond=0)
-    wind_grid = fetch_wind_grid(event_hour)
+    # Fetch wind grid for the event hour (not "now"). GFS 10-day
+    # forecast covers up to ~2026-05-01 from today, so pulling 3 days
+    # ahead is well within skill.
+    print(f'Wind target: {EVENT_DATE_UTC.isoformat()} (event day)', flush=True)
+    wind_grid = fetch_wind_grid(EVENT_DATE_UTC)
     print(f'  wind grids: {len(wind_grid["grids"].get("300", {}))} '
           f'points @ 300mb, {len(wind_grid["grids"].get("250", {}))} @ 250mb, '
           f'{len(wind_grid["grids"].get("200", {}))} @ 200mb', flush=True)
