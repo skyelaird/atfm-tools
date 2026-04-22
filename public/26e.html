@@ -202,10 +202,6 @@ async function load() {
         `bin ${m.bin_minutes}m · ` +
         `generated ${m.generated_utc.slice(0, 16).replace('T', ' ')}Z`;
     document.getElementById('binInfo').textContent = `${m.bin_minutes}m`;
-    document.getElementById('metricInfo').textContent =
-        m.metric === 'instantaneous_occupancy_peak_in_bin'
-            ? 'peak-instantaneous occupancy'
-            : (m.metric || '—');
     render();
 }
 
@@ -266,6 +262,11 @@ function render() {
         ? YMAX_WL_PAIR
         : (YMAX_OCC_PAIR_BY_ID[pid] || YMAX_OCC_PAIR);
     const labelSuffix = isWL ? 'workload events' : 'occupancy';
+
+    // Mode-dependent metric label at the top
+    document.getElementById('metricInfo').textContent = isWL
+        ? 'handoff events per 5m bin (in + out)'
+        : 'peak-instantaneous occupancy';
 
     const toRender = [];
 
