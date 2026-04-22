@@ -525,9 +525,12 @@ AIBT) as the primary vocabulary.
 
 Adapter layers at the HTTP edge translate to/from other systems' field names:
 
-- `/cdm/etfms/restricted` emits `{callsign, ctot, mostPenalizingAirspace}` —
+- `/cdm/etfms/restricted` emits `{callsign, ctot, atfcmData.mostPenalisingRegulation, mostPenalizingAirspace}` —
   the CDM plugin's expected shape. Our internal `ctot` → CDM's `ctot` (same
-  concept, same field name, lucky coincidence).
+  concept, same field name, lucky coincidence). As of rpuig2001/CDM v2.28
+  (2026-04-18) the plugin reads the nested British-spelled
+  `atfcmData.mostPenalisingRegulation`; we emit both that and the legacy
+  flat `mostPenalizingAirspace` for the transition window.
 - `/api/v1/plugin` mirrors ECFMP/flow's PluginApiController. Our internal
   `ctot` → ECFMP's `measure.value` or `starttime/endtime` depending on context.
 - Future PERTI integration uses `ctd_utc` / `cta_utc` in the PERTI SWIM shape.
@@ -1075,14 +1078,25 @@ the target system's wire format.
 ### 11.1 `/cdm/etfms/restricted` (primary — for CDM EuroScope plugin)
 
 **Target**: CDM plugin 2.27+ with `<customRestricted url=".../cdm/etfms/restricted"/>`
-in CDMConfig.xml.
+in CDMConfig.xml. Plugin v2.28 (2026-04-18) introduced a nested
+`atfcmData` block with a British-spelled field; we emit both old and new.
 
 **Wire format** (bare JSON array, exactly matching CDM's expectations):
 
 ```json
 [
-  { "callsign": "ACA123", "ctot": "1847", "mostPenalizingAirspace": "CYHZ-ARR" },
-  { "callsign": "JZA456", "ctot": "1849", "mostPenalizingAirspace": "CYHZ-ARR" }
+  {
+    "callsign": "ACA123",
+    "ctot": "1847",
+    "atfcmData": { "mostPenalisingRegulation": "CYHZ-ARR" },
+    "mostPenalizingAirspace": "CYHZ-ARR"
+  },
+  {
+    "callsign": "JZA456",
+    "ctot": "1849",
+    "atfcmData": { "mostPenalisingRegulation": "CYHZ-ARR" },
+    "mostPenalizingAirspace": "CYHZ-ARR"
+  }
 ]
 ```
 

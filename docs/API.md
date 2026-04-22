@@ -219,6 +219,7 @@ the CDM plugin expects.
   {
     "callsign": "ACA456",
     "ctot": "1847",
+    "atfcmData": { "mostPenalisingRegulation": "CYYZ-ARR" },
     "mostPenalizingAirspace": "CYYZ-ARR"
   }
 ]
@@ -228,7 +229,8 @@ the CDM plugin expects.
 |-------|------|-------------|
 | `callsign` | string | Flight callsign |
 | `ctot` | string | CTOT as HHMM (e.g. "1847"), empty string if null |
-| `mostPenalizingAirspace` | string | Airport ICAO + "-ARR" suffix |
+| `atfcmData.mostPenalisingRegulation` | string | Airport ICAO + "-ARR" suffix — **v2.28+** CDM plugin reads this (British spelling) |
+| `mostPenalizingAirspace` | string | Legacy flat version for <v2.28 plugins (American spelling) — kept during transition |
 
 **Filter logic:** Only flights where CTOT is set, CTOT >= now, and phase
 is not ARRIVED/WITHDRAWN/DISCONNECTED.

@@ -96,15 +96,27 @@ omitting a callsign means "release any CTOT".**
 
 **Request**: `GET` with `x-api-key`, no query params.
 
-**Response**: bare JSON array. Each element MUST contain:
+**Response**: bare JSON array. Each element we emit:
 
 ```json
 {
   "callsign": "ACA123",
-  "ctot": "1445",                         // HHMM 4-digit UTC
-  "mostPenalizingAirspace": "CYYZ-ARR"    // free-text, shown in EuroScope tag
+  "ctot": "1445",                            // HHMM 4-digit UTC
+  "atfcmData": {                             // v2.28+ — British spelling
+    "mostPenalisingRegulation": "CYYZ-ARR"
+  },
+  "mostPenalizingAirspace": "CYYZ-ARR"       // legacy (pre-v2.28) — safe to include
 }
 ```
+
+**Contract change in rpuig2001/CDM v2.28 (2026-04-18)**: the plugin
+now reads the penalising-regulation string from the **nested**
+`atfcmData.mostPenalisingRegulation` key (British spelling — `-sing-`
+not `-zing-`). Pre-v2.28 plugins read the flat top-level
+`mostPenalizingAirspace` (American spelling). We emit **both** during
+the transition: new plugins ignore unknown top-level keys, old plugins
+ignore unknown nested keys. Drop the legacy field once the fleet is on
+≥v2.28.
 
 Fields the plugin ignores (but vIFF sends anyway): `delayMin`,
 `airspaceList`, `regulationReason`. Safe to send, safe to omit.
@@ -114,8 +126,9 @@ Fields the plugin ignores (but vIFF sends anyway): `delayMin`,
 - CTOT must be **exactly 4 characters** or the plugin silently discards
   it (`if (ctot.size() == 4)`). 3-digit times like `"945"` → dropped.
   Always zero-pad.
-- `callsign`, `ctot`, `mostPenalizingAirspace` are all required — an
-  entry missing any of them is skipped without a log message.
+- `callsign` + `ctot` are always required. On v2.28+ the plugin needs
+  `atfcmData.mostPenalisingRegulation`; on older plugins it needs
+  `mostPenalizingAirspace`. Emitting both handles both.
 - The parser strips `"` and `\n` manually (legacy JsonCpp quirk). Avoid
   embedding either.
 

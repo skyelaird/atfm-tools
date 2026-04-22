@@ -345,9 +345,15 @@ final class Kernel
         // (customRestricted-only override). See docs/CDM-PLUGIN.md for the
         // full contract. Plugin polls every ~15 s per active master (fixed
         // gate in CDMSingle.cpp::main loop, NOT the RefreshTime XML setting).
-        // Response: bare JSON array of {callsign, ctot, mostPenalizingAirspace}.
-        // CTOT must be EXACTLY 4 chars (HHMM, zero-padded) or plugin silently drops it.
-        // Omitting a callsign is authoritative — plugin clears that flight's CTOT.
+        //
+        // Contract (as of rpuig2001/CDM v2.28, 2026-04-18):
+        //   [{ callsign, ctot, atfcmData: { mostPenalisingRegulation }, mostPenalizingAirspace }]
+        //
+        //   - `ctot` MUST be EXACTLY 4 chars (HHMM, zero-padded) or plugin silently drops it.
+        //   - `atfcmData.mostPenalisingRegulation` — British spelling — is the field v2.28+ reads.
+        //   - `mostPenalizingAirspace` (American spelling, flat) is preserved for <v2.28 plugins
+        //      during the transition window. New plugins ignore unknown top-level keys.
+        //   - Omitting a callsign is authoritative — plugin clears that flight's CTOT.
         $app->get('/cdm/etfms/restricted', function ($req, $res) {
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
@@ -357,11 +363,19 @@ final class Kernel
                 ->where('ctot', '>=', $now->format('Y-m-d H:i:s'))
                 ->get(['callsign', 'ctot', 'ctl_element']);
 
-            $out = $flights->map(fn (Flight $f) => [
-                'callsign'               => (string) $f->callsign,
-                'ctot'                   => $f->ctot?->format('Hi') ?? '',
-                'mostPenalizingAirspace' => ($f->ctl_element ?? '') . '-ARR',
-            ])->values()->all();
+            $out = $flights->map(function (Flight $f) {
+                $regulation = ($f->ctl_element ?? '') . '-ARR';
+                return [
+                    'callsign'               => (string) $f->callsign,
+                    'ctot'                   => $f->ctot?->format('Hi') ?? '',
+                    // v2.28+ — British spelling, nested
+                    'atfcmData'              => [
+                        'mostPenalisingRegulation' => $regulation,
+                    ],
+                    // legacy — pre-v2.28 — kept for transition, safe to drop later
+                    'mostPenalizingAirspace' => $regulation,
+                ];
+            })->values()->all();
 
             return self::json($res, $out);
         });

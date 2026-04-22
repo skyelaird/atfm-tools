@@ -170,14 +170,20 @@ async function load() {
 function render(d) {
     $('status-pill').textContent = `PERTI ${hhmmz(d.perti_snapshot)}Z`;
 
+    // Defensive defaults — payloads have occasionally come back missing
+    // these keys (e.g. when upstream PERTI 502s partway through the
+    // handler), which crashed the renderer on .length access.
+    d.active_tmis = d.active_tmis || [];
+    d.comparisons = d.comparisons || [];
+
     let html = '';
 
     // Summary bar
     html += `<div class="summary-bar">
-        <div class="summary-stat"><div class="lbl">PERTI flights</div><div class="val">${d.perti_total}</div></div>
-        <div class="summary-stat"><div class="lbl">Our active</div><div class="val">${d.our_active}</div></div>
-        <div class="summary-stat"><div class="lbl">Matched</div><div class="val">${d.matched}</div></div>
-        <div class="summary-stat"><div class="lbl">Unmatched</div><div class="val">${d.unmatched}</div></div>
+        <div class="summary-stat"><div class="lbl">PERTI flights</div><div class="val">${d.perti_total ?? '—'}</div></div>
+        <div class="summary-stat"><div class="lbl">Our active</div><div class="val">${d.our_active ?? '—'}</div></div>
+        <div class="summary-stat"><div class="lbl">Matched</div><div class="val">${d.matched ?? '—'}</div></div>
+        <div class="summary-stat"><div class="lbl">Unmatched</div><div class="val">${d.unmatched ?? '—'}</div></div>
         <div class="summary-stat"><div class="lbl">TMIs</div><div class="val ${d.active_tmis.length ? 'tmi-active' : 'tmi-none'}">${d.active_tmis.length || 'None'}</div></div>
     </div>`;
 
