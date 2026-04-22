@@ -112,6 +112,14 @@ svg {
 .bar.peak {
     fill: var(--warn);
 }
+.bar-in {
+    fill: var(--accent);
+    opacity: 0.9;
+}
+.bar-out {
+    fill: #7aa8ff;
+    opacity: 0.9;
+}
 .grid-line {
     stroke: var(--border);
     stroke-dasharray: 2 2;
@@ -161,7 +169,12 @@ svg {
 <h1>26E CTP Sector Load — CZQM / CZQX</h1>
 <div class="meta" id="meta">Loading…</div>
 <div class="controls">
-    <label>Capacity threshold (occupancy):</label>
+    <label>View:</label>
+    <select id="viewMode">
+        <option value="occupancy" selected>Occupancy</option>
+        <option value="workload">Workload (in/out events)</option>
+    </select>
+    <label>Capacity threshold:</label>
     <input type="number" id="capThreshold" value="55" min="0" step="1"/>
     <label>Bin:</label>
     <span id="binInfo">—</span>
@@ -223,22 +236,38 @@ function render() {
     const xMin = Math.floor(minBin / 60) * 60;
     const xMax = Math.ceil((maxBin + DATA.meta.bin_minutes) / 60) * 60;
 
-    const YMAX_SECTOR = 60;
-    const YMAX_PAIR = 85;
-    const PAIR_YMAX = {'QX6+QX7': 60};
+    // Y scales per view mode.
+    const MODE = document.getElementById('viewMode').value;   // 'occupancy' | 'workload'
+    const YMAX_OCC_SECTOR = 60;
+    const YMAX_OCC_PAIR   = 100;   // QM1+QX1 hits ~88, keep headroom
+    const YMAX_OCC_PAIR_BY_ID = {'QX6+QX7': 60};
+    const YMAX_WL_SECTOR  = 20;    // events per 5m bin
+    const YMAX_WL_PAIR    = 25;
 
     const sectorById = Object.fromEntries(DATA.sectors.map(s => [s.id, s]));
     const pairById = Object.fromEntries((DATA.pairs || []).map(p => [p.id, p]));
 
+    // Row -> max value (counts both 'count' and in+out for events)
+    const rowMax = r => r.count !== undefined ? r.count : (r.in || 0) + (r.out || 0);
     const peakLabel = (rows) => {
         if (!rows.length) return '(no flights)';
-        const p = rows.reduce((a, r) => r.count > a.count ? r : a);
+        const p = rows.reduce((a, r) => rowMax(r) > rowMax(a) ? r : a);
         const hh = String(Math.floor(p.bin_minute / 60)).padStart(2, '0');
         const mm = String(p.bin_minute % 60).padStart(2, '0');
-        return `peak ${p.count} @ ${hh}${mm}Z`;
+        const v = rowMax(p);
+        return `peak ${v} @ ${hh}${mm}Z`;
     };
 
-    const toRender = [];   // queued (elementId, rows, opts) for drawChart after innerHTML
+    const isWL = MODE === 'workload';
+    const sectorLoad = isWL ? (DATA.events || {})       : DATA.load;
+    const pairLoad   = isWL ? (DATA.pair_events || {})  : DATA.pair_load;
+    const sectorYMax = isWL ? YMAX_WL_SECTOR : YMAX_OCC_SECTOR;
+    const pairYMaxFor = (pid) => isWL
+        ? YMAX_WL_PAIR
+        : (YMAX_OCC_PAIR_BY_ID[pid] || YMAX_OCC_PAIR);
+    const labelSuffix = isWL ? 'workload events' : 'occupancy';
+
+    const toRender = [];
 
     for (const g of GROUPS) {
         const section = document.createElement('section');
@@ -255,26 +284,26 @@ function render() {
         // Pair card first (if present)
         if (g.pair && pairById[g.pair]) {
             const p = pairById[g.pair];
-            const loadRows = DATA.pair_load[p.id] || [];
+            const loadRows = pairLoad[p.id] || [];
             const card = document.createElement('div');
             card.className = 'card pair';
             card.innerHTML = `
                 <div class="title">
                     <span class="name">${p.label}</span>
-                    <span class="label">combined occupancy</span>
+                    <span class="label">combined ${labelSuffix}</span>
                     <span class="peak">${peakLabel(loadRows)}</span>
                 </div>
                 <svg viewBox="0 0 400 160" preserveAspectRatio="none" id="svg-${p.id}"></svg>
             `;
             gridEl.appendChild(card);
-            toRender.push([p.id, loadRows, {height: 160, yMax: PAIR_YMAX[p.id] || YMAX_PAIR}]);
+            toRender.push([p.id, loadRows, {height: 160, yMax: pairYMaxFor(p.id), stacked: isWL}]);
         }
 
         // Then individual member cards
         for (const sid of g.sectors) {
             const s = sectorById[sid];
             if (!s) continue;
-            const loadRows = DATA.load[s.id] || [];
+            const loadRows = sectorLoad[s.id] || [];
             const card = document.createElement('div');
             card.className = 'card';
             card.innerHTML = `
@@ -286,7 +315,7 @@ function render() {
                 <svg viewBox="0 0 400 120" preserveAspectRatio="none" id="svg-${s.id}"></svg>
             `;
             gridEl.appendChild(card);
-            toRender.push([s.id, loadRows, {height: 120, yMax: YMAX_SECTOR}]);
+            toRender.push([s.id, loadRows, {height: 120, yMax: sectorYMax, stacked: isWL}]);
         }
 
         root.appendChild(section);
@@ -305,53 +334,72 @@ function drawChart(sectorId, rows, xMin, xMax, opts) {
     const plotW = W - M.l - M.r;
     const plotH = H - M.t - M.b;
     const bin = DATA.meta.bin_minutes;
+    const stacked = !!(opts && opts.stacked);
 
-    // Global Y max if supplied, else per-chart auto-scale
+    const rowVal = r => r.count !== undefined ? r.count : (r.in || 0) + (r.out || 0);
     const maxCount = (opts && opts.yMax)
         ? opts.yMax
-        : Math.max(CAP, ...rows.map(r => r.count), 10);
+        : Math.max(CAP, ...rows.map(rowVal), 10);
     const xScale = (t) => M.l + (t - xMin) / (xMax - xMin) * plotW;
     const yScale = (v) => M.t + plotH - (v / maxCount) * plotH;
 
     let svgHtml = '';
-    // Axis lines (hours)
     for (let t = xMin; t <= xMax; t += 60) {
         const x = xScale(t);
         svgHtml += `<line class="grid-line" x1="${x}" y1="${M.t}" x2="${x}" y2="${M.t + plotH}"/>`;
         const hh = Math.floor(t / 60);
         svgHtml += `<text class="axis-label" x="${x}" y="${H - 4}" text-anchor="middle">${String(hh).padStart(2,'0')}Z</text>`;
     }
-    // Y-axis labels
-    for (let v = 0; v <= maxCount; v += Math.ceil(maxCount / 4)) {
+    const tickStep = Math.max(1, Math.ceil(maxCount / 4));
+    for (let v = 0; v <= maxCount; v += tickStep) {
         const y = yScale(v);
         svgHtml += `<line class="grid-line" x1="${M.l}" y1="${y}" x2="${M.l + plotW}" y2="${y}"/>`;
         svgHtml += `<text class="axis-label" x="${M.l - 3}" y="${y + 3}" text-anchor="end">${v}</text>`;
     }
-    // Capacity threshold
-    if (CAP > 0 && CAP <= maxCount) {
+    // Capacity threshold only in occupancy mode (workload has no single "cap")
+    if (!stacked && CAP > 0 && CAP <= maxCount) {
         const y = yScale(CAP);
         svgHtml += `<line class="cap-line" x1="${M.l}" y1="${y}" x2="${M.l + plotW}" y2="${y}"/>`;
     }
-    // Bars
     const binPx = (plotW / (xMax - xMin)) * bin;
-    const peakCount = rows.length ? Math.max(...rows.map(r => r.count)) : 0;
+    const peakCount = rows.length ? Math.max(...rows.map(rowVal)) : 0;
     for (const r of rows) {
         const x = xScale(r.bin_minute);
-        const y = yScale(r.count);
-        const h = plotH + M.t - y;
-        const cls = r.count === peakCount ? 'bar peak' : 'bar';
-        svgHtml += `<rect class="${cls}" x="${x}" y="${y}" width="${binPx - 0.5}" height="${h}" data-count="${r.count}" data-bin="${r.bin_minute}" data-sector="${sectorId}"/>`;
+        const total = rowVal(r);
+        if (stacked) {
+            // IN bar from baseline, then OUT bar stacked above
+            const inV = r.in || 0;
+            const outV = r.out || 0;
+            if (inV > 0) {
+                const y = yScale(inV);
+                const h = plotH + M.t - y;
+                svgHtml += `<rect class="bar bar-in" x="${x}" y="${y}" width="${binPx - 0.5}" height="${h}" data-in="${inV}" data-out="${outV}" data-bin="${r.bin_minute}"/>`;
+            }
+            if (outV > 0) {
+                const yTop = yScale(inV + outV);
+                const yBottom = yScale(inV);
+                svgHtml += `<rect class="bar bar-out" x="${x}" y="${yTop}" width="${binPx - 0.5}" height="${yBottom - yTop}" data-in="${inV}" data-out="${outV}" data-bin="${r.bin_minute}"/>`;
+            }
+        } else {
+            const y = yScale(total);
+            const h = plotH + M.t - y;
+            const cls = total === peakCount ? 'bar peak' : 'bar';
+            svgHtml += `<rect class="${cls}" x="${x}" y="${y}" width="${binPx - 0.5}" height="${h}" data-count="${total}" data-bin="${r.bin_minute}"/>`;
+        }
     }
     svg.innerHTML = svgHtml;
 
     svg.addEventListener('mousemove', (e) => {
         if (e.target.tagName === 'rect') {
             const rect = e.target;
-            const c = rect.getAttribute('data-count');
             const b = parseInt(rect.getAttribute('data-bin'));
             const hh = Math.floor(b / 60);
             const mm = b % 60;
-            TIP.textContent = `${String(hh).padStart(2,'0')}${String(mm).padStart(2,'0')}Z  ${c} flt`;
+            if (stacked) {
+                TIP.textContent = `${String(hh).padStart(2,'0')}${String(mm).padStart(2,'0')}Z  in ${rect.getAttribute('data-in')} · out ${rect.getAttribute('data-out')}`;
+            } else {
+                TIP.textContent = `${String(hh).padStart(2,'0')}${String(mm).padStart(2,'0')}Z  ${rect.getAttribute('data-count')} flt`;
+            }
             TIP.style.left = (e.clientX + 10) + 'px';
             TIP.style.top = (e.clientY + 10) + 'px';
             TIP.style.opacity = '1';
@@ -366,6 +414,7 @@ document.getElementById('capThreshold').addEventListener('change', (e) => {
     CAP = parseInt(e.target.value) || 0;
     render();
 });
+document.getElementById('viewMode').addEventListener('change', () => render());
 
 load();
 </script>

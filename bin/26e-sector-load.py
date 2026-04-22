@@ -485,6 +485,19 @@ def main():
         'QX6+QX7': ['QX6', 'QX7'],
     }
     pair_minute = {pid: defaultdict(int) for pid in pair_map}
+
+    # Workload events. Simplified: 1 event at entry (handoff accept +
+    # comm check-in bundled) and 1 at exit (handoff out + comm change
+    # bundled) = 2 per flight per sector. Split into in/out buckets so
+    # the viewer can render a stacked bar. For pairs, "in" / "out" are
+    # at the PAIR boundary only (internal QMn -> QXn is one controller
+    # keeping the strip and costs nothing).
+    EV_ENTRY = 1
+    EV_EXIT = 1
+    sector_events_in  = {s['id']: defaultdict(int) for s in sectors}
+    sector_events_out = {s['id']: defaultdict(int) for s in sectors}
+    pair_events_in    = {pid: defaultdict(int) for pid in pair_map}
+    pair_events_out   = {pid: defaultdict(int) for pid in pair_map}
     # Also track per-flight sector-entry records for debugging/detail
     flight_records = []
     flights_in_any_sector = 0
@@ -556,9 +569,22 @@ def main():
                         for pid, pair_sectors in pair_map.items():
                             if sec_id in pair_sectors:
                                 flight_minutes_per_pair[pid].add(m)
+                    # Per-sector workload events: bin the entry and exit
+                    bin_entry = (int(a) // 60 // BIN_MIN) * BIN_MIN
+                    bin_exit  = (int(b) // 60 // BIN_MIN) * BIN_MIN
+                    sector_events_in[sec_id][bin_entry]  += EV_ENTRY
+                    sector_events_out[sec_id][bin_exit]  += EV_EXIT
             for pid, minute_set in flight_minutes_per_pair.items():
                 for m in minute_set:
                     pair_minute[pid][m] += 1
+                # Pair-level events: one in-event at first-minute-in-pair,
+                # one out-event at last-minute-in-pair (internal handoff
+                # QMn -> QXn is free under one combined position).
+                if minute_set:
+                    first_m = min(minute_set)
+                    last_m  = max(minute_set)
+                    pair_events_in[pid][(first_m // BIN_MIN) * BIN_MIN]  += EV_ENTRY
+                    pair_events_out[pid][(last_m  // BIN_MIN) * BIN_MIN] += EV_EXIT
 
         n_parsed += 1
 
@@ -612,6 +638,24 @@ def main():
             pid: sorted([{'bin_minute': b, 'count': c} for b, c in bins.items()],
                         key=lambda x: x['bin_minute'])
             for pid, bins in pair_bins.items()
+        },
+        'events': {
+            sid: sorted([
+                {'bin_minute': b,
+                 'in':  sector_events_in[sid].get(b, 0),
+                 'out': sector_events_out[sid].get(b, 0)}
+                for b in sorted(set(sector_events_in[sid]) | set(sector_events_out[sid]))
+            ], key=lambda x: x['bin_minute'])
+            for sid in sector_minute
+        },
+        'pair_events': {
+            pid: sorted([
+                {'bin_minute': b,
+                 'in':  pair_events_in[pid].get(b, 0),
+                 'out': pair_events_out[pid].get(b, 0)}
+                for b in sorted(set(pair_events_in[pid]) | set(pair_events_out[pid]))
+            ], key=lambda x: x['bin_minute'])
+            for pid in pair_map
         },
         'flights': flight_records
     }
