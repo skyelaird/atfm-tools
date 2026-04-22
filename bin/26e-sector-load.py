@@ -60,6 +60,12 @@ MAX_LEG_NM = 800.0   # reject a resolved named fix if it's >N nm from the prior 
                      # (catches Navigraph duplicate-name collisions, e.g. LAKEY
                      # resolving to Arizona instead of UK)
 
+# Climb-out is instant in this sim (Mach 0.82 TAS from t=0). The real
+# climb penalty per atfm-tools WindEta is ~4 min to FL370; a uniform
+# +5 min bias would just shift peak times later without changing peak
+# counts. That's indistinguishable from the timing jitter a real event
+# produces, so we keep the sim simple.
+
 # Wind grid covering NAT + North America (lat, lon box + step)
 WIND_LAT_MIN, WIND_LAT_MAX, WIND_LAT_STEP = 25, 70, 5
 WIND_LON_MIN, WIND_LON_MAX, WIND_LON_STEP = -100, 20, 5
@@ -524,7 +530,9 @@ def main():
         # Build a list of (lat, lon) tuples in order
         path = [(p['lat'], p['lon']) for p in route_points]
 
-        ctot_sec = ctot_to_dt(ctot)
+        ctot_sec = ctot_to_dt(ctot)   # climb bias skipped — would shift
+                                      # peaks ~5 min later uniformly, lost
+                                      # under day-of jitter anyway
         # CTP slot export doesn't publish filed FL; use DEFAULT_FL.
         alt_ft = DEFAULT_FL * 100
         tas = mach_to_tas_kt(CRUISE_MACH, alt_ft)
