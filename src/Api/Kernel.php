@@ -58,6 +58,7 @@ final class Kernel
         self::registerDebugEndpoints($app);
         self::registerEmergencyEndpoints($app);
         self::registerAuthEndpoints($app);
+        self::registerNoneventCtotEndpoints($app);
 
         return $app;
     }
@@ -3545,5 +3546,165 @@ final class Kernel
     {
         $res->getBody()->write(json_encode($payload, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         return $res->withHeader('Content-Type', 'application/json');
+    }
+
+    // ------------------------------------------------------------------
+    //  Non-event CTOT endpoints (v0.7.x)
+    //  docs/DESIGN-NONEVENT-CTOT.md + docs/USAGE-NONEVENT-CTOT.md
+    // ------------------------------------------------------------------
+
+    private static function registerNoneventCtotEndpoints(App $app): void
+    {
+        // CTP event airports — the hard blocklist. In v1 this is a static list
+        // matching the 2026-04-25 event airport set; later it can be fetched
+        // from /api/events/{id}/airports on the CTP planning API.
+        $ctpAirports = [
+            'CYHZ','CYWG','CYYZ',                                      // CAN events
+            'EDDM','EGLL','EHAM','EKCH','GMMN','GOBD','LEBL','LFPG',  // EU events
+            'LOWW','LPPT',
+            'KBDL','KBOS','KEWR','KMCO',                              // USA events
+            'SKBO','TBPB','TNCC','TNCM',                              // S.Am / Caribbean events
+        ];
+
+        // POST /api/v1/ctot/request — pilot or ATCO submits a CTOT request
+        $app->post('/api/v1/ctot/request', function ($req, $res) use ($ctpAirports) {
+            $body = (array) $req->getParsedBody();
+            $user = self::currentUser($req);
+            $submittedBy = 'pilot';
+            $cid = $body['cid'] ?? null;
+            if ($user !== null) {
+                // Determine pilot vs ATCO from VATSIM rating. ATCO ratings
+                // (S1-C3) can submit on behalf of any pilot; others default
+                // to their own CID.
+                $rating = strtoupper((string) ($user['rating'] ?? ''));
+                $atcoRatings = ['S1','S2','S3','C1','C3','I1','I3','SUP','ADM'];
+                $isAtco = in_array($rating, $atcoRatings, true);
+                if ($isAtco && isset($body['cid'])) {
+                    $submittedBy = 'atco:' . $user['cid'];
+                    $cid = (int) $body['cid'];
+                } else {
+                    $cid = $user['cid'];
+                    $submittedBy = 'pilot';
+                }
+            }
+
+            $allocator = new \Atfm\Allocator\NoneventCtotAllocator($ctpAirports);
+            $result = $allocator->request([
+                'callsign'      => (string) ($body['callsign'] ?? ''),
+                'adep'          => (string) ($body['adep'] ?? ''),
+                'ades'          => (string) ($body['ades'] ?? ''),
+                'eobt'          => (string) ($body['eobt'] ?? ''),
+                'route'         => (string) ($body['route'] ?? ''),
+                'aircraft_type' => $body['aircraft_type'] ?? null,
+                'cruise_fl'     => isset($body['cruise_fl']) ? (int) $body['cruise_fl'] : null,
+                'cid'           => $cid,
+                'submitted_by'  => $submittedBy,
+            ]);
+            $status = $result['ok'] ? 200 : 400;
+            return self::json($res->withStatus($status), $result);
+        });
+
+        // GET /api/v1/ctot/mine — a pilot sees their own active CTOTs
+        $app->get('/api/v1/ctot/mine', function ($req, $res) {
+            $user = self::currentUser($req);
+            $cid = $user['cid'] ?? ($req->getQueryParams()['cid'] ?? null);
+            if (!$cid) {
+                return self::json($res->withStatus(401), ['error' => 'not authenticated']);
+            }
+            $slots = \Atfm\Models\NoneventSlot::where('cid', (int) $cid)
+                ->whereNull('released_at')
+                ->where('expires_at', '>', (new \DateTime('now'))->format('Y-m-d H:i:s'))
+                ->orderBy('ctot')
+                ->get()
+                ->map(fn($s) => [
+                    'id'       => $s->id,
+                    'callsign' => $s->callsign,
+                    'adep'     => $s->adep,
+                    'ades'     => $s->ades,
+                    'ctot'     => $s->ctot?->format('c'),
+                    'eldt'     => $s->eldt?->format('c'),
+                    'eobt'     => $s->eobt?->format('c'),
+                    'route'    => $s->filed_route,
+                ]);
+            return self::json($res, ['slots' => $slots]);
+        });
+
+        // GET /api/v1/ctot/active — ATCO dashboard: all live non-event CTOTs
+        $app->get('/api/v1/ctot/active', function ($req, $res) {
+            $now = (new \DateTime('now'))->format('Y-m-d H:i:s');
+            $slots = \Atfm\Models\NoneventSlot::whereNull('released_at')
+                ->where('expires_at', '>', $now)
+                ->orderBy('ctot')
+                ->get()
+                ->map(fn($s) => [
+                    'id'       => $s->id,
+                    'callsign' => $s->callsign,
+                    'cid'      => $s->cid,
+                    'adep'     => $s->adep,
+                    'ades'     => $s->ades,
+                    'ctot'     => $s->ctot?->format('c'),
+                    'eldt'     => $s->eldt?->format('c'),
+                    'submitted_by' => $s->submitted_by,
+                ]);
+            return self::json($res, ['slots' => $slots, 'generated_at' => gmdate('c')]);
+        });
+
+        // GET /api/v1/ctot/fp/{callsign} — ATCO pulls a filed flight plan
+        // from our VATSIM ingestor cache so they can submit on a pilot's
+        // behalf without re-typing. Requires ATCO rating.
+        $app->get('/api/v1/ctot/fp/{callsign}', function ($req, $res, $args) {
+            $user = self::currentUser($req);
+            $rating = strtoupper((string) ($user['rating'] ?? ''));
+            $atcoRatings = ['S1','S2','S3','C1','C3','I1','I3','SUP','ADM'];
+            if ($user === null || !in_array($rating, $atcoRatings, true)) {
+                // Permissive default — allow without auth until AUTH_STRICT is set.
+                // The Gate helper would enforce here once we lock it down.
+                if (($_ENV['AUTH_STRICT'] ?? 'false') === 'true') {
+                    return self::json($res->withStatus(403), ['error' => 'ATCO rating required']);
+                }
+            }
+            $cs = strtoupper((string) $args['callsign']);
+            $flight = \Atfm\Models\Flight::where('callsign', $cs)
+                ->orderByDesc('updated_at')->first();
+            if (!$flight) {
+                return self::json($res->withStatus(404), ['error' => "no filed plan found for {$cs}"]);
+            }
+            return self::json($res, [
+                'callsign' => $flight->callsign,
+                'cid'      => $flight->cid,
+                'adep'     => $flight->adep,
+                'ades'     => $flight->ades,
+                'eobt'     => $flight->eobt?->format('c'),
+                'route'    => $flight->fp_route,
+                'aircraft_type' => $flight->aircraft_type,
+                'cruise_fl'     => $flight->fp_altitude_ft ? (int) ($flight->fp_altitude_ft / 100) : null,
+            ]);
+        });
+
+        // DELETE /api/v1/ctot/{id} — release a slot
+        $app->delete('/api/v1/ctot/{id}', function ($req, $res, $args) {
+            $slot = \Atfm\Models\NoneventSlot::find((int) $args['id']);
+            if (!$slot) {
+                return self::json($res->withStatus(404), ['error' => 'slot not found']);
+            }
+            $user = self::currentUser($req);
+            // Owner or ATCO may release. Permissive until AUTH_STRICT.
+            if ($user !== null && $slot->cid !== null && $user['cid'] !== $slot->cid) {
+                $rating = strtoupper((string) ($user['rating'] ?? ''));
+                $atcoRatings = ['S1','S2','S3','C1','C3','I1','I3','SUP','ADM'];
+                if (!in_array($rating, $atcoRatings, true)
+                    && ($_ENV['AUTH_STRICT'] ?? 'false') === 'true') {
+                    return self::json($res->withStatus(403), ['error' => 'not owner']);
+                }
+            }
+            $slot->release('cancelled');
+            return self::json($res, ['ok' => true, 'slot_id' => $slot->id]);
+        });
+
+        // GET /api/v1/ctot/ecfmp — proxy list of active ECFMP measures for the UI.
+        $app->get('/api/v1/ctot/ecfmp', function ($req, $res) {
+            $measures = \Atfm\Ingestion\EcfmpClient::activeMeasures();
+            return self::json($res, ['measures' => $measures, 'count' => count($measures)]);
+        });
     }
 }

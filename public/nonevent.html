@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Non-event CTOT — atfm-tools</title>
+<style>
+:root {
+    --bg: #0a0e1a; --bg-elev: #121826; --bg-elev-hi: #1a2133;
+    --text: #e8ecf4; --text-dim: #7a8499;
+    --border: #2a3142;
+    --accent: #5ee0ba;
+    --warn: #f5a05b;
+    --alert: #ef6464;
+    --info: #7aa8ff;
+    --mono: "SF Mono","JetBrains Mono",Consolas,monospace;
+}
+* { box-sizing: border-box; }
+body {
+    background: var(--bg); color: var(--text); margin: 0; padding: 1rem;
+    font-family: -apple-system, system-ui, sans-serif; font-size: 14px;
+    max-width: 900px; margin-left: auto; margin-right: auto;
+}
+h1 { font-size: 1.15rem; font-weight: 500; margin: 0 0 0.35rem 0; }
+.sub { color: var(--text-dim); font-size: 0.8rem; margin-bottom: 1rem; }
+.sub a { color: var(--accent); }
+.tabs { display: flex; gap: 0.25rem; margin-bottom: 0.75rem; }
+.tab {
+    background: var(--bg-elev); border: 1px solid var(--border); color: var(--text-dim);
+    padding: 0.35rem 0.9rem; cursor: pointer; font-family: inherit; font-size: 0.85rem;
+    border-radius: 3px 3px 0 0; border-bottom: none;
+}
+.tab.active { background: var(--bg-elev-hi); color: var(--text); border-color: var(--accent); }
+.panel { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 0 3px 3px 3px; padding: 1rem; }
+.panel.hidden { display: none; }
+.row { display: grid; grid-template-columns: 120px 1fr; gap: 0.5rem; align-items: center; margin-bottom: 0.6rem; }
+.row label { color: var(--text-dim); font-size: 0.8rem; }
+.row input, .row textarea, .row select {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    padding: 0.35rem 0.45rem; font-family: var(--mono); font-size: 0.85rem;
+    border-radius: 3px;
+}
+.row textarea { font-family: var(--mono); min-height: 4em; resize: vertical; }
+button {
+    background: var(--accent); color: var(--bg); border: none;
+    padding: 0.45rem 1.1rem; font-family: inherit; font-size: 0.85rem; font-weight: 500;
+    border-radius: 3px; cursor: pointer;
+}
+button:hover { opacity: 0.88; }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+button.secondary { background: var(--bg-elev-hi); color: var(--text); border: 1px solid var(--border); }
+.result {
+    margin-top: 0.8rem; padding: 0.75rem 0.9rem; border-radius: 3px;
+    font-family: var(--mono); font-size: 0.85rem; white-space: pre-wrap;
+}
+.result.ok    { background: rgba(94,224,186,0.1);  border: 1px solid var(--accent); }
+.result.warn  { background: rgba(245,160,91,0.1);  border: 1px solid var(--warn); }
+.result.error { background: rgba(239,100,100,0.1); border: 1px solid var(--alert); }
+.result .ctot { font-size: 1.3rem; color: var(--accent); }
+table { border-collapse: collapse; width: 100%; font-size: 0.82rem; font-family: var(--mono); }
+th, td { text-align: left; padding: 0.3rem 0.55rem; border-bottom: 1px solid var(--border); }
+th { color: var(--text-dim); font-weight: 400; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.03em; }
+.banner {
+    padding: 0.5rem 0.8rem; border-radius: 3px; margin-bottom: 0.75rem; font-size: 0.85rem;
+}
+.banner.info  { background: rgba(122,168,255,0.1); border: 1px solid var(--info); }
+.banner.warn  { background: rgba(245,160,91,0.1);  border: 1px solid var(--warn); }
+.muted { color: var(--text-dim); font-size: 0.75rem; }
+.ecfmp-note { margin-bottom: 1rem; padding: 0.5rem 0.75rem; background: var(--bg-elev-hi); border-radius: 3px; font-size: 0.82rem; }
+</style>
+</head>
+<body>
+
+<h1>Non-event CTOT portal</h1>
+<div class="sub">
+    Self-serve slot system for flights crossing CTP event airspace without a booked slot.
+    Open window for testing / validation.
+    Read the <a href="/docs/USAGE-NONEVENT-CTOT.md">usage guide</a>.
+</div>
+
+<div class="ecfmp-note">
+    <strong>Before filing:</strong> check <a href="https://ecfmp.vatsim.net/dashboard" target="_blank" rel="noopener">ECFMP flow measures</a>
+    for your route. We'll reject mandatory-reroute / prohibited-route requests with the specific measure,
+    but it's faster to file a compliant route on the first try.
+</div>
+
+<div id="banner"></div>
+
+<div class="tabs">
+    <button class="tab active" id="tab-pilot" onclick="switchTab('pilot')">Pilot request</button>
+    <button class="tab" id="tab-atco" onclick="switchTab('atco')">ATCO dashboard</button>
+    <button class="tab" id="tab-mine" onclick="switchTab('mine')">My active slots</button>
+</div>
+
+<!-- ===== PILOT TAB ===== -->
+<div class="panel" id="panel-pilot">
+    <div class="row"><label>Callsign</label><input id="callsign" placeholder="ACA123"/></div>
+    <div class="row"><label>ADEP (4 ltr)</label><input id="adep" maxlength="4" placeholder="KJFK" style="text-transform:uppercase"/></div>
+    <div class="row"><label>ADES (4 ltr)</label><input id="ades" maxlength="4" placeholder="EDDF" style="text-transform:uppercase"/></div>
+    <div class="row"><label>EOBT (UTC)</label><input id="eobt" placeholder="2026-04-25T14:00Z" type="datetime-local"/></div>
+    <div class="row"><label>Type</label><input id="type" placeholder="B77W"/></div>
+    <div class="row"><label>Cruise FL</label><input id="fl" placeholder="370" type="number" min="100" max="510"/></div>
+    <div class="row"><label>Route</label><textarea id="route" placeholder="DCT POOL UL9 MID ..."></textarea></div>
+    <div class="row"><label></label><div>
+        <button onclick="submitPilot()">Request CTOT</button>
+        <span class="muted" style="margin-left:0.75rem;">Your route should be enroute waypoints only — strip SID/STAR.</span>
+    </div></div>
+    <div id="pilot-result"></div>
+</div>
+
+<!-- ===== ATCO TAB ===== -->
+<div class="panel hidden" id="panel-atco">
+    <div class="row">
+        <label>Flight-plan lookup</label>
+        <div style="display:flex; gap:0.5rem;">
+            <input id="fp-callsign" placeholder="ACA123"/>
+            <button class="secondary" onclick="pullFp()">Pull FP</button>
+        </div>
+    </div>
+    <div id="fp-result" style="margin-bottom:1rem;"></div>
+
+    <h3 style="font-size:0.9rem; margin-bottom:0.5rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.05em;">Active slots (all pilots)</h3>
+    <div id="active-list"></div>
+</div>
+
+<!-- ===== MINE TAB ===== -->
+<div class="panel hidden" id="panel-mine">
+    <div class="row">
+        <label>Your CID</label>
+        <input id="my-cid" placeholder="1234567"/>
+    </div>
+    <button class="secondary" onclick="refreshMine()">Show my slots</button>
+    <div id="my-result" style="margin-top:0.75rem;"></div>
+</div>
+
+<script>
+function $(id) { return document.getElementById(id); }
+
+function switchTab(name) {
+    for (const n of ['pilot', 'atco', 'mine']) {
+        $('tab-' + n).classList.toggle('active', n === name);
+        $('panel-' + n).classList.toggle('hidden', n !== name);
+    }
+    if (name === 'atco') refreshActive();
+}
+
+function fmtCtot(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.getUTCFullYear() + '-' + pad(d.getUTCMonth()+1) + '-' + pad(d.getUTCDate())
+         + ' ' + pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()) + 'Z';
+}
+function pad(n) { return String(n).padStart(2, '0'); }
+
+async function submitPilot() {
+    const eobtLocal = $('eobt').value;
+    if (!eobtLocal) { renderResult('pilot-result', 'error', 'EOBT required'); return; }
+    // datetime-local yields "2026-04-25T14:00"; append Z for UTC
+    const eobt = eobtLocal.includes('Z') ? eobtLocal : eobtLocal + ':00Z';
+    const body = {
+        callsign: $('callsign').value.trim().toUpperCase(),
+        adep: $('adep').value.trim().toUpperCase(),
+        ades: $('ades').value.trim().toUpperCase(),
+        eobt: eobt,
+        aircraft_type: $('type').value.trim().toUpperCase() || null,
+        cruise_fl: $('fl').value ? parseInt($('fl').value, 10) : null,
+        route: $('route').value.trim(),
+    };
+    const myCid = $('my-cid').value.trim();
+    if (myCid) body.cid = parseInt(myCid, 10);
+
+    try {
+        const r = await fetch('/api/v1/ctot/request', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify(body),
+        });
+        const d = await r.json();
+        if (d.ok) {
+            renderResult('pilot-result', 'ok',
+                `<div class="ctot">CTOT  ${fmtCtot(d.ctot)}</div>
+                 ELDT at ${body.ades}: ${fmtCtot(d.eldt)}
+                 Delay: ${d.delay_min} min from nominal
+                 Slot ID: ${d.slot_id}
+                 ${d.measures && d.measures.length ? `\nActive ECFMP notes:\n  ${d.measures.map(m => m.ident + ' — ' + (m.reason || '')).join('\n  ')}` : ''}`);
+        } else {
+            const cls = d.code === 'ECFMP_REJECT' || d.code === 'CTP_EXCLUDED' ? 'warn' : 'error';
+            let msg = `[${d.code || 'ERROR'}]  ${d.reason || 'unknown error'}`;
+            if (d.mandatory_route) msg += `\n\nRequired route:  ${d.mandatory_route}\n\nRefile with this route and try again.`;
+            renderResult('pilot-result', cls, msg);
+        }
+    } catch (e) {
+        renderResult('pilot-result', 'error', 'Network error: ' + e.message);
+    }
+}
+
+async function pullFp() {
+    const cs = $('fp-callsign').value.trim().toUpperCase();
+    if (!cs) return;
+    try {
+        const r = await fetch('/api/v1/ctot/fp/' + encodeURIComponent(cs));
+        if (r.status === 404) {
+            $('fp-result').innerHTML = `<div class="result warn">No filed plan found for ${cs}. Pilot may not be connected or hasn't filed yet.</div>`;
+            return;
+        }
+        const d = await r.json();
+        if (d.error) {
+            $('fp-result').innerHTML = `<div class="result error">${d.error}</div>`;
+            return;
+        }
+        // Auto-fill pilot form
+        $('callsign').value = d.callsign || '';
+        $('adep').value = d.adep || '';
+        $('ades').value = d.ades || '';
+        if (d.eobt) {
+            const dt = new Date(d.eobt);
+            $('eobt').value = dt.toISOString().slice(0, 16);
+        }
+        $('type').value = d.aircraft_type || '';
+        $('fl').value = d.cruise_fl || '';
+        $('route').value = d.route || '';
+        if (d.cid) $('my-cid').value = d.cid;
+        $('fp-result').innerHTML = `<div class="result ok">Filed plan loaded for ${d.callsign} (CID ${d.cid}). Switch to the Pilot tab, verify, Submit.</div>`;
+    } catch (e) {
+        $('fp-result').innerHTML = `<div class="result error">Failed to pull FP: ${e.message}</div>`;
+    }
+}
+
+async function refreshActive() {
+    try {
+        const r = await fetch('/api/v1/ctot/active');
+        const d = await r.json();
+        if (!d.slots || d.slots.length === 0) {
+            $('active-list').innerHTML = '<div class="muted">No active slots.</div>';
+            return;
+        }
+        let html = '<table><thead><tr><th>Callsign</th><th>ADEP → ADES</th><th>CTOT</th><th>ELDT</th><th>By</th></tr></thead><tbody>';
+        for (const s of d.slots) {
+            html += `<tr>
+                <td>${s.callsign}</td>
+                <td>${s.adep} → ${s.ades}</td>
+                <td>${fmtCtot(s.ctot)}</td>
+                <td>${fmtCtot(s.eldt)}</td>
+                <td>${s.submitted_by}</td>
+            </tr>`;
+        }
+        html += '</tbody></table>';
+        $('active-list').innerHTML = html;
+    } catch (e) {
+        $('active-list').innerHTML = '<div class="result error">' + e.message + '</div>';
+    }
+}
+
+async function refreshMine() {
+    const cid = $('my-cid').value.trim();
+    if (!cid) { renderResult('my-result', 'error', 'Enter your VATSIM CID'); return; }
+    try {
+        const r = await fetch('/api/v1/ctot/mine?cid=' + encodeURIComponent(cid));
+        const d = await r.json();
+        if (!d.slots || d.slots.length === 0) {
+            $('my-result').innerHTML = '<div class="muted">No active slots.</div>';
+            return;
+        }
+        let html = '<table><thead><tr><th>Callsign</th><th>ADEP → ADES</th><th>CTOT</th><th>ELDT</th></tr></thead><tbody>';
+        for (const s of d.slots) {
+            html += `<tr>
+                <td>${s.callsign}</td>
+                <td>${s.adep} → ${s.ades}</td>
+                <td>${fmtCtot(s.ctot)}</td>
+                <td>${fmtCtot(s.eldt)}</td>
+            </tr>`;
+        }
+        html += '</tbody></table>';
+        $('my-result').innerHTML = html;
+    } catch (e) {
+        renderResult('my-result', 'error', e.message);
+    }
+}
+
+function renderResult(id, cls, text) {
+    $(id).innerHTML = `<div class="result ${cls}">${text}</div>`;
+}
+
+// ECFMP banner on load
+fetch('/api/v1/ctot/ecfmp').then(r => r.json()).then(d => {
+    if (d.count > 0) {
+        $('banner').innerHTML = `<div class="banner warn"><strong>${d.count} active ECFMP flow measure${d.count>1?'s':''}.</strong> Review <a href="https://ecfmp.vatsim.net/dashboard" target="_blank">the dashboard</a> before filing to avoid a reject.</div>`;
+    }
+});
+</script>
+
+</body>
+</html>

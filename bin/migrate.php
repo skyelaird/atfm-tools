@@ -572,4 +572,35 @@ if (!$schema->hasTable('auth_sessions')) {
     echo "✓ created auth_sessions (v0.7.0)\n";
 }
 
+// v0.7.x: Non-event CTOT slots. Open pilot-portal flow-management layer
+// for non-CTP airport pairs during the CTP event window. 4 slots/hour
+// per ADES, clock-aligned at :00 / :15 / :30 / :45. Flights to/from a
+// CTP airport OR one of our own 7 Canadian airports are refused — those
+// are covered by the event booking system or the main atfm-tools
+// allocator respectively. See docs/DESIGN-NONEVENT-CTOT.md.
+if (!$schema->hasTable('nonevent_slots')) {
+    $schema->create('nonevent_slots', function (Blueprint $t) {
+        $t->id();
+        $t->unsignedInteger('cid')->nullable()->comment('VATSIM CID of the pilot (nullable until auth is strict)');
+        $t->string('callsign', 16);
+        $t->string('adep', 4);
+        $t->string('ades', 4);
+        $t->dateTime('eobt');
+        $t->dateTime('ctot')->comment('Assigned calculated take-off time, reverse-computed from eldt');
+        $t->dateTime('eldt')->comment('Allocated landing time at ades — the slot we reserved');
+        $t->text('filed_route');
+        $t->string('aircraft_type', 4)->nullable();
+        $t->unsignedSmallInteger('filed_fl')->nullable()->comment('Filed cruise FL (e.g. 370)');
+        $t->string('submitted_by', 32)->default('pilot')->comment('pilot | atco:CID');
+        $t->dateTime('expires_at')->comment('Auto-release if no takeoff by this time (ctot + 15 min)');
+        $t->dateTime('released_at')->nullable()->comment('When the slot was voluntarily released / superseded');
+        $t->string('release_reason', 32)->nullable()->comment('superseded | expired | cancelled');
+        $t->timestamps();
+        $t->index(['ades', 'eldt']);
+        $t->index(['cid', 'ctot']);
+        $t->index(['callsign', 'ctot']);
+    });
+    echo "✓ created nonevent_slots (v0.7.x)\n";
+}
+
 echo "done.\n";
