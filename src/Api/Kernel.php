@@ -251,6 +251,74 @@ final class Kernel
         return null;
     }
 
+    /**
+     * Look up a pilot's FULL filed flight plan from the live VATSIM
+     * v3 data feed. Returns a normalised record or null if not on
+     * the network. Used by /api/v1/ctot/fp/{me,callsign} endpoints so
+     * we can serve pilots whose ADES isn't one of our 7 Canadian
+     * airports (and therefore isn't in our local Flight table).
+     *
+     * @param int|null $cid     search by CID
+     * @param string|null $callsign search by callsign
+     * @return array{callsign:string,cid:int,adep:?string,ades:?string,eobt:?string,route:?string,aircraft_type:?string,cruise_fl:?int}|null
+     */
+    private static function livePilotFpl(?int $cid, ?string $callsign): ?array
+    {
+        $cacheFile = sys_get_temp_dir() . '/atfm_vatsim_feed.json';
+        $raw = null;
+        if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < 60) {
+            $raw = @file_get_contents($cacheFile);
+        }
+        if (!$raw) {
+            $ctx = stream_context_create(['http' => ['timeout' => 5]]);
+            $raw = @file_get_contents('https://data.vatsim.net/v3/vatsim-data.json', false, $ctx);
+            if ($raw) @file_put_contents($cacheFile, $raw);
+        }
+        if (!$raw) return null;
+        $data = json_decode($raw, true);
+        if (!is_array($data)) return null;
+
+        $csUp = $callsign ? strtoupper($callsign) : null;
+        foreach (($data['pilots'] ?? []) as $p) {
+            $matchesCid = $cid !== null && (int) ($p['cid'] ?? 0) === $cid;
+            $matchesCs  = $csUp !== null && strtoupper((string) ($p['callsign'] ?? '')) === $csUp;
+            if (!$matchesCid && !$matchesCs) continue;
+
+            $fp = $p['flight_plan'] ?? null;
+            if (!is_array($fp)) return null;
+
+            // Parse eobt — feed gives deptime as "HHmm" + today's date is implied
+            $dep = (string) ($fp['deptime'] ?? '');
+            $eobt = null;
+            if (preg_match('/^(\d{2})(\d{2})$/', $dep, $m)) {
+                $today = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+                $eobt  = $today->setTime((int) $m[1], (int) $m[2], 0)->format('c');
+            }
+
+            // Altitude: "FL370" / "37000" / "370"
+            $alt = (string) ($fp['altitude'] ?? '');
+            $fl  = null;
+            if (preg_match('/^FL0*(\d+)$/i', $alt, $m)) {
+                $fl = (int) $m[1];
+            } elseif (preg_match('/^\d+$/', $alt)) {
+                $n = (int) $alt;
+                $fl = $n > 1000 ? (int) ($n / 100) : $n;
+            }
+
+            return [
+                'callsign'      => (string) ($p['callsign'] ?? ''),
+                'cid'           => (int) ($p['cid'] ?? 0),
+                'adep'          => $fp['departure'] ?? null,
+                'ades'          => $fp['arrival'] ?? null,
+                'eobt'          => $eobt,
+                'route'         => $fp['route'] ?? null,
+                'aircraft_type' => $fp['aircraft_short'] ?? ($fp['aircraft'] ?? null),
+                'cruise_fl'     => $fl,
+            ];
+        }
+        return null;
+    }
+
     // ------------------------------------------------------------------
     //  Health
     // ------------------------------------------------------------------
@@ -3649,16 +3717,58 @@ final class Kernel
             return self::json($res, ['slots' => $slots, 'generated_at' => gmdate('c')]);
         });
 
+        // GET /api/v1/ctot/fp/me — pilot pulls their OWN filed plan
+        // based on the signed-in VATSIM CID.
+        //
+        // Lookup order:
+        //   1. Our local Flight table (only covers flights inbound to
+        //      our 7 Canadian airports — fast path)
+        //   2. Live VATSIM v3 data feed (covers every pilot on the
+        //      network regardless of destination)
+        $app->get('/api/v1/ctot/fp/me', function ($req, $res) {
+            $user = self::currentUser($req);
+            if (!$user) {
+                return self::json($res->withStatus(401), [
+                    'error' => 'not authenticated',
+                    'hint'  => 'sign in first via /oauth/vatsim/login?return=/nonevent.html',
+                ]);
+            }
+            $cid = (int) $user['cid'];
+
+            $flight = \Atfm\Models\Flight::where('cid', $cid)
+                ->orderByDesc('updated_at')->first();
+            if ($flight) {
+                return self::json($res, [
+                    'callsign'      => $flight->callsign,
+                    'cid'           => $flight->cid,
+                    'adep'          => $flight->adep,
+                    'ades'          => $flight->ades,
+                    'eobt'          => $flight->eobt?->format('c'),
+                    'route'         => $flight->fp_route,
+                    'aircraft_type' => $flight->aircraft_type,
+                    'cruise_fl'     => $flight->fp_altitude_ft ? (int) ($flight->fp_altitude_ft / 100) : null,
+                    'source'        => 'local',
+                ]);
+            }
+
+            $live = self::livePilotFpl($cid, null);
+            if ($live) {
+                $live['source'] = 'vatsim_feed';
+                return self::json($res, $live);
+            }
+            return self::json($res->withStatus(404), [
+                'error' => "no filed plan found for CID {$cid}",
+                'hint'  => 'file a flight plan on VATSIM and log in as a pilot — we read from the v3 data feed (refreshed every 60s)',
+            ]);
+        });
+
         // GET /api/v1/ctot/fp/{callsign} — ATCO pulls a filed flight plan
-        // from our VATSIM ingestor cache so they can submit on a pilot's
-        // behalf without re-typing. Requires ATCO rating.
+        // by callsign. Same dual-source lookup as /fp/me.
         $app->get('/api/v1/ctot/fp/{callsign}', function ($req, $res, $args) {
             $user = self::currentUser($req);
             $rating = strtoupper((string) ($user['rating'] ?? ''));
             $atcoRatings = ['S1','S2','S3','C1','C3','I1','I3','SUP','ADM'];
             if ($user === null || !in_array($rating, $atcoRatings, true)) {
-                // Permissive default — allow without auth until AUTH_STRICT is set.
-                // The Gate helper would enforce here once we lock it down.
                 if (($_ENV['AUTH_STRICT'] ?? 'false') === 'true') {
                     return self::json($res->withStatus(403), ['error' => 'ATCO rating required']);
                 }
@@ -3666,18 +3776,28 @@ final class Kernel
             $cs = strtoupper((string) $args['callsign']);
             $flight = \Atfm\Models\Flight::where('callsign', $cs)
                 ->orderByDesc('updated_at')->first();
-            if (!$flight) {
-                return self::json($res->withStatus(404), ['error' => "no filed plan found for {$cs}"]);
+            if ($flight) {
+                return self::json($res, [
+                    'callsign' => $flight->callsign,
+                    'cid'      => $flight->cid,
+                    'adep'     => $flight->adep,
+                    'ades'     => $flight->ades,
+                    'eobt'     => $flight->eobt?->format('c'),
+                    'route'    => $flight->fp_route,
+                    'aircraft_type' => $flight->aircraft_type,
+                    'cruise_fl'     => $flight->fp_altitude_ft ? (int) ($flight->fp_altitude_ft / 100) : null,
+                    'source'   => 'local',
+                ]);
             }
-            return self::json($res, [
-                'callsign' => $flight->callsign,
-                'cid'      => $flight->cid,
-                'adep'     => $flight->adep,
-                'ades'     => $flight->ades,
-                'eobt'     => $flight->eobt?->format('c'),
-                'route'    => $flight->fp_route,
-                'aircraft_type' => $flight->aircraft_type,
-                'cruise_fl'     => $flight->fp_altitude_ft ? (int) ($flight->fp_altitude_ft / 100) : null,
+
+            $live = self::livePilotFpl(null, $cs);
+            if ($live) {
+                $live['source'] = 'vatsim_feed';
+                return self::json($res, $live);
+            }
+            return self::json($res->withStatus(404), [
+                'error' => "no filed plan found for {$cs}",
+                'hint'  => 'pilot must be logged on and have a flight plan filed on the VATSIM network',
             ]);
         });
 

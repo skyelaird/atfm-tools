@@ -84,11 +84,16 @@ threads you through the event traffic without hogging capacity the booked flight
 
 <h3>Steps</h3>
 <ol>
-    <li><strong>Sign in</strong> with VATSIM Connect (button at top of <a href="/nonevent.html">/nonevent.html</a>)</li>
-    <li><strong>Check ECFMP first</strong> — open <a href="https://ecfmp.vatsim.net/dashboard" target="_blank" rel="noopener">ecfmp.vatsim.net/dashboard</a>
-        in another tab. Note any flow measures that apply to your route (mandatory reroutes, level caps).
-        If you file a route that violates an active measure, our system will reject your request.</li>
-    <li><strong>Fill in the form</strong> → Submit</li>
+    <li><strong>Sign in with VATSIM</strong> (top-right link on <a href="/nonevent.html">/nonevent.html</a>).
+        This lets the portal pull your filed flight plan automatically.</li>
+    <li><strong>File your flight plan on VATSIM</strong> as normal — SID / STAR included. We read from the
+        live VATSIM feed, so it needs to be filed before we can pull it.</li>
+    <li><strong>Click "Pull my filed plan"</strong> on the Pilot tab. The form auto-fills
+        ADEP / ADES / EOBT / type / FL / route.</li>
+    <li><strong>Check ECFMP</strong> — open <a href="https://ecfmp.vatsim.net/dashboard" target="_blank" rel="noopener">ecfmp.vatsim.net/dashboard</a>
+        in another tab. If any measure applies to your route, we'll reject and tell you
+        which — faster to file compliant the first time.</li>
+    <li><strong>Submit</strong>. The portal strips SID / STAR server-side; you don't have to manually edit.</li>
     <li>The server either:
         <ul>
             <li><strong>Issues a CTOT</strong> — hold your block until the CTOT. You have a 15-min window;

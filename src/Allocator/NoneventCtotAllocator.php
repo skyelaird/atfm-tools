@@ -103,7 +103,12 @@ final class NoneventCtotAllocator
         }
 
         // --- 2. ECFMP validation
-        $tokens = preg_split('/\s+/', $route, -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        //     Strip SID / STAR from the route string before feeding to the
+        //     ECFMP filter matcher. Keeps the filed_route as-given for the
+        //     record. SID/STAR patterns (5-letter + digit ± suffix) would
+        //     otherwise generate false positive "waypoint" matches.
+        $cleanRoute = self::stripSidStar($route);
+        $tokens = preg_split('/\s+/', $cleanRoute, -1, PREG_SPLIT_NO_EMPTY) ?: [];
         $measures = EcfmpClient::measuresForFlight($adep, $ades, $cfl, $tokens);
         $hard = EcfmpClient::hardRejects($measures);
         if (!empty($hard)) {
@@ -227,6 +232,43 @@ final class NoneventCtotAllocator
         } catch (\Throwable) {
             return null;
         }
+    }
+
+    /**
+     * Strip SID and STAR tokens from a route string.
+     *
+     * Heuristic: a SID is the FIRST non-ADEP token matching the classic
+     * procedure pattern 4-6 alpha chars + 1 digit + optional letter
+     * (e.g. ALLRY7, VERDO7, JCOBY4, KISEP4, MZULO3, MRSSH3). A STAR is
+     * the LAST non-ADES token matching the same pattern (e.g. DEDKI5,
+     * IKLEN3, SEDOG6).
+     *
+     * The pattern deliberately requires ≥4 letters so airway identifiers
+     * like Q97, J95, UL612, N633A are NOT matched. Waypoints without a
+     * trailing digit (BARUD, TESPI, DOGAL, etc.) are never matched.
+     *
+     * Leading ADEP and trailing ADES tokens are also dropped if present,
+     * since our allocator takes those as separate form fields.
+     *
+     * Pilot can paste the full filed route including SID/STAR and the
+     * server cleans it up before ECFMP validation.
+     */
+    public static function stripSidStar(string $route): string
+    {
+        $toks = preg_split('/\s+/', trim($route), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+        if (empty($toks)) return '';
+        $proc = '/^[A-Z]{4,6}\d[A-Z]?$/';
+        $icao = '/^[A-Z]{4}$/';
+
+        // Drop leading ADEP (if pilot pasted it) then a leading SID
+        if (isset($toks[0]) && preg_match($icao, $toks[0])) array_shift($toks);
+        if (isset($toks[0]) && preg_match($proc, $toks[0])) array_shift($toks);
+
+        // Drop trailing ADES, then a trailing STAR
+        if (!empty($toks) && preg_match($icao, end($toks))) array_pop($toks);
+        if (!empty($toks) && preg_match($proc, end($toks))) array_pop($toks);
+
+        return implode(' ', $toks);
     }
 
     private static function machToTas(float $mach, int $altFt): float

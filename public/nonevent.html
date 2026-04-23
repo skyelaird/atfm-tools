@@ -71,11 +71,18 @@ th { color: var(--text-dim); font-weight: 400; font-size: 0.72rem; text-transfor
 </head>
 <body>
 
-<h1>Non-event CTOT portal</h1>
-<div class="sub">
-    Self-serve slot system for flights crossing CTP event airspace without a booked slot.
-    Open window for testing / validation.
-    Read the <a href="/nonevent-guide.html">usage guide</a>.
+<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
+    <div>
+        <h1>Non-event CTOT portal</h1>
+        <div class="sub">
+            Self-serve slot system for flights crossing CTP event airspace without a booked slot.
+            Open window for testing / validation.
+            Read the <a href="/nonevent-guide.html">usage guide</a>.
+        </div>
+    </div>
+    <div id="auth-box" style="flex-shrink:0; font-size:0.85rem;">
+        <span class="muted">checking sign-in…</span>
+    </div>
 </div>
 
 <div class="ecfmp-note">
@@ -94,16 +101,22 @@ th { color: var(--text-dim); font-weight: 400; font-size: 0.72rem; text-transfor
 
 <!-- ===== PILOT TAB ===== -->
 <div class="panel" id="panel-pilot">
+    <div id="pull-my-fp" class="banner info" style="display:none; margin-bottom:0.75rem;">
+        Signed in as <span id="my-name-top" class="mono"></span>.
+        <button class="secondary" style="margin-left:0.5rem;" onclick="pullMyFp()">Pull my filed plan</button>
+        <span class="muted" style="margin-left:0.5rem;">(auto-fill from your VATSIM flight plan)</span>
+    </div>
+
     <div class="row"><label>Callsign</label><input id="callsign" placeholder="ACA123"/></div>
     <div class="row"><label>ADEP (4 ltr)</label><input id="adep" maxlength="4" placeholder="KJFK" style="text-transform:uppercase"/></div>
     <div class="row"><label>ADES (4 ltr)</label><input id="ades" maxlength="4" placeholder="EDDF" style="text-transform:uppercase"/></div>
     <div class="row"><label>EOBT (UTC)</label><input id="eobt" placeholder="2026-04-25T14:00Z" type="datetime-local"/></div>
     <div class="row"><label>Type</label><input id="type" placeholder="B77W"/></div>
     <div class="row"><label>Cruise FL</label><input id="fl" placeholder="370" type="number" min="100" max="510"/></div>
-    <div class="row"><label>Route</label><textarea id="route" placeholder="DCT POOL UL9 MID ..."></textarea></div>
+    <div class="row"><label>Route</label><textarea id="route" placeholder="KJFK ALLRY7 BRUWN BARUD TESPI EKCH  (paste full route — we strip SID/STAR)"></textarea></div>
     <div class="row"><label></label><div>
         <button onclick="submitPilot()">Request CTOT</button>
-        <span class="muted" style="margin-left:0.75rem;">Your route should be enroute waypoints only — strip SID/STAR.</span>
+        <span class="muted" style="margin-left:0.75rem;">Paste your full filed route — the server auto-strips SID &amp; STAR.</span>
     </div></div>
     <div id="pilot-result"></div>
 </div>
@@ -287,6 +300,72 @@ fetch('/api/v1/ctot/ecfmp').then(r => r.json()).then(d => {
         $('banner').innerHTML = `<div class="banner warn"><strong>${d.count} active ECFMP flow measure${d.count>1?'s':''}.</strong> Review <a href="https://ecfmp.vatsim.net/dashboard" target="_blank">the dashboard</a> before filing to avoid a reject.</div>`;
     }
 });
+
+// VATSIM Connect sign-in state
+let AUTH_USER = null;
+async function refreshAuth() {
+    const r = await fetch('/api/v1/auth/me');
+    const d = await r.json();
+    const box = $('auth-box');
+    if (d.authenticated) {
+        AUTH_USER = d;
+        const isAtco = ['S1','S2','S3','C1','C3','I1','I3','SUP','ADM'].includes(String(d.rating).toUpperCase());
+        box.innerHTML = `
+            <span class="mono">${d.cid}</span> · ${d.name}
+            <span class="muted"> (${d.rating}${isAtco ? ' — ATCO' : ''})</span>
+            · <a href="#" onclick="logout();return false;">sign out</a>`;
+        // Expose CID for the /mine tab
+        if (!$('my-cid').value) $('my-cid').value = d.cid;
+        // Show the "Pull my FP" helper
+        $('pull-my-fp').style.display = 'block';
+        $('my-name-top').textContent = d.name;
+    } else {
+        AUTH_USER = null;
+        box.innerHTML = `<a href="/oauth/vatsim/login?return=/nonevent.html" class="mono">Sign in with VATSIM</a>`;
+        $('pull-my-fp').style.display = 'none';
+    }
+}
+
+async function logout() {
+    await fetch('/oauth/logout', {method: 'POST'});
+    AUTH_USER = null;
+    refreshAuth();
+}
+
+async function pullMyFp() {
+    try {
+        const r = await fetch('/api/v1/ctot/fp/me');
+        const d = await r.json();
+        if (r.status === 401) {
+            renderResult('pilot-result', 'warn', 'Sign in first — top-right button');
+            return;
+        }
+        if (r.status === 404) {
+            renderResult('pilot-result', 'warn', d.error + (d.hint ? '\n\n' + d.hint : ''));
+            return;
+        }
+        if (d.error) {
+            renderResult('pilot-result', 'error', d.error);
+            return;
+        }
+        $('callsign').value = d.callsign || '';
+        $('adep').value = d.adep || '';
+        $('ades').value = d.ades || '';
+        if (d.eobt) {
+            const dt = new Date(d.eobt);
+            $('eobt').value = dt.toISOString().slice(0, 16);
+        }
+        $('type').value = d.aircraft_type || '';
+        $('fl').value = d.cruise_fl || '';
+        $('route').value = d.route || '';
+        renderResult('pilot-result', 'ok',
+            `Loaded ${d.callsign}: ${d.adep} → ${d.ades}. Verify the fields, then Submit.`);
+    } catch (e) {
+        renderResult('pilot-result', 'error', 'Failed: ' + e.message);
+    }
+}
+
+refreshAuth();
 </script>
 
 </body>
