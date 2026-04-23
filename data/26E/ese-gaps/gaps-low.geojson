@@ -1,0 +1,135 @@
+{
+ "type": "FeatureCollection",
+ "features": [
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -61.0,
+       49.53333333333333
+      ],
+      [
+       -58.978547222222225,
+       50.52159694444445
+      ],
+      [
+       -58.0,
+       51.0
+      ],
+      [
+       -57.0,
+       51.28333333333333
+      ],
+      [
+       -57.0,
+       51.735
+      ],
+      [
+       -58.14277777777778,
+       52.19638888888888
+      ],
+      [
+       -59.5,
+       51.63333333333333
+      ],
+      [
+       -59.5,
+       51.333333333333336
+      ],
+      [
+       -60.0,
+       50.833333333333336
+      ],
+      [
+       -62.083333333333336,
+       50.833333333333336
+      ],
+      [
+       -61.0,
+       49.53333333333333
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "gap_index": 1,
+    "band": "LOW",
+    "area_deg2": 4.98275,
+    "centroid_lat": 50.9274,
+    "centroid_lon": -59.4084,
+    "approx_location": "~86 nm WSW of Strait of Belle Isle",
+    "touching_sectors": [
+     "CZQX\ufffdQX_L_NORTH\ufffd000\ufffd285",
+     "CZQX\ufffdQX_L_EAST\ufffd000\ufffd285",
+     "CZQX\ufffdQX_L_WEST\ufffd000\ufffd285",
+     "CZUL\ufffdCZUL_HV\ufffd000\ufffd285"
+    ],
+    "sectorlines_near": [
+     "102",
+     "103",
+     "104",
+     "105",
+     "106",
+     "107",
+     "108",
+     "109",
+     "147",
+     "148",
+     "151",
+     "155"
+    ]
+   }
+  },
+  {
+   "type": "Feature",
+   "geometry": {
+    "type": "Polygon",
+    "coordinates": [
+     [
+      [
+       -58.93598333333333,
+       46.967622222222225
+      ],
+      [
+       -62.0,
+       48.5
+      ],
+      [
+       -60.974043055555555,
+       47.98689777777778
+      ],
+      [
+       -58.93598333333333,
+       46.967622222222225
+      ]
+     ]
+    ]
+   },
+   "properties": {
+    "gap_index": 2,
+    "band": "LOW",
+    "area_deg2": 0.0,
+    "centroid_lat": 47.8182,
+    "centroid_lon": -60.6367,
+    "approx_location": "~46 nm ENE of Magdalen Islands",
+    "touching_sectors": [
+     "CZQX\ufffdQX_L_WEST\ufffd000\ufffd285",
+     "CZQM\ufffdCAPE-BRETON-SECTOR\ufffd000\ufffd285",
+     "CZQM\ufffdCAPE-BRETON-N-SECTOR\ufffd000\ufffd285"
+    ],
+    "sectorlines_near": [
+     "61",
+     "62",
+     "63",
+     "64",
+     "68",
+     "154",
+     "155"
+    ]
+   }
+  }
+ ]
+}
