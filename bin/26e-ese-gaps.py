@@ -44,7 +44,11 @@ def parse_ese(path):
     cur_section = None
     cur_sl = None
     cur_sector = None
-    with open(path, encoding='utf-8', errors='replace') as f:
+    # ESE files from EuroScope are Windows-1252 encoded — they use the
+    # middle-dot character (U+00B7, 0xB7 in CP1252) in sector names like
+    # `CZQX·CYQX_APP·000·285`. Opening as UTF-8 corrupts those names into
+    # U+FFFD replacement chars which breaks BORDER lookups downstream.
+    with open(path, encoding='cp1252') as f:
         for ln in f:
             s = ln.strip()
             if not s or s.startswith(';'):

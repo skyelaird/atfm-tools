@@ -62,72 +62,24 @@
     "centroid_lon": -59.4084,
     "approx_location": "~86 nm WSW of Strait of Belle Isle",
     "touching_sectors": [
-     "CZQX\ufffdQX_L_NORTH\ufffd000\ufffd285",
-     "CZQX\ufffdQX_L_EAST\ufffd000\ufffd285",
-     "CZQX\ufffdQX_L_WEST\ufffd000\ufffd285",
-     "CZUL\ufffdCZUL_HV\ufffd000\ufffd285"
+     "CZQX\u00b7QX_L_NORTH\u00b7000\u00b7285",
+     "CZQX\u00b7QX_L_EAST\u00b7000\u00b7285",
+     "CZQX\u00b7QX_L_WEST\u00b7000\u00b7285",
+     "CZUL\u00b7CZUL_HV\u00b7000\u00b7285"
     ],
     "sectorlines_near": [
-     "102",
-     "103",
-     "104",
-     "105",
-     "106",
-     "107",
-     "108",
-     "109",
-     "147",
-     "148",
-     "151",
-     "155"
-    ]
-   }
-  },
-  {
-   "type": "Feature",
-   "geometry": {
-    "type": "Polygon",
-    "coordinates": [
-     [
-      [
-       -58.93598333333333,
-       46.967622222222225
-      ],
-      [
-       -62.0,
-       48.5
-      ],
-      [
-       -60.974043055555555,
-       47.98689777777778
-      ],
-      [
-       -58.93598333333333,
-       46.967622222222225
-      ]
-     ]
-    ]
-   },
-   "properties": {
-    "gap_index": 2,
-    "band": "LOW",
-    "area_deg2": 0.0,
-    "centroid_lat": 47.8182,
-    "centroid_lon": -60.6367,
-    "approx_location": "~46 nm ENE of Magdalen Islands",
-    "touching_sectors": [
-     "CZQX\ufffdQX_L_WEST\ufffd000\ufffd285",
-     "CZQM\ufffdCAPE-BRETON-SECTOR\ufffd000\ufffd285",
-     "CZQM\ufffdCAPE-BRETON-N-SECTOR\ufffd000\ufffd285"
-    ],
-    "sectorlines_near": [
-     "61",
-     "62",
-     "63",
-     "64",
-     "68",
-     "154",
-     "155"
+     "92",
+     "93",
+     "94",
+     "95",
+     "96",
+     "97",
+     "98",
+     "99",
+     "135",
+     "136",
+     "139",
+     "142"
     ]
    }
   }
