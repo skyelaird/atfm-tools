@@ -217,16 +217,16 @@ async function pullFp() {
             const diag = d.diagnostics || {};
             let msg = `No filed plan found for ${cs}.`;
             if (diag.pilot_found === false) {
-                msg += `\n\nPilot not on the network.`;
+                msg += `\n\nNot found in connected pilots or prefiles.`;
                 if (diag.similar_callsigns && diag.similar_callsigns.length) {
                     msg += `\nSimilar callsigns online: ${diag.similar_callsigns.join(', ')}`;
                 }
             } else if (diag.pilot_found === true && diag.has_flight_plan === false) {
-                msg += `\n\n${cs} is connected (CID ${diag.pilot_cid}) but has not filed a flight plan yet.`;
+                msg += `\n\n${cs} is ${diag.network_status} (CID ${diag.pilot_cid}) but has no flight plan attached.`;
             }
-            if (diag.fetch_failed) msg += `\n\nVATSIM feed fetch FAILED — no network from server.`;
+            if (diag.fetch_failed) msg += `\n\nVATSIM feed fetch FAILED — server has no network reach.`;
             if (typeof diag.total_pilots_in_feed === 'number') {
-                msg += `\n\n(${diag.total_pilots_in_feed} pilots online, feed age ${diag.cache_age_sec ?? '?'}s)`;
+                msg += `\n\n(${diag.total_pilots_in_feed} connected + ${diag.total_prefiles_in_feed || 0} prefiled, feed age ${diag.cache_age_sec ?? '?'}s)`;
             }
             $('fp-result').innerHTML = `<div class="result warn" style="white-space:pre-wrap;">${msg}</div>`;
             return;
@@ -356,14 +356,16 @@ async function pullMyFp() {
         }
         if (r.status === 404) {
             const diag = d.diagnostics || {};
-            let msg = d.error + (d.hint ? '\n\n' + d.hint : '');
+            let msg;
             if (diag.pilot_found === true && diag.has_flight_plan === false) {
-                msg = `You're connected as ${diag.pilot_callsign} (CID ${diag.pilot_cid}) but haven't filed a flight plan yet.`;
+                msg = `You're ${diag.network_status} as ${diag.pilot_callsign} (CID ${diag.pilot_cid}) but haven't filed a flight plan yet.`;
             } else if (diag.pilot_found === false) {
-                msg = `Your CID isn't on the network right now. Sign on in your simulator, file a flight plan, then retry.`;
+                msg = `Your CID isn't in the VATSIM feed right now.\nEither connect in your simulator, OR prefile a flight plan at https://my.vatsim.net — we pick up both.`;
+            } else {
+                msg = d.error + (d.hint ? '\n\n' + d.hint : '');
             }
             if (typeof diag.total_pilots_in_feed === 'number') {
-                msg += `\n\n(${diag.total_pilots_in_feed} pilots online, feed age ${diag.cache_age_sec ?? '?'}s)`;
+                msg += `\n\n(${diag.total_pilots_in_feed} connected + ${diag.total_prefiles_in_feed || 0} prefiled, feed age ${diag.cache_age_sec ?? '?'}s)`;
             }
             renderResult('pilot-result', 'warn', msg);
             return;

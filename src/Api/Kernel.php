@@ -279,42 +279,57 @@ final class Kernel
         if (!is_array($data)) return null;
 
         $csUp = $callsign ? strtoupper($callsign) : null;
-        foreach (($data['pilots'] ?? []) as $p) {
-            $matchesCid = $cid !== null && (int) ($p['cid'] ?? 0) === $cid;
-            $matchesCs  = $csUp !== null && strtoupper((string) ($p['callsign'] ?? '')) === $csUp;
-            if (!$matchesCid && !$matchesCs) continue;
 
-            $fp = $p['flight_plan'] ?? null;
-            if (!is_array($fp)) return null;
+        // Try pilots[] first (connected) — then prefiles[] (filed but not
+        // connected). A pilot may appear in BOTH during the brief window
+        // between filing and connecting; prefer connected for freshness.
+        $haystacks = [
+            ['pilots',   'connected'],
+            ['prefiles', 'prefile'],
+        ];
+        foreach ($haystacks as [$key, $status]) {
+            foreach (($data[$key] ?? []) as $p) {
+                $matchesCid = $cid !== null && (int) ($p['cid'] ?? 0) === $cid;
+                $matchesCs  = $csUp !== null && strtoupper((string) ($p['callsign'] ?? '')) === $csUp;
+                if (!$matchesCid && !$matchesCs) continue;
 
-            // Parse eobt — feed gives deptime as "HHmm" + today's date is implied
-            $dep = (string) ($fp['deptime'] ?? '');
-            $eobt = null;
-            if (preg_match('/^(\d{2})(\d{2})$/', $dep, $m)) {
-                $today = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
-                $eobt  = $today->setTime((int) $m[1], (int) $m[2], 0)->format('c');
+                $fp = $p['flight_plan'] ?? null;
+                if (!is_array($fp)) {
+                    // Edge case: connected pilots without a FP shouldn't happen
+                    // in prefiles[] (a prefile IS the FP). If it does, continue.
+                    continue;
+                }
+
+                // Parse eobt — feed gives deptime as "HHmm" + today's date is implied
+                $dep = (string) ($fp['deptime'] ?? '');
+                $eobt = null;
+                if (preg_match('/^(\d{2})(\d{2})$/', $dep, $m)) {
+                    $today = new \DateTimeImmutable('now', new \DateTimeZone('UTC'));
+                    $eobt  = $today->setTime((int) $m[1], (int) $m[2], 0)->format('c');
+                }
+
+                // Altitude: "FL370" / "37000" / "370"
+                $alt = (string) ($fp['altitude'] ?? '');
+                $fl  = null;
+                if (preg_match('/^FL0*(\d+)$/i', $alt, $m)) {
+                    $fl = (int) $m[1];
+                } elseif (preg_match('/^\d+$/', $alt)) {
+                    $n = (int) $alt;
+                    $fl = $n > 1000 ? (int) ($n / 100) : $n;
+                }
+
+                return [
+                    'callsign'      => (string) ($p['callsign'] ?? ''),
+                    'cid'           => (int) ($p['cid'] ?? 0),
+                    'adep'          => $fp['departure'] ?? null,
+                    'ades'          => $fp['arrival'] ?? null,
+                    'eobt'          => $eobt,
+                    'route'         => $fp['route'] ?? null,
+                    'aircraft_type' => $fp['aircraft_short'] ?? ($fp['aircraft'] ?? null),
+                    'cruise_fl'     => $fl,
+                    'network_status'=> $status,   // 'connected' or 'prefile'
+                ];
             }
-
-            // Altitude: "FL370" / "37000" / "370"
-            $alt = (string) ($fp['altitude'] ?? '');
-            $fl  = null;
-            if (preg_match('/^FL0*(\d+)$/i', $alt, $m)) {
-                $fl = (int) $m[1];
-            } elseif (preg_match('/^\d+$/', $alt)) {
-                $n = (int) $alt;
-                $fl = $n > 1000 ? (int) ($n / 100) : $n;
-            }
-
-            return [
-                'callsign'      => (string) ($p['callsign'] ?? ''),
-                'cid'           => (int) ($p['cid'] ?? 0),
-                'adep'          => $fp['departure'] ?? null,
-                'ades'          => $fp['arrival'] ?? null,
-                'eobt'          => $eobt,
-                'route'         => $fp['route'] ?? null,
-                'aircraft_type' => $fp['aircraft_short'] ?? ($fp['aircraft'] ?? null),
-                'cruise_fl'     => $fl,
-            ];
         }
         return null;
     }
@@ -356,31 +371,35 @@ final class Kernel
             $out['feed_parse_error'] = true;
             return $out;
         }
-        $pilots = $data['pilots'] ?? [];
-        $out['total_pilots_in_feed'] = count($pilots);
+        $pilots   = $data['pilots']   ?? [];
+        $prefiles = $data['prefiles'] ?? [];
+        $out['total_pilots_in_feed']   = count($pilots);
+        $out['total_prefiles_in_feed'] = count($prefiles);
         $out['feed_generated_at'] = $data['general']['update_timestamp'] ?? null;
 
         $csUp = $out['search_callsign'];
         $similar = [];
-        foreach ($pilots as $p) {
-            $pcs  = strtoupper((string) ($p['callsign'] ?? ''));
-            $pcid = (int) ($p['cid'] ?? 0);
-            $cidMatch = $cid !== null && $pcid === $cid;
-            $csMatch  = $csUp !== null && $pcs === $csUp;
-            if ($cidMatch || $csMatch) {
-                $out['pilot_found'] = true;
-                $out['pilot_callsign'] = $pcs;
-                $out['pilot_cid']      = $pcid;
-                $out['has_flight_plan'] = is_array($p['flight_plan'] ?? null);
-                if (is_array($p['flight_plan'] ?? null)) {
-                    $out['flight_plan_dep'] = $p['flight_plan']['departure'] ?? null;
-                    $out['flight_plan_arr'] = $p['flight_plan']['arrival'] ?? null;
+        foreach ([['pilots', 'connected'], ['prefiles', 'prefile']] as [$k, $status]) {
+            foreach ($data[$k] ?? [] as $p) {
+                $pcs  = strtoupper((string) ($p['callsign'] ?? ''));
+                $pcid = (int) ($p['cid'] ?? 0);
+                $cidMatch = $cid !== null && $pcid === $cid;
+                $csMatch  = $csUp !== null && $pcs === $csUp;
+                if ($cidMatch || $csMatch) {
+                    $out['pilot_found']     = true;
+                    $out['network_status']  = $status;
+                    $out['pilot_callsign']  = $pcs;
+                    $out['pilot_cid']       = $pcid;
+                    $out['has_flight_plan'] = is_array($p['flight_plan'] ?? null);
+                    if (is_array($p['flight_plan'] ?? null)) {
+                        $out['flight_plan_dep'] = $p['flight_plan']['departure'] ?? null;
+                        $out['flight_plan_arr'] = $p['flight_plan']['arrival'] ?? null;
+                    }
+                    return $out;
                 }
-                return $out;
-            }
-            // Gather similar callsigns if we're searching by callsign
-            if ($csUp !== null && (str_contains($pcs, $csUp) || str_contains($csUp, $pcs))) {
-                $similar[] = $pcs;
+                if ($csUp !== null && (str_contains($pcs, $csUp) || str_contains($csUp, $pcs))) {
+                    $similar[] = $pcs;
+                }
             }
         }
         $out['pilot_found'] = false;
