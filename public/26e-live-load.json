@@ -737,6 +737,10 @@
    {
     "bin_minute": 1130,
     "count": 3
+   },
+   {
+    "bin_minute": 1180,
+    "count": 0
    }
   ],
   "QM2": [
@@ -763,6 +767,10 @@
    {
     "bin_minute": 1130,
     "count": 0
+   },
+   {
+    "bin_minute": 1180,
+    "count": 3
    }
   ],
   "QM3": [
@@ -789,6 +797,10 @@
    {
     "bin_minute": 1130,
     "count": 6
+   },
+   {
+    "bin_minute": 1180,
+    "count": 7
    }
   ],
   "QM4": [
@@ -815,6 +827,10 @@
    {
     "bin_minute": 1130,
     "count": 0
+   },
+   {
+    "bin_minute": 1180,
+    "count": 2
    }
   ],
   "QX1": [
@@ -840,6 +856,10 @@
    },
    {
     "bin_minute": 1130,
+    "count": 0
+   },
+   {
+    "bin_minute": 1180,
     "count": 0
    }
   ],
@@ -867,6 +887,10 @@
    {
     "bin_minute": 1130,
     "count": 2
+   },
+   {
+    "bin_minute": 1180,
+    "count": 0
    }
   ],
   "QX3": [
@@ -893,6 +917,10 @@
    {
     "bin_minute": 1130,
     "count": 4
+   },
+   {
+    "bin_minute": 1180,
+    "count": 3
    }
   ],
   "QX4": [
@@ -919,6 +947,10 @@
    {
     "bin_minute": 1130,
     "count": 3
+   },
+   {
+    "bin_minute": 1180,
+    "count": 2
    }
   ],
   "QX5": [
@@ -944,6 +976,10 @@
    },
    {
     "bin_minute": 1130,
+    "count": 0
+   },
+   {
+    "bin_minute": 1180,
     "count": 0
    }
   ],
@@ -971,6 +1007,10 @@
    {
     "bin_minute": 1130,
     "count": 0
+   },
+   {
+    "bin_minute": 1180,
+    "count": 0
    }
   ],
   "QX7": [
@@ -997,6 +1037,10 @@
    {
     "bin_minute": 1130,
     "count": 1
+   },
+   {
+    "bin_minute": 1180,
+    "count": 0
    }
   ]
  },
@@ -1025,6 +1069,10 @@
    {
     "bin_minute": 1130,
     "count": 3
+   },
+   {
+    "bin_minute": 1180,
+    "count": 0
    }
   ],
   "QM2+QX2": [
@@ -1051,6 +1099,10 @@
    {
     "bin_minute": 1130,
     "count": 2
+   },
+   {
+    "bin_minute": 1180,
+    "count": 3
    }
   ],
   "QM3+QX3": [
@@ -1076,6 +1128,10 @@
    },
    {
     "bin_minute": 1130,
+    "count": 10
+   },
+   {
+    "bin_minute": 1180,
     "count": 10
    }
   ],
@@ -1103,6 +1159,10 @@
    {
     "bin_minute": 1130,
     "count": 3
+   },
+   {
+    "bin_minute": 1180,
+    "count": 4
    }
   ],
   "QX6+QX7": [
@@ -1129,6 +1189,10 @@
    {
     "bin_minute": 1130,
     "count": 1
+   },
+   {
+    "bin_minute": 1180,
+    "count": 0
    }
   ]
  },
@@ -1154,55 +1218,23 @@
  },
  "flights": [],
  "meta": {
-  "generated_utc": "2026-04-24T18:52:21.183457Z",
-  "vatsim_feed_utc": "2026-04-24T18:51:54.1843376Z",
+  "generated_utc": "2026-04-24T19:43:50.194781Z",
+  "vatsim_feed_utc": "2026-04-24T19:43:24.1933805Z",
   "bin_minutes": 5,
   "metric": "live_snapshot_instantaneous_occupancy",
   "sector_floor_ft": 29000,
   "rolling_window_hours": 12,
   "forecast_horizon_minutes": 90,
-  "pilots_in_feed": 2065,
-  "airborne_pilots": 1338,
-  "forecast_candidates": 182,
-  "forecast_candidates_with_route": 93,
-  "flights_in_sectors_now": 19,
-  "pilots_below_floor_in_polygon": 3,
-  "bin_latest": 1130
+  "pilots_in_feed": 1969,
+  "airborne_pilots": 1341,
+  "forecast_candidates": 185,
+  "forecast_candidates_with_route": 109,
+  "flights_in_sectors_now": 17,
+  "pilots_below_floor_in_polygon": 1,
+  "bin_latest": 1180
  },
  "forecast_load": {
   "QM1": [
-   {
-    "bin_minute": 1135,
-    "count": 3
-   },
-   {
-    "bin_minute": 1140,
-    "count": 2
-   },
-   {
-    "bin_minute": 1155,
-    "count": 1
-   },
-   {
-    "bin_minute": 1160,
-    "count": 1
-   },
-   {
-    "bin_minute": 1165,
-    "count": 1
-   },
-   {
-    "bin_minute": 1170,
-    "count": 1
-   },
-   {
-    "bin_minute": 1175,
-    "count": 1
-   },
-   {
-    "bin_minute": 1180,
-    "count": 1
-   },
    {
     "bin_minute": 1185,
     "count": 1
@@ -1213,11 +1245,77 @@
    },
    {
     "bin_minute": 1195,
-    "count": 1
+    "count": 2
    },
    {
     "bin_minute": 1200,
-    "count": 1
+    "count": 3
+   },
+   {
+    "bin_minute": 1205,
+    "count": 4
+   },
+   {
+    "bin_minute": 1210,
+    "count": 4
+   },
+   {
+    "bin_minute": 1215,
+    "count": 4
+   },
+   {
+    "bin_minute": 1220,
+    "count": 5
+   },
+   {
+    "bin_minute": 1225,
+    "count": 4
+   },
+   {
+    "bin_minute": 1230,
+    "count": 4
+   },
+   {
+    "bin_minute": 1235,
+    "count": 4
+   },
+   {
+    "bin_minute": 1240,
+    "count": 4
+   },
+   {
+    "bin_minute": 1245,
+    "count": 3
+   },
+   {
+    "bin_minute": 1250,
+    "count": 2
+   },
+   {
+    "bin_minute": 1255,
+    "count": 2
+   },
+   {
+    "bin_minute": 1260,
+    "count": 2
+   },
+   {
+    "bin_minute": 1265,
+    "count": 2
+   }
+  ],
+  "QM2": [
+   {
+    "bin_minute": 1185,
+    "count": 3
+   },
+   {
+    "bin_minute": 1195,
+    "count": 2
+   },
+   {
+    "bin_minute": 1200,
+    "count": 2
    },
    {
     "bin_minute": 1205,
@@ -1225,193 +1323,224 @@
    },
    {
     "bin_minute": 1210,
-    "count": 1
-   }
-  ],
-  "QM2": [
-   {
-    "bin_minute": 1135,
-    "count": 1
-   },
-   {
-    "bin_minute": 1140,
-    "count": 1
-   },
-   {
-    "bin_minute": 1145,
     "count": 2
    },
    {
-    "bin_minute": 1150,
-    "count": 3
+    "bin_minute": 1215,
+    "count": 1
    },
    {
-    "bin_minute": 1155,
-    "count": 4
-   },
-   {
-    "bin_minute": 1160,
+    "bin_minute": 1220,
     "count": 2
    },
    {
-    "bin_minute": 1165,
-    "count": 3
-   },
-   {
-    "bin_minute": 1170,
-    "count": 5
-   },
-   {
-    "bin_minute": 1175,
-    "count": 5
-   },
-   {
-    "bin_minute": 1180,
+    "bin_minute": 1225,
     "count": 2
    },
    {
-    "bin_minute": 1185,
+    "bin_minute": 1230,
+    "count": 2
+   },
+   {
+    "bin_minute": 1235,
+    "count": 1
+   },
+   {
+    "bin_minute": 1240,
+    "count": 1
+   },
+   {
+    "bin_minute": 1245,
+    "count": 1
+   },
+   {
+    "bin_minute": 1250,
+    "count": 1
+   },
+   {
+    "bin_minute": 1255,
+    "count": 1
+   },
+   {
+    "bin_minute": 1260,
+    "count": 2
+   },
+   {
+    "bin_minute": 1265,
     "count": 2
    }
   ],
   "QM3": [
    {
-    "bin_minute": 1135,
-    "count": 7
-   },
-   {
-    "bin_minute": 1140,
-    "count": 8
-   },
-   {
-    "bin_minute": 1145,
-    "count": 8
-   },
-   {
-    "bin_minute": 1150,
-    "count": 9
-   },
-   {
-    "bin_minute": 1155,
-    "count": 8
-   },
-   {
-    "bin_minute": 1160,
-    "count": 6
-   },
-   {
-    "bin_minute": 1165,
-    "count": 7
-   },
-   {
-    "bin_minute": 1170,
-    "count": 6
-   },
-   {
-    "bin_minute": 1175,
-    "count": 3
-   },
-   {
-    "bin_minute": 1180,
-    "count": 3
-   },
-   {
     "bin_minute": 1185,
-    "count": 3
+    "count": 10
    },
    {
     "bin_minute": 1190,
-    "count": 2
+    "count": 10
    },
    {
     "bin_minute": 1195,
-    "count": 2
+    "count": 9
    },
    {
     "bin_minute": 1200,
-    "count": 1
+    "count": 7
    },
    {
     "bin_minute": 1205,
-    "count": 1
+    "count": 5
+   },
+   {
+    "bin_minute": 1210,
+    "count": 4
    },
    {
     "bin_minute": 1215,
-    "count": 1
+    "count": 5
+   },
+   {
+    "bin_minute": 1220,
+    "count": 3
+   },
+   {
+    "bin_minute": 1225,
+    "count": 5
+   },
+   {
+    "bin_minute": 1230,
+    "count": 6
+   },
+   {
+    "bin_minute": 1235,
+    "count": 6
+   },
+   {
+    "bin_minute": 1240,
+    "count": 8
+   },
+   {
+    "bin_minute": 1245,
+    "count": 7
+   },
+   {
+    "bin_minute": 1250,
+    "count": 7
+   },
+   {
+    "bin_minute": 1255,
+    "count": 9
+   },
+   {
+    "bin_minute": 1260,
+    "count": 10
+   },
+   {
+    "bin_minute": 1265,
+    "count": 8
    }
   ],
   "QM4": [
    {
-    "bin_minute": 1150,
-    "count": 1
-   },
-   {
-    "bin_minute": 1155,
-    "count": 2
-   },
-   {
-    "bin_minute": 1160,
-    "count": 3
-   },
-   {
-    "bin_minute": 1165,
-    "count": 3
-   },
-   {
-    "bin_minute": 1170,
-    "count": 3
-   },
-   {
-    "bin_minute": 1175,
-    "count": 4
-   },
-   {
-    "bin_minute": 1180,
-    "count": 4
-   },
-   {
     "bin_minute": 1185,
-    "count": 4
-   },
-   {
-    "bin_minute": 1190,
-    "count": 4
-   },
-   {
-    "bin_minute": 1195,
-    "count": 4
-   },
-   {
-    "bin_minute": 1200,
-    "count": 3
-   },
-   {
-    "bin_minute": 1205,
-    "count": 2
-   },
-   {
-    "bin_minute": 1210,
     "count": 2
    },
    {
     "bin_minute": 1215,
+    "count": 1
+   },
+   {
+    "bin_minute": 1220,
     "count": 2
+   },
+   {
+    "bin_minute": 1225,
+    "count": 4
+   },
+   {
+    "bin_minute": 1230,
+    "count": 4
+   },
+   {
+    "bin_minute": 1235,
+    "count": 4
+   },
+   {
+    "bin_minute": 1240,
+    "count": 5
+   },
+   {
+    "bin_minute": 1245,
+    "count": 5
+   },
+   {
+    "bin_minute": 1250,
+    "count": 3
+   },
+   {
+    "bin_minute": 1255,
+    "count": 3
+   },
+   {
+    "bin_minute": 1260,
+    "count": 3
+   },
+   {
+    "bin_minute": 1265,
+    "count": 3
    }
   ],
-  "QX1": [],
-  "QX2": [
+  "QX1": [
    {
-    "bin_minute": 1135,
-    "count": 2
-   },
-   {
-    "bin_minute": 1140,
-    "count": 2
-   },
-   {
-    "bin_minute": 1145,
+    "bin_minute": 1205,
     "count": 1
    },
+   {
+    "bin_minute": 1210,
+    "count": 1
+   },
+   {
+    "bin_minute": 1215,
+    "count": 1
+   },
+   {
+    "bin_minute": 1220,
+    "count": 2
+   },
+   {
+    "bin_minute": 1225,
+    "count": 1
+   },
+   {
+    "bin_minute": 1230,
+    "count": 1
+   },
+   {
+    "bin_minute": 1235,
+    "count": 1
+   },
+   {
+    "bin_minute": 1240,
+    "count": 1
+   },
+   {
+    "bin_minute": 1245,
+    "count": 1
+   },
+   {
+    "bin_minute": 1250,
+    "count": 1
+   },
+   {
+    "bin_minute": 1255,
+    "count": 1
+   },
+   {
+    "bin_minute": 1265,
+    "count": 1
+   }
+  ],
+  "QX2": [
    {
     "bin_minute": 1185,
     "count": 1
@@ -1438,99 +1567,91 @@
    },
    {
     "bin_minute": 1215,
+    "count": 1
+   },
+   {
+    "bin_minute": 1220,
+    "count": 1
+   },
+   {
+    "bin_minute": 1265,
     "count": 1
    }
   ],
   "QX3": [
    {
-    "bin_minute": 1135,
-    "count": 2
-   },
-   {
-    "bin_minute": 1140,
-    "count": 2
-   },
-   {
-    "bin_minute": 1145,
-    "count": 1
-   },
-   {
-    "bin_minute": 1150,
-    "count": 1
-   },
-   {
-    "bin_minute": 1175,
-    "count": 1
-   },
-   {
-    "bin_minute": 1180,
-    "count": 1
-   },
-   {
     "bin_minute": 1185,
     "count": 1
    },
    {
     "bin_minute": 1190,
-    "count": 2
+    "count": 3
    },
    {
     "bin_minute": 1195,
-    "count": 2
+    "count": 5
    },
    {
     "bin_minute": 1200,
-    "count": 2
+    "count": 5
    },
    {
     "bin_minute": 1205,
-    "count": 3
+    "count": 5
    },
    {
     "bin_minute": 1210,
-    "count": 3
+    "count": 6
    },
    {
     "bin_minute": 1215,
+    "count": 6
+   },
+   {
+    "bin_minute": 1220,
+    "count": 6
+   },
+   {
+    "bin_minute": 1225,
+    "count": 7
+   },
+   {
+    "bin_minute": 1230,
+    "count": 4
+   },
+   {
+    "bin_minute": 1235,
     "count": 3
+   },
+   {
+    "bin_minute": 1240,
+    "count": 3
+   },
+   {
+    "bin_minute": 1245,
+    "count": 3
+   },
+   {
+    "bin_minute": 1250,
+    "count": 3
+   },
+   {
+    "bin_minute": 1255,
+    "count": 1
+   },
+   {
+    "bin_minute": 1260,
+    "count": 1
    }
   ],
   "QX4": [
    {
-    "bin_minute": 1135,
+    "bin_minute": 1185,
     "count": 3
    },
    {
-    "bin_minute": 1140,
-    "count": 4
-   },
-   {
-    "bin_minute": 1145,
-    "count": 5
-   },
-   {
-    "bin_minute": 1150,
-    "count": 5
-   },
-   {
-    "bin_minute": 1155,
-    "count": 4
-   },
-   {
-    "bin_minute": 1160,
-    "count": 2
-   },
-   {
-    "bin_minute": 1165,
-    "count": 2
-   },
-   {
-    "bin_minute": 1170,
-    "count": 2
-   },
-   {
-    "bin_minute": 1175,
-    "count": 1
+    "bin_minute": 1190,
+    "count": 3
    },
    {
     "bin_minute": 1195,
@@ -1538,60 +1659,108 @@
    },
    {
     "bin_minute": 1200,
-    "count": 2
+    "count": 3
    },
    {
     "bin_minute": 1205,
-    "count": 2
+    "count": 3
    },
    {
     "bin_minute": 1210,
-    "count": 2
+    "count": 3
    },
    {
     "bin_minute": 1215,
-    "count": 4
+    "count": 3
+   },
+   {
+    "bin_minute": 1220,
+    "count": 2
+   },
+   {
+    "bin_minute": 1225,
+    "count": 2
+   },
+   {
+    "bin_minute": 1240,
+    "count": 1
+   },
+   {
+    "bin_minute": 1245,
+    "count": 1
+   },
+   {
+    "bin_minute": 1250,
+    "count": 1
+   },
+   {
+    "bin_minute": 1255,
+    "count": 2
+   },
+   {
+    "bin_minute": 1260,
+    "count": 1
+   },
+   {
+    "bin_minute": 1265,
+    "count": 1
    }
   ],
   "QX5": [
-   {
-    "bin_minute": 1170,
-    "count": 1
-   },
-   {
-    "bin_minute": 1175,
-    "count": 1
-   },
-   {
-    "bin_minute": 1180,
-    "count": 1
-   },
-   {
-    "bin_minute": 1185,
-    "count": 1
-   },
    {
     "bin_minute": 1190,
     "count": 1
    },
    {
     "bin_minute": 1195,
-    "count": 1
+    "count": 2
    },
    {
     "bin_minute": 1200,
-    "count": 1
+    "count": 2
    },
    {
     "bin_minute": 1205,
-    "count": 1
+    "count": 2
    },
    {
     "bin_minute": 1210,
-    "count": 1
+    "count": 2
    },
    {
     "bin_minute": 1215,
+    "count": 3
+   },
+   {
+    "bin_minute": 1220,
+    "count": 2
+   },
+   {
+    "bin_minute": 1225,
+    "count": 1
+   },
+   {
+    "bin_minute": 1230,
+    "count": 1
+   },
+   {
+    "bin_minute": 1235,
+    "count": 1
+   },
+   {
+    "bin_minute": 1240,
+    "count": 1
+   },
+   {
+    "bin_minute": 1245,
+    "count": 1
+   },
+   {
+    "bin_minute": 1260,
+    "count": 1
+   },
+   {
+    "bin_minute": 1265,
     "count": 1
    }
   ],
@@ -1611,19 +1780,43 @@
    {
     "bin_minute": 1215,
     "count": 1
+   },
+   {
+    "bin_minute": 1220,
+    "count": 1
+   },
+   {
+    "bin_minute": 1225,
+    "count": 1
+   },
+   {
+    "bin_minute": 1230,
+    "count": 1
    }
   ],
   "QX7": [
    {
-    "bin_minute": 1135,
-    "count": 1
-   },
-   {
-    "bin_minute": 1140,
+    "bin_minute": 1190,
     "count": 1
    },
    {
     "bin_minute": 1195,
+    "count": 1
+   },
+   {
+    "bin_minute": 1230,
+    "count": 1
+   },
+   {
+    "bin_minute": 1235,
+    "count": 1
+   },
+   {
+    "bin_minute": 1240,
+    "count": 1
+   },
+   {
+    "bin_minute": 1245,
     "count": 1
    }
   ]
@@ -1631,38 +1824,6 @@
  "forecast_pair_load": {
   "QM1+QX1": [
    {
-    "bin_minute": 1135,
-    "count": 3
-   },
-   {
-    "bin_minute": 1140,
-    "count": 2
-   },
-   {
-    "bin_minute": 1155,
-    "count": 1
-   },
-   {
-    "bin_minute": 1160,
-    "count": 1
-   },
-   {
-    "bin_minute": 1165,
-    "count": 1
-   },
-   {
-    "bin_minute": 1170,
-    "count": 1
-   },
-   {
-    "bin_minute": 1175,
-    "count": 1
-   },
-   {
-    "bin_minute": 1180,
-    "count": 1
-   },
-   {
     "bin_minute": 1185,
     "count": 1
    },
@@ -1672,65 +1833,69 @@
    },
    {
     "bin_minute": 1195,
-    "count": 1
+    "count": 2
    },
    {
     "bin_minute": 1200,
-    "count": 1
+    "count": 3
    },
    {
     "bin_minute": 1205,
-    "count": 1
+    "count": 5
    },
    {
     "bin_minute": 1210,
-    "count": 1
+    "count": 5
+   },
+   {
+    "bin_minute": 1215,
+    "count": 5
+   },
+   {
+    "bin_minute": 1220,
+    "count": 5
+   },
+   {
+    "bin_minute": 1225,
+    "count": 5
+   },
+   {
+    "bin_minute": 1230,
+    "count": 5
+   },
+   {
+    "bin_minute": 1235,
+    "count": 5
+   },
+   {
+    "bin_minute": 1240,
+    "count": 5
+   },
+   {
+    "bin_minute": 1245,
+    "count": 4
+   },
+   {
+    "bin_minute": 1250,
+    "count": 3
+   },
+   {
+    "bin_minute": 1255,
+    "count": 3
+   },
+   {
+    "bin_minute": 1260,
+    "count": 2
+   },
+   {
+    "bin_minute": 1265,
+    "count": 2
    }
   ],
   "QM2+QX2": [
    {
-    "bin_minute": 1135,
-    "count": 3
-   },
-   {
-    "bin_minute": 1140,
-    "count": 3
-   },
-   {
-    "bin_minute": 1145,
-    "count": 2
-   },
-   {
-    "bin_minute": 1150,
-    "count": 3
-   },
-   {
-    "bin_minute": 1155,
-    "count": 4
-   },
-   {
-    "bin_minute": 1160,
-    "count": 2
-   },
-   {
-    "bin_minute": 1165,
-    "count": 3
-   },
-   {
-    "bin_minute": 1170,
-    "count": 5
-   },
-   {
-    "bin_minute": 1175,
-    "count": 5
-   },
-   {
-    "bin_minute": 1180,
-    "count": 2
-   },
-   {
     "bin_minute": 1185,
-    "count": 3
+    "count": 4
    },
    {
     "bin_minute": 1190,
@@ -1738,172 +1903,208 @@
    },
    {
     "bin_minute": 1195,
-    "count": 1
+    "count": 3
    },
    {
     "bin_minute": 1200,
-    "count": 1
+    "count": 3
    },
    {
     "bin_minute": 1205,
-    "count": 1
+    "count": 2
    },
    {
     "bin_minute": 1210,
-    "count": 1
+    "count": 3
    },
    {
     "bin_minute": 1215,
+    "count": 2
+   },
+   {
+    "bin_minute": 1220,
+    "count": 2
+   },
+   {
+    "bin_minute": 1225,
+    "count": 2
+   },
+   {
+    "bin_minute": 1230,
+    "count": 2
+   },
+   {
+    "bin_minute": 1235,
     "count": 1
+   },
+   {
+    "bin_minute": 1240,
+    "count": 1
+   },
+   {
+    "bin_minute": 1245,
+    "count": 1
+   },
+   {
+    "bin_minute": 1250,
+    "count": 1
+   },
+   {
+    "bin_minute": 1255,
+    "count": 1
+   },
+   {
+    "bin_minute": 1260,
+    "count": 2
+   },
+   {
+    "bin_minute": 1265,
+    "count": 2
    }
   ],
   "QM3+QX3": [
    {
-    "bin_minute": 1135,
-    "count": 9
-   },
-   {
-    "bin_minute": 1140,
-    "count": 9
-   },
-   {
-    "bin_minute": 1145,
-    "count": 9
-   },
-   {
-    "bin_minute": 1150,
-    "count": 9
-   },
-   {
-    "bin_minute": 1155,
-    "count": 8
-   },
-   {
-    "bin_minute": 1160,
-    "count": 6
-   },
-   {
-    "bin_minute": 1165,
-    "count": 7
-   },
-   {
-    "bin_minute": 1170,
-    "count": 6
-   },
-   {
-    "bin_minute": 1175,
-    "count": 4
-   },
-   {
-    "bin_minute": 1180,
-    "count": 4
-   },
-   {
     "bin_minute": 1185,
-    "count": 4
+    "count": 11
    },
    {
     "bin_minute": 1190,
-    "count": 4
+    "count": 13
    },
    {
     "bin_minute": 1195,
-    "count": 4
+    "count": 14
    },
    {
     "bin_minute": 1200,
-    "count": 3
+    "count": 12
    },
    {
     "bin_minute": 1205,
-    "count": 4
+    "count": 10
    },
    {
     "bin_minute": 1210,
-    "count": 3
+    "count": 10
    },
    {
     "bin_minute": 1215,
-    "count": 3
+    "count": 10
+   },
+   {
+    "bin_minute": 1220,
+    "count": 9
+   },
+   {
+    "bin_minute": 1225,
+    "count": 9
+   },
+   {
+    "bin_minute": 1230,
+    "count": 9
+   },
+   {
+    "bin_minute": 1235,
+    "count": 9
+   },
+   {
+    "bin_minute": 1240,
+    "count": 10
+   },
+   {
+    "bin_minute": 1245,
+    "count": 10
+   },
+   {
+    "bin_minute": 1250,
+    "count": 10
+   },
+   {
+    "bin_minute": 1255,
+    "count": 10
+   },
+   {
+    "bin_minute": 1260,
+    "count": 10
+   },
+   {
+    "bin_minute": 1265,
+    "count": 8
    }
   ],
   "QM4+QX4": [
    {
-    "bin_minute": 1135,
-    "count": 3
-   },
-   {
-    "bin_minute": 1140,
-    "count": 4
-   },
-   {
-    "bin_minute": 1145,
-    "count": 5
-   },
-   {
-    "bin_minute": 1150,
-    "count": 5
-   },
-   {
-    "bin_minute": 1155,
-    "count": 5
-   },
-   {
-    "bin_minute": 1160,
-    "count": 5
-   },
-   {
-    "bin_minute": 1165,
-    "count": 5
-   },
-   {
-    "bin_minute": 1170,
-    "count": 4
-   },
-   {
-    "bin_minute": 1175,
-    "count": 4
-   },
-   {
-    "bin_minute": 1180,
-    "count": 4
-   },
-   {
     "bin_minute": 1185,
-    "count": 4
+    "count": 5
    },
    {
     "bin_minute": 1190,
-    "count": 4
+    "count": 3
    },
    {
     "bin_minute": 1195,
-    "count": 6
+    "count": 2
    },
    {
     "bin_minute": 1200,
-    "count": 5
+    "count": 3
    },
    {
     "bin_minute": 1205,
-    "count": 4
+    "count": 3
    },
    {
     "bin_minute": 1210,
-    "count": 4
+    "count": 3
    },
    {
     "bin_minute": 1215,
+    "count": 4
+   },
+   {
+    "bin_minute": 1220,
+    "count": 4
+   },
+   {
+    "bin_minute": 1225,
+    "count": 4
+   },
+   {
+    "bin_minute": 1230,
+    "count": 4
+   },
+   {
+    "bin_minute": 1235,
+    "count": 4
+   },
+   {
+    "bin_minute": 1240,
     "count": 6
+   },
+   {
+    "bin_minute": 1245,
+    "count": 6
+   },
+   {
+    "bin_minute": 1250,
+    "count": 4
+   },
+   {
+    "bin_minute": 1255,
+    "count": 5
+   },
+   {
+    "bin_minute": 1260,
+    "count": 4
+   },
+   {
+    "bin_minute": 1265,
+    "count": 4
    }
   ],
   "QX6+QX7": [
    {
-    "bin_minute": 1135,
-    "count": 1
-   },
-   {
-    "bin_minute": 1140,
+    "bin_minute": 1190,
     "count": 1
    },
    {
@@ -1924,6 +2125,30 @@
    },
    {
     "bin_minute": 1215,
+    "count": 1
+   },
+   {
+    "bin_minute": 1220,
+    "count": 1
+   },
+   {
+    "bin_minute": 1225,
+    "count": 1
+   },
+   {
+    "bin_minute": 1230,
+    "count": 2
+   },
+   {
+    "bin_minute": 1235,
+    "count": 1
+   },
+   {
+    "bin_minute": 1240,
+    "count": 1
+   },
+   {
+    "bin_minute": 1245,
     "count": 1
    }
   ]
