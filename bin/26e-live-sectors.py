@@ -45,6 +45,12 @@ FORECAST_HORIZON_MIN = 90
 FORECAST_STEP_SEC = 30      # along-route position sample rate
 DEFAULT_CRUISE_KT = 460     # when we can't read GS/TAS from feed
 
+# CZQM + CZQX Topsky sectors are high-level controls — the floor is
+# FL290 (29 000 ft). Pilots below that are in approach/TMA airspace
+# (different controllers) and must not be counted. Polygons in
+# sectors.json are 2D only, so we enforce the floor here.
+SECTOR_FLOOR_FT = 29000
+
 # Loose bbox around CZQM + CZQX. Also defines which inbound pilots are
 # close enough that their 90-min projection could conceivably touch the
 # polygons — so extend it wider than the sectors.
@@ -267,10 +273,19 @@ def main():
     # --- Current-bin observed occupancy ---
     occ_by_sector = defaultdict(int)
     occ_by_pair = defaultdict(int)
+    below_floor = 0
     for p in pilots:
         lat, lon = p.get('latitude'), p.get('longitude')
         if lat is None or lon is None: continue
         if not (NEAR_LAT_MIN <= lat <= NEAR_LAT_MAX and NEAR_LON_MIN <= lon <= NEAR_LON_MAX):
+            continue
+        alt = p.get('altitude', 0) or 0
+        if alt < SECTOR_FLOOR_FT:
+            # In-polygon but below the FL290 floor — approach/TMA, not ours.
+            # (Still useful to know about, for a "building behind us" view,
+            # but don't charge it to the high-level sector occupancy.)
+            if find_sector(lat, lon, sectors):
+                below_floor += 1
             continue
         sid = find_sector(lat, lon, sectors)
         if not sid: continue
@@ -292,6 +307,7 @@ def main():
     airborne = 0
     forecast_candidates = 0
     forecast_with_route = 0
+    forecast_skipped_low = 0
 
     for p in pilots:
         lat, lon = p.get('latitude'), p.get('longitude')
@@ -306,20 +322,50 @@ def main():
 
         hdg = p.get('heading', 0) or 0
         cid = p.get('cid') or p.get('callsign') or id(p)
+        cur_alt = p.get('altitude', 0) or 0
         fp = p.get('flight_plan') or {}
         route_str = fp.get('route', '') or ''
+        filed_alt_raw = str(fp.get('altitude', '') or '')
+        # Parse filed altitude: "FL370", "F370", "37000", "350"
+        filed_alt_ft = None
+        if filed_alt_raw:
+            s = filed_alt_raw.upper().lstrip('F').lstrip('L').strip()
+            try:
+                v = int(s)
+                filed_alt_ft = v * 100 if v < 1000 else v
+            except ValueError:
+                pass
+
+        # Altitude at forecast time: assume cruise-to-cruise. If currently
+        # below filed cruise, assume linear climb at 1500 fpm (typical
+        # late-climb/cruise-climb rate) until filed cruise is reached.
+        # If no filed alt, use current alt.
+        cruise_ft = filed_alt_ft if filed_alt_ft and filed_alt_ft > cur_alt else cur_alt
+        climb_remaining_ft = max(0, cruise_ft - cur_alt)
+        climb_min_to_cruise = climb_remaining_ft / 1500.0  # 1500 fpm avg
+
         coords = parse_route_coords(route_str, waypoints)
         ahead = remaining_route_ahead((lat, lon), hdg, coords)
         if ahead:
             forecast_with_route += 1
 
         # Sample forward. For each sample, bucket into the 5-min bin and
-        # record this pilot in whatever sector they're in.
+        # record this pilot in whatever sector they're in — BUT only if
+        # their projected altitude at that time is ≥ FL290.
         for t_sec, plat, plon in trace_forward(
             (lat, lon), hdg, max(gs, DEFAULT_CRUISE_KT), ahead,
             FORECAST_HORIZON_MIN * 60, FORECAST_STEP_SEC
         ):
             minute_from_now = t_sec / 60.0
+            # Projected altitude at this sample time
+            if minute_from_now >= climb_min_to_cruise:
+                proj_alt = cruise_ft
+            else:
+                frac = minute_from_now / max(climb_min_to_cruise, 0.001)
+                proj_alt = cur_alt + frac * climb_remaining_ft
+            if proj_alt < SECTOR_FLOOR_FT:
+                forecast_skipped_low += 1
+                continue
             sample_bin = ((bin_minute + int(minute_from_now)) // BIN_MIN) * BIN_MIN
             if sample_bin not in forecast_sector:
                 continue
@@ -398,6 +444,7 @@ def main():
         'vatsim_feed_utc': feed_updated,
         'bin_minutes': BIN_MIN,
         'metric': 'live_snapshot_instantaneous_occupancy',
+        'sector_floor_ft': SECTOR_FLOOR_FT,
         'rolling_window_hours': ROLLING_WINDOW_HOURS,
         'forecast_horizon_minutes': FORECAST_HORIZON_MIN,
         'pilots_in_feed': len(pilots),
@@ -405,6 +452,7 @@ def main():
         'forecast_candidates': forecast_candidates,
         'forecast_candidates_with_route': forecast_with_route,
         'flights_in_sectors_now': total_in_sectors,
+        'pilots_below_floor_in_polygon': below_floor,
         'bin_latest': bin_minute,
     }
 
@@ -416,7 +464,7 @@ def main():
     print(f'Feed     : {feed_updated}', flush=True)
     print(f'Bin      : {hh:02d}{mm:02d}Z', flush=True)
     print(f'Pilots   : {len(pilots)} feed / {airborne} airborne / {forecast_candidates} near / {forecast_with_route} routed', flush=True)
-    print(f'Now in   : {total_in_sectors} pilots across polygons', flush=True)
+    print(f'Now in   : {total_in_sectors} at/above FL290 · {below_floor} below floor inside polygon (approach/TMA)', flush=True)
     if occ_by_sector:
         for sid in sector_ids:
             c = occ_by_sector.get(sid, 0)
