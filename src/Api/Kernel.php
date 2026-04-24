@@ -319,6 +319,77 @@ final class Kernel
         return null;
     }
 
+    /**
+     * Diagnostic helper for FPL-lookup 404s. Inspects the cached VATSIM
+     * feed and reports whether the callsign/CID was present at all,
+     * whether a flight plan was attached, and nearby candidate callsigns
+     * so the operator can tell if the pilot is just offline, typo'd, or
+     * if our feed-fetch is broken.
+     */
+    private static function liveFplDiag(?string $callsign, ?int $cid): array
+    {
+        $cacheFile = sys_get_temp_dir() . '/atfm_vatsim_feed.json';
+        $out = [
+            'cache_file'    => $cacheFile,
+            'cache_exists'  => file_exists($cacheFile),
+            'cache_age_sec' => file_exists($cacheFile) ? time() - filemtime($cacheFile) : null,
+            'search_cid'      => $cid,
+            'search_callsign' => $callsign ? strtoupper($callsign) : null,
+        ];
+        $raw = null;
+        if ($out['cache_exists']) {
+            $raw = @file_get_contents($cacheFile);
+        }
+        if (!$raw) {
+            $ctx = stream_context_create(['http' => ['timeout' => 5]]);
+            $raw = @file_get_contents('https://data.vatsim.net/v3/vatsim-data.json', false, $ctx);
+            if ($raw) {
+                @file_put_contents($cacheFile, $raw);
+                $out['fetched_fresh'] = true;
+            } else {
+                $out['fetch_failed'] = true;
+                return $out;
+            }
+        }
+        $data = json_decode($raw, true);
+        if (!is_array($data)) {
+            $out['feed_parse_error'] = true;
+            return $out;
+        }
+        $pilots = $data['pilots'] ?? [];
+        $out['total_pilots_in_feed'] = count($pilots);
+        $out['feed_generated_at'] = $data['general']['update_timestamp'] ?? null;
+
+        $csUp = $out['search_callsign'];
+        $similar = [];
+        foreach ($pilots as $p) {
+            $pcs  = strtoupper((string) ($p['callsign'] ?? ''));
+            $pcid = (int) ($p['cid'] ?? 0);
+            $cidMatch = $cid !== null && $pcid === $cid;
+            $csMatch  = $csUp !== null && $pcs === $csUp;
+            if ($cidMatch || $csMatch) {
+                $out['pilot_found'] = true;
+                $out['pilot_callsign'] = $pcs;
+                $out['pilot_cid']      = $pcid;
+                $out['has_flight_plan'] = is_array($p['flight_plan'] ?? null);
+                if (is_array($p['flight_plan'] ?? null)) {
+                    $out['flight_plan_dep'] = $p['flight_plan']['departure'] ?? null;
+                    $out['flight_plan_arr'] = $p['flight_plan']['arrival'] ?? null;
+                }
+                return $out;
+            }
+            // Gather similar callsigns if we're searching by callsign
+            if ($csUp !== null && (str_contains($pcs, $csUp) || str_contains($csUp, $pcs))) {
+                $similar[] = $pcs;
+            }
+        }
+        $out['pilot_found'] = false;
+        if (!empty($similar)) {
+            $out['similar_callsigns'] = array_values(array_unique(array_slice($similar, 0, 8)));
+        }
+        return $out;
+    }
+
     // ------------------------------------------------------------------
     //  Health
     // ------------------------------------------------------------------
@@ -3759,6 +3830,7 @@ final class Kernel
             return self::json($res->withStatus(404), [
                 'error' => "no filed plan found for CID {$cid}",
                 'hint'  => 'file a flight plan on VATSIM and log in as a pilot — we read from the v3 data feed (refreshed every 60s)',
+                'diagnostics' => self::liveFplDiag(null, $cid),
             ]);
         });
 
@@ -3798,6 +3870,7 @@ final class Kernel
             return self::json($res->withStatus(404), [
                 'error' => "no filed plan found for {$cs}",
                 'hint'  => 'pilot must be logged on and have a flight plan filed on the VATSIM network',
+                'diagnostics' => self::liveFplDiag($cs, null),
             ]);
         });
 
