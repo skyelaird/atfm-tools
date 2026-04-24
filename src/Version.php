@@ -18,5 +18,5 @@ namespace Atfm;
  */
 final class Version
 {
-    public const STRING = '0.7.6';
+    public const STRING = '0.7.7';
 }

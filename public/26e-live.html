@@ -132,6 +132,16 @@ svg {
 .bar-live.current {
     fill: var(--warn);
 }
+.bar-forecast {
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 1;
+    opacity: 0.85;
+}
+.bar-forecast-fill {
+    fill: var(--accent);
+    opacity: 0.18;
+}
 .bar-predicted {
     fill: var(--predicted);
     opacity: 0.25;
@@ -216,7 +226,8 @@ svg {
     <span id="binInfo">—</span>
     <span class="legend" style="margin-left:1rem;">
         <span class="swatch live"></span>live
-        <span class="swatch pred" style="margin-left:0.5rem;"></span>predicted
+        <span class="swatch" style="background:transparent;border:1px solid var(--accent);margin-left:0.5rem;"></span>forecast
+        <span class="swatch pred" style="margin-left:0.5rem;"></span>CTP prediction
     </span>
 </div>
 <div id="groups"></div>
@@ -312,9 +323,10 @@ function render() {
     const xMin = Math.floor(minBin / 60) * 60;
     const xMax = Math.ceil((maxBin + (LIVE.meta?.bin_minutes || 15)) / 60) * 60;
 
-    const YMAX_OCC_SECTOR = 60;
-    const YMAX_OCC_PAIR   = 100;
-    const YMAX_OCC_PAIR_BY_ID = {'QX6+QX7': 60};
+    // Y axis auto-scales from a low floor (default 15) up to whatever
+    // any of the three series (live / forecast / predicted) needs.
+    // Traffic-light days stay readable, event-day peaks still fit.
+    const YMAX_FLOOR = 15;
 
     const sectorById = Object.fromEntries((LIVE.sectors || []).map(s => [s.id, s]));
     const pairById   = Object.fromEntries((LIVE.pairs   || []).map(p => [p.id, p]));
@@ -325,10 +337,21 @@ function render() {
         const r = rows[rows.length - 1];
         return {bin_minute: r.bin_minute, count: r.count};
     };
+    // Live and predicted both use 5-min bins now; this lookup finds
+    // the max predicted count across the live bin's width — trivial
+    // for same-width bins but keeps the code correct if widths diverge
+    // again (e.g. if prediction re-runs at 15m to match event cadence).
+    const liveBinWidth = (LIVE.meta && LIVE.meta.bin_minutes) || 15;
     const predictedFor = (store, id, binMinute) => {
         const rows = (store && store[id]) || [];
-        const r = rows.find(x => x.bin_minute === binMinute);
-        return r ? r.count : null;
+        const end = binMinute + liveBinWidth;
+        let maxVal = null;
+        for (const r of rows) {
+            if (r.bin_minute >= binMinute && r.bin_minute < end) {
+                if (maxVal === null || r.count > maxVal) maxVal = r.count;
+            }
+        }
+        return maxVal;
     };
 
     const toRender = [];
@@ -350,6 +373,7 @@ function render() {
             const p = pairById[g.pair];
             const liveRows = (LIVE.pair_load && LIVE.pair_load[p.id]) || [];
             const predRows = (PRED?.pair_load && PRED.pair_load[p.id]) || [];
+            const fcRows   = (LIVE.forecast_pair_load && LIVE.forecast_pair_load[p.id]) || [];
             const latest = latestBinOf(liveRows);
             const predNow = latest ? predictedFor(PRED?.pair_load, p.id, latest.bin_minute) : null;
             const card = document.createElement('div');
@@ -358,15 +382,12 @@ function render() {
                 <div class="title">
                     <span class="name">${p.label}</span>
                     <span class="label">live demand</span>
-                    <span class="now">${nowBadge(latest, predNow)}</span>
+                    <span class="now">${nowBadge(latest, predNow, fcRows)}</span>
                 </div>
                 <svg viewBox="0 0 400 160" preserveAspectRatio="none" id="svg-${p.id}"></svg>
             `;
             gridEl.appendChild(card);
-            toRender.push([p.id, liveRows, predRows, {
-                height: 160,
-                yMax: YMAX_OCC_PAIR_BY_ID[p.id] || YMAX_OCC_PAIR,
-            }]);
+            toRender.push([p.id, liveRows, predRows, fcRows, {height: 160}]);
         }
 
         // Individual sector cards
@@ -375,6 +396,7 @@ function render() {
             if (!s) continue;
             const liveRows = (LIVE.load && LIVE.load[s.id]) || [];
             const predRows = (PRED?.load && PRED.load[s.id]) || [];
+            const fcRows   = (LIVE.forecast_load && LIVE.forecast_load[s.id]) || [];
             const latest = latestBinOf(liveRows);
             const predNow = latest ? predictedFor(PRED?.load, s.id, latest.bin_minute) : null;
             const card = document.createElement('div');
@@ -383,54 +405,71 @@ function render() {
                 <div class="title">
                     <span class="name">${s.id}</span>
                     <span class="label">${s.freq || ''} MHz</span>
-                    <span class="now">${nowBadge(latest, predNow)}</span>
+                    <span class="now">${nowBadge(latest, predNow, fcRows)}</span>
                 </div>
                 <svg viewBox="0 0 400 120" preserveAspectRatio="none" id="svg-${s.id}"></svg>
             `;
             gridEl.appendChild(card);
-            toRender.push([s.id, liveRows, predRows, {
-                height: 120, yMax: YMAX_OCC_SECTOR,
-            }]);
+            toRender.push([s.id, liveRows, predRows, fcRows, {height: 120}]);
         }
 
         root.appendChild(section);
     }
 
-    for (const [id, liveRows, predRows, opts] of toRender) {
-        drawChart(id, liveRows, predRows, xMin, xMax, opts);
+    for (const [id, liveRows, predRows, fcRows, opts] of toRender) {
+        drawChart(id, liveRows, predRows, fcRows, xMin, xMax, opts);
     }
 }
 
-function nowBadge(latest, predicted) {
+function nowBadge(latest, predicted, fcRows) {
     if (!latest) return 'no data yet';
     const hh = String(Math.floor(latest.bin_minute / 60)).padStart(2, '0');
     const mm = String(latest.bin_minute % 60).padStart(2, '0');
     const live = latest.count;
-    if (predicted === null || predicted === undefined) {
-        return `now ${live} @ ${hh}${mm}Z`;
+    // +30m forecast peak (forecast is 5-min bins; find max in ±5 around +30)
+    let fcNext = null;
+    if (fcRows && fcRows.length) {
+        const target = latest.bin_minute + 30;
+        const near = fcRows.filter(r => Math.abs(r.bin_minute - target) <= 10);
+        if (near.length) fcNext = Math.max(...near.map(r => r.count));
     }
-    const d = live - predicted;
-    const cls = d > 2 ? 'delta-pos' : d < -2 ? 'delta-neg' : 'delta-zero';
-    const sign = d > 0 ? '+' : '';
-    return `now ${live} @ ${hh}${mm}Z <span class="${cls}">(pred ${predicted}, ${sign}${d})</span>`;
+    let s = `now ${live} @ ${hh}${mm}Z`;
+    if (fcNext !== null) {
+        const arrow = fcNext > live + 2 ? '↑' : fcNext < live - 2 ? '↓' : '→';
+        s += ` · +30m ${arrow}${fcNext}`;
+    }
+    if (predicted !== null && predicted !== undefined) {
+        const d = live - predicted;
+        const cls = d > 2 ? 'delta-pos' : d < -2 ? 'delta-neg' : 'delta-zero';
+        const sign = d > 0 ? '+' : '';
+        s += ` <span class="${cls}">(pred ${predicted}, ${sign}${d})</span>`;
+    }
+    return s;
 }
 
-function drawChart(id, liveRows, predRows, xMin, xMax, opts) {
+function drawChart(id, liveRows, predRows, fcRows, xMin, xMax, opts) {
     const svg = document.getElementById(`svg-${id}`);
     if (!svg) return;
     const W = 400, H = opts.height || 120;
     const M = {l: 28, r: 6, t: 8, b: 18};
     const plotW = W - M.l - M.r;
     const plotH = H - M.t - M.b;
-    const bin = LIVE.meta?.bin_minutes || 15;
+    const liveBin = LIVE.meta?.bin_minutes || 5;
 
     const maxLive = Math.max(0, ...liveRows.map(r => r.count || 0));
     const maxPred = SHOW_PRED && predRows ? Math.max(0, ...predRows.map(r => r.count || 0)) : 0;
-    const maxCount = Math.max(CAP, maxLive, maxPred, opts.yMax || 10);
+    const maxFc   = fcRows ? Math.max(0, ...fcRows.map(r => r.count || 0)) : 0;
+    // Auto-Y: floor at YMAX_FLOOR (15), grow to fit whichever series
+    // is largest. CAP line is respected if the user set a threshold
+    // that would exceed current data.
+    const maxCount = Math.max(YMAX_FLOOR, maxLive, maxPred, maxFc, CAP);
 
     const xScale = (t) => M.l + (t - xMin) / (xMax - xMin) * plotW;
     const yScale = (v) => M.t + plotH - (v / maxCount) * plotH;
-    const binPx = (plotW / (xMax - xMin)) * bin;
+    const liveBinPx = (plotW / (xMax - xMin)) * liveBin;
+    const predBinMin = (PRED && PRED.meta && PRED.meta.bin_minutes) || 5;
+    const predBinPx = (plotW / (xMax - xMin)) * predBinMin;
+    const fcBinPx = liveBinPx;    // forecast uses same bin size as live
 
     // Which bin represents "right now" — last live bin in the series.
     const latestBin = liveRows.length ? liveRows[liveRows.length - 1].bin_minute : null;
@@ -459,7 +498,7 @@ function drawChart(id, liveRows, predRows, xMin, xMax, opts) {
         html += `<line class="cap-line" x1="${M.l}" y1="${y}" x2="${M.l + plotW}" y2="${y}"/>`;
     }
 
-    // Predicted overlay (ghost bars)
+    // Predicted overlay (ghost bars) — 5-min bins
     if (SHOW_PRED && predRows) {
         for (const r of predRows) {
             if (r.bin_minute < xMin || r.bin_minute > xMax) continue;
@@ -468,11 +507,27 @@ function drawChart(id, liveRows, predRows, xMin, xMax, opts) {
             const x = xScale(r.bin_minute);
             const y = yScale(v);
             const h = plotH + M.t - y;
-            html += `<rect class="bar-predicted" x="${x}" y="${y}" width="${binPx - 0.5}" height="${h}" data-pred="${v}" data-bin="${r.bin_minute}"/>`;
+            html += `<rect class="bar-predicted" x="${x}" y="${y}" width="${predBinPx - 0.5}" height="${h}" data-pred="${v}" data-bin="${r.bin_minute}"/>`;
         }
     }
 
-    // Live bars (drawn on top of predicted so they're the dominant shape)
+    // Forecast bars (outlined, drawn BEHIND live so the last observed
+    // bin sits on top if they collide)
+    if (fcRows) {
+        for (const r of fcRows) {
+            if (r.bin_minute < xMin || r.bin_minute > xMax) continue;
+            const v = r.count || 0;
+            if (v <= 0) continue;
+            const x = xScale(r.bin_minute);
+            const y = yScale(v);
+            const h = plotH + M.t - y;
+            // Light fill + outline so they read as "projected not yet observed"
+            html += `<rect class="bar-forecast-fill" x="${x}" y="${y}" width="${fcBinPx - 0.5}" height="${h}" data-fc="${v}" data-bin="${r.bin_minute}"/>`;
+            html += `<rect class="bar-forecast" x="${x}" y="${y}" width="${fcBinPx - 0.5}" height="${h}" data-fc="${v}" data-bin="${r.bin_minute}"/>`;
+        }
+    }
+
+    // Live bars (drawn on top of predicted/forecast so they're the dominant shape)
     for (const r of liveRows) {
         const v = r.count || 0;
         const x = xScale(r.bin_minute);
@@ -480,16 +535,16 @@ function drawChart(id, liveRows, predRows, xMin, xMax, opts) {
         const h = v > 0 ? (plotH + M.t - y) : 0;
         const cls = r.bin_minute === latestBin ? 'bar-live current' : 'bar-live';
         if (v > 0) {
-            html += `<rect class="${cls}" x="${x}" y="${y}" width="${binPx - 0.5}" height="${h}" data-live="${v}" data-bin="${r.bin_minute}"/>`;
+            html += `<rect class="${cls}" x="${x}" y="${y}" width="${liveBinPx - 0.5}" height="${h}" data-live="${v}" data-bin="${r.bin_minute}"/>`;
         } else {
             // zero bar: show a 1px tick so the collector's "yes, I looked here" is visible
-            html += `<rect class="${cls}" x="${x}" y="${M.t + plotH - 1}" width="${binPx - 0.5}" height="1" data-live="0" data-bin="${r.bin_minute}"/>`;
+            html += `<rect class="${cls}" x="${x}" y="${M.t + plotH - 1}" width="${liveBinPx - 0.5}" height="1" data-live="0" data-bin="${r.bin_minute}"/>`;
         }
     }
 
     // "Now" marker — vertical dashed line at the latest bin
     if (latestBin !== null) {
-        const x = xScale(latestBin + bin);
+        const x = xScale(latestBin + liveBin);
         html += `<line class="now-line" x1="${x}" y1="${M.t}" x2="${x}" y2="${M.t + plotH}"/>`;
     }
 
@@ -501,21 +556,18 @@ function drawChart(id, liveRows, predRows, xMin, xMax, opts) {
             const b = parseInt(rect.getAttribute('data-bin'));
             const hh = String(Math.floor(b / 60)).padStart(2, '0');
             const mm = String(b % 60).padStart(2, '0');
+            const parts = [`${hh}${mm}Z`];
             const live = rect.getAttribute('data-live');
             const pred = rect.getAttribute('data-pred');
-            let txt = `${hh}${mm}Z  `;
-            if (live !== null) txt += `live ${live}`;
-            if (pred !== null) txt += (live !== null ? ' · ' : '') + `pred ${pred}`;
-            // Look up the counterpart if hovering only one kind of bar
-            if (live !== null && pred === null && SHOW_PRED) {
-                const predRow = predRows.find(r => r.bin_minute === b);
-                if (predRow) txt += ` · pred ${predRow.count}`;
-            }
-            if (pred !== null && live === null) {
-                const liveRow = liveRows.find(r => r.bin_minute === b);
-                if (liveRow) txt += ` · live ${liveRow.count}`;
-            }
-            TIP.textContent = txt;
+            const fc   = rect.getAttribute('data-fc');
+            // Gather all series values at this bin regardless of what we hovered
+            const liveRow = liveRows.find(r => r.bin_minute === b);
+            const fcRow   = fcRows  ? fcRows.find(r  => r.bin_minute === b) : null;
+            const predRow = predRows? predRows.find(r => r.bin_minute === b) : null;
+            if (liveRow) parts.push(`live ${liveRow.count}`);
+            if (fcRow)   parts.push(`fc ${fcRow.count}`);
+            if (predRow && SHOW_PRED) parts.push(`pred ${predRow.count}`);
+            TIP.textContent = parts.join(' · ');
             TIP.style.left = (e.clientX + 10) + 'px';
             TIP.style.top = (e.clientY + 10) + 'px';
             TIP.style.opacity = '1';
