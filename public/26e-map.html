@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>26E Live Sector Map — CZQM / CZQX</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+:root {
+    --bg: #0a0e1a;
+    --bg-elev: #121826;
+    --bg-elev-hi: #1a2133;
+    --text: #e8ecf4;
+    --text-dim: #7a8499;
+    --border: #2a3142;
+    --accent: #5ee0ba;
+    --warn: #f5a05b;
+    --alert: #ef6464;
+    --predicted: #7aa8ff;
+    --mono: "SF Mono","JetBrains Mono",Consolas,monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, system-ui, sans-serif; }
+#map { position: absolute; inset: 0; z-index: 1; background: var(--bg); }
+.leaflet-container { background: var(--bg); }
+
+.topbar {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 500;
+    background: rgba(10, 14, 26, 0.92);
+    border-bottom: 1px solid var(--border);
+    padding: 0.5rem 0.85rem;
+    font-family: var(--mono); font-size: 0.8rem;
+    display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+}
+.topbar .title { font-weight: 600; color: var(--accent); }
+.topbar .live-dot {
+    display: inline-block;
+    width: 0.6em; height: 0.6em;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 0.3em;
+    vertical-align: baseline;
+    animation: pulse 2s infinite ease-in-out;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+.topbar .stat { color: var(--text-dim); }
+.topbar .stat .hot { color: var(--accent); }
+.topbar .stat .stale { color: var(--alert); }
+.topbar input[type="number"] {
+    width: 4em;
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 2px; padding: 0.1rem 0.3rem;
+    font-family: var(--mono); font-size: 0.8rem;
+}
+.topbar select {
+    background: var(--bg); color: var(--text); border: 1px solid var(--border);
+    border-radius: 2px; padding: 0.1rem 0.3rem;
+    font-family: var(--mono); font-size: 0.8rem;
+}
+.topbar a { color: var(--accent); text-decoration: none; margin-left: auto; }
+.topbar a:hover { text-decoration: underline; }
+
+.legend {
+    position: absolute; bottom: 10px; left: 10px; z-index: 400;
+    background: rgba(10, 14, 26, 0.92);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.45rem 0.7rem;
+    font-family: var(--mono); font-size: 0.72rem;
+    color: var(--text-dim);
+}
+.legend .row { display: flex; align-items: center; gap: 0.35rem; margin: 0.15rem 0; }
+.legend .sw { display: inline-block; width: 14px; height: 10px; border-radius: 2px; }
+
+.sidebar {
+    position: absolute; top: 52px; right: 0; bottom: 0; z-index: 450;
+    width: 400px; max-width: 90vw;
+    background: rgba(10, 14, 26, 0.96);
+    border-left: 1px solid var(--border);
+    padding: 0.9rem 1rem;
+    font-size: 0.85rem;
+    overflow-y: auto;
+    transform: translateX(100%);
+    transition: transform 0.18s ease;
+}
+.sidebar.open { transform: translateX(0); }
+.sidebar .close {
+    position: absolute; top: 6px; right: 10px;
+    color: var(--text-dim); cursor: pointer; border: none; background: none;
+    font-size: 1.3rem; line-height: 1;
+}
+.sidebar h2 {
+    font-size: 1.05rem; font-weight: 500; margin: 0 0 0.3rem 0;
+    color: var(--accent); font-family: var(--mono);
+}
+.sidebar .label {
+    color: var(--text-dim); font-family: var(--mono); font-size: 0.75rem;
+    margin-bottom: 0.25rem;
+}
+.sidebar .kv {
+    font-family: var(--mono); font-size: 0.8rem;
+    display: grid; grid-template-columns: 7em 1fr; gap: 0.2rem 0.6rem;
+    margin: 0.6rem 0 0.8rem;
+}
+.sidebar .kv dt { color: var(--text-dim); }
+.sidebar .kv dd { margin: 0; color: var(--text); }
+.sidebar .kv .hot { color: var(--accent); }
+.sidebar .kv .warn { color: var(--warn); }
+.sidebar .kv .alert { color: var(--alert); }
+.sidebar svg { width: 100%; height: 130px; background: var(--bg); border-radius: 3px; margin-top: 0.4rem; }
+
+.sector-label {
+    background: none; border: none; color: var(--text);
+    font-family: var(--mono); font-weight: 600; font-size: 0.85rem;
+    text-align: center; text-shadow: 0 0 3px #000, 0 0 3px #000;
+    pointer-events: none;
+}
+.sector-label .count { color: var(--warn); }
+.sector-label .count.empty { color: var(--text-dim); }
+.sector-label .count.hot { color: var(--alert); }
+
+.leaflet-tooltip {
+    background: var(--bg-elev-hi); color: var(--text);
+    border: 1px solid var(--border);
+    font-family: var(--mono); font-size: 0.78rem;
+    box-shadow: none;
+}
+.leaflet-tooltip-top:before, .leaflet-tooltip-bottom:before,
+.leaflet-tooltip-left:before, .leaflet-tooltip-right:before { display: none; }
+
+.leaflet-control-attribution { background: rgba(10, 14, 26, 0.7); color: var(--text-dim); }
+.leaflet-control-attribution a { color: var(--text-dim); }
+.leaflet-control-zoom a { background: var(--bg-elev); color: var(--text); border-color: var(--border); }
+.leaflet-control-zoom a:hover { background: var(--bg-elev-hi); }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+
+<div class="topbar">
+    <span class="title"><span class="live-dot"></span>26E Live Sector Map</span>
+    <span class="stat" id="stat-pilots">—</span>
+    <span class="stat" id="stat-feed">—</span>
+    <span class="stat">
+        <label>Cap:</label>
+        <input type="number" id="cap" value="55" min="1" step="1"/>
+    </span>
+    <span class="stat">
+        <label>Color by:</label>
+        <select id="mode">
+            <option value="live" selected>live now</option>
+            <option value="forecast30">forecast +30m</option>
+            <option value="forecast60">forecast +60m</option>
+            <option value="predicted">CTP prediction (at now)</option>
+            <option value="delta">live − predicted</option>
+        </select>
+    </span>
+    <a href="/26e-live.html">timeline view →</a>
+</div>
+
+<div class="legend">
+    <div class="row"><span class="sw" style="background:#2a3142"></span>no data / 0</div>
+    <div class="row"><span class="sw" style="background:#1f5e4a"></span>light (&lt;20% of cap)</div>
+    <div class="row"><span class="sw" style="background:#5ee0ba"></span>moderate (20–60%)</div>
+    <div class="row"><span class="sw" style="background:#f5a05b"></span>heavy (60–100%)</div>
+    <div class="row"><span class="sw" style="background:#ef6464"></span>over (&gt;100%)</div>
+</div>
+
+<aside class="sidebar" id="sidebar">
+    <button class="close" id="sidebar-close">&times;</button>
+    <h2 id="sb-name">—</h2>
+    <div class="label" id="sb-position">—</div>
+    <dl class="kv" id="sb-kv"></dl>
+    <div class="label">Live + forecast + prediction</div>
+    <svg id="sb-chart"></svg>
+</aside>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const REFRESH_SEC = 60;
+const SECTOR_IDS_HIGH = ['QM1','QM2','QM3','QM4','QX1','QX2','QX3','QX4','QX5','QX6','QX7'];
+
+let LIVE = null;
+let PRED = null;
+let CAP = 55;
+let MODE = 'live';
+let sectorLayers = {};     // id -> L.Polygon
+let labelMarkers = {};     // id -> L.Marker (with DivIcon)
+let selectedId = null;
+
+// Map init — centered on Atlantic Canada
+const map = L.map('map', {
+    zoomControl: true,
+    attributionControl: true,
+}).setView([48.5, -58], 5);
+
+// Dark tile layer (CartoDB dark-matter — no API key required)
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}@2x.png', {
+    attribution: '&copy; OpenStreetMap, &copy; CartoDB',
+    maxZoom: 18,
+    subdomains: 'abcd',
+}).addTo(map);
+
+async function loadData() {
+    const [liveR, predR] = await Promise.allSettled([
+        fetch('/26e-live-load.json?t=' + Date.now()),
+        fetch('/26e-sector-load.json?t=' + Date.now()),
+    ]);
+    if (liveR.status !== 'fulfilled' || !liveR.value.ok) {
+        document.getElementById('stat-pilots').innerHTML =
+            '<span class="stale">no live data</span>';
+        return;
+    }
+    LIVE = await liveR.value.json();
+    PRED = (predR.status === 'fulfilled' && predR.value.ok)
+        ? await predR.value.json() : null;
+
+    const m = LIVE.meta || {};
+    document.getElementById('stat-pilots').innerHTML =
+        `<span class="hot">${m.flights_in_sectors_now ?? 0}</span> in sectors now` +
+        (m.pilots_below_floor_in_polygon ? ` · ${m.pilots_below_floor_in_polygon} below FL${(m.sector_floor_ft || 29000) / 100}` : '');
+    const feedMin = feedAge(m.vatsim_feed_utc);
+    const feedCls = feedMin > 5 ? 'stale' : 'hot';
+    const binLatest = fmtBin(m.bin_latest);
+    document.getElementById('stat-feed').innerHTML =
+        `feed <span class="${feedCls}">${feedMin}m</span> · latest bin ${binLatest}Z`;
+
+    if (!Object.keys(sectorLayers).length) {
+        drawSectors();
+    }
+    updateColors();
+    if (selectedId) drawSidebar(selectedId);
+}
+
+function feedAge(iso) {
+    if (!iso) return '?';
+    try { return Math.round((Date.now() - new Date(iso).getTime()) / 60000); }
+    catch (e) { return '?'; }
+}
+function fmtBin(min) {
+    if (min === undefined || min === null) return '—';
+    return `${String(Math.floor(min/60)).padStart(2,'0')}${String(min%60).padStart(2,'0')}`;
+}
+
+function drawSectors() {
+    const sectors = (LIVE.sectors || []);
+    for (const s of sectors) {
+        // Polygons in sectors.json are [lat, lon] pairs; Leaflet wants [lat, lon]
+        const coords = s.polygon.map(p => [p[0], p[1]]);
+        const poly = L.polygon(coords, {
+            color: '#2a3142',
+            weight: 1.5,
+            fillColor: '#2a3142',
+            fillOpacity: 0.35,
+        }).addTo(map);
+        poly.sectorId = s.id;
+        poly.on('click', () => selectSector(s.id));
+        poly.on('mouseover', () => poly.setStyle({ weight: 3 }));
+        poly.on('mouseout', () => poly.setStyle({ weight: selectedId === s.id ? 3 : 1.5 }));
+        sectorLayers[s.id] = poly;
+
+        // Center label
+        const c = poly.getBounds().getCenter();
+        const label = L.marker(c, {
+            icon: L.divIcon({
+                className: 'sector-label',
+                html: `${s.id}<br><span class="count" id="lbl-${s.id}">–</span>`,
+                iconSize: [60, 32],
+                iconAnchor: [30, 16],
+            }),
+            interactive: false,
+        }).addTo(map);
+        labelMarkers[s.id] = label;
+    }
+
+    // Fit map to sectors extent
+    const all = Object.values(sectorLayers);
+    if (all.length) {
+        const grp = L.featureGroup(all);
+        map.fitBounds(grp.getBounds(), { padding: [60, 60] });
+    }
+}
+
+function valueAt(store, id, binMinute) {
+    if (!store || !store[id]) return null;
+    // Exact-bin first; if missing (different bin widths), take the max
+    // across a small window so predicted-5m and live-5m still align.
+    const exact = store[id].find(r => r.bin_minute === binMinute);
+    if (exact) return exact.count;
+    const near = store[id].filter(r => Math.abs(r.bin_minute - binMinute) <= 10);
+    if (!near.length) return null;
+    return Math.max(...near.map(r => r.count));
+}
+
+function currentValue(id) {
+    const m = LIVE.meta || {};
+    const bin = m.bin_latest;
+    switch (MODE) {
+        case 'live': {
+            return { value: valueAt(LIVE.load, id, bin), label: 'live' };
+        }
+        case 'forecast30': {
+            // Forecast at +30m = any bin in [bin+25, bin+35]
+            const target = bin + 30;
+            const rows = (LIVE.forecast_load && LIVE.forecast_load[id]) || [];
+            const near = rows.filter(r => Math.abs(r.bin_minute - target) <= 5);
+            return { value: near.length ? Math.max(...near.map(r => r.count)) : 0, label: '+30m' };
+        }
+        case 'forecast60': {
+            const target = bin + 60;
+            const rows = (LIVE.forecast_load && LIVE.forecast_load[id]) || [];
+            const near = rows.filter(r => Math.abs(r.bin_minute - target) <= 5);
+            return { value: near.length ? Math.max(...near.map(r => r.count)) : 0, label: '+60m' };
+        }
+        case 'predicted': {
+            return { value: valueAt(PRED?.load, id, bin), label: 'pred @ now' };
+        }
+        case 'delta': {
+            const live = valueAt(LIVE.load, id, bin) || 0;
+            const pred = valueAt(PRED?.load, id, bin) || 0;
+            return { value: live - pred, label: 'Δ live−pred', isDelta: true };
+        }
+    }
+}
+
+function colorFor(value, isDelta) {
+    if (value === null || value === undefined) return { fill: '#2a3142', stroke: '#2a3142' };
+    if (isDelta) {
+        // Delta: blue for negative (fewer than predicted), red for positive
+        if (value <= -10) return { fill: '#1e5b8a', stroke: '#7aa8ff' };
+        if (value <= -3)  return { fill: '#254a6b', stroke: '#7aa8ff' };
+        if (value <=  3)  return { fill: '#2a3142', stroke: '#7a8499' };
+        if (value <= 10)  return { fill: '#7a5020', stroke: '#f5a05b' };
+        return { fill: '#8a2929', stroke: '#ef6464' };
+    }
+    if (value <= 0) return { fill: '#2a3142', stroke: '#3a4253' };
+    const pct = value / Math.max(CAP, 1);
+    if (pct < 0.2)  return { fill: '#1f5e4a', stroke: '#5ee0ba' };
+    if (pct < 0.6)  return { fill: '#2d7a5f', stroke: '#5ee0ba' };
+    if (pct < 1.0)  return { fill: '#7a5020', stroke: '#f5a05b' };
+    return { fill: '#8a2929', stroke: '#ef6464' };
+}
+
+function updateColors() {
+    for (const sid of Object.keys(sectorLayers)) {
+        const { value, isDelta } = currentValue(sid);
+        const { fill, stroke } = colorFor(value, isDelta);
+        sectorLayers[sid].setStyle({
+            fillColor: fill,
+            color: stroke,
+            fillOpacity: value && value > 0 ? 0.45 : 0.25,
+            weight: selectedId === sid ? 3 : 1.5,
+        });
+        const lbl = document.getElementById(`lbl-${sid}`);
+        if (lbl) {
+            if (value === null || value === undefined) {
+                lbl.textContent = '–';
+                lbl.className = 'count empty';
+            } else if (isDelta) {
+                lbl.textContent = (value > 0 ? '+' : '') + value;
+                lbl.className = 'count' + (Math.abs(value) > 10 ? ' hot' : '');
+            } else {
+                lbl.textContent = value;
+                lbl.className = 'count' + (value > CAP ? ' hot' : value <= 0 ? ' empty' : '');
+            }
+        }
+        // Tooltip
+        sectorLayers[sid].bindTooltip(() => buildTooltip(sid), {
+            sticky: true, direction: 'top', opacity: 1,
+        });
+    }
+}
+
+function buildTooltip(sid) {
+    const bin = LIVE.meta?.bin_latest;
+    const liveV = valueAt(LIVE.load, sid, bin);
+    const predV = valueAt(PRED?.load, sid, bin);
+    const fc30 = (() => {
+        const rows = (LIVE.forecast_load && LIVE.forecast_load[sid]) || [];
+        const near = rows.filter(r => Math.abs(r.bin_minute - (bin + 30)) <= 5);
+        return near.length ? Math.max(...near.map(r => r.count)) : 0;
+    })();
+    const fc60 = (() => {
+        const rows = (LIVE.forecast_load && LIVE.forecast_load[sid]) || [];
+        const near = rows.filter(r => Math.abs(r.bin_minute - (bin + 60)) <= 5);
+        return near.length ? Math.max(...near.map(r => r.count)) : 0;
+    })();
+    return `<b>${sid}</b><br>` +
+           `live @ now: ${liveV ?? '–'}<br>` +
+           `fc +30m: ${fc30} · +60m: ${fc60}<br>` +
+           (predV !== null ? `CTP pred: ${predV} (Δ ${(liveV ?? 0) - predV})` : 'no CTP pred');
+}
+
+function selectSector(sid) {
+    if (selectedId && sectorLayers[selectedId]) {
+        sectorLayers[selectedId].setStyle({ weight: 1.5 });
+    }
+    selectedId = sid;
+    if (sectorLayers[sid]) sectorLayers[sid].setStyle({ weight: 3 });
+    drawSidebar(sid);
+    document.getElementById('sidebar').classList.add('open');
+}
+
+function drawSidebar(sid) {
+    const sec = (LIVE.sectors || []).find(s => s.id === sid);
+    if (!sec) return;
+    document.getElementById('sb-name').textContent = sid;
+    document.getElementById('sb-position').textContent = `${sec.label} · ${sec.freq || '?'} MHz`;
+
+    const bin = LIVE.meta?.bin_latest;
+    const liveV = valueAt(LIVE.load, sid, bin);
+    const predV = valueAt(PRED?.load, sid, bin);
+    const rows = (LIVE.forecast_load && LIVE.forecast_load[sid]) || [];
+    const fc30 = (() => {
+        const near = rows.filter(r => Math.abs(r.bin_minute - (bin + 30)) <= 5);
+        return near.length ? Math.max(...near.map(r => r.count)) : 0;
+    })();
+    const fc60 = (() => {
+        const near = rows.filter(r => Math.abs(r.bin_minute - (bin + 60)) <= 5);
+        return near.length ? Math.max(...near.map(r => r.count)) : 0;
+    })();
+    const predPeak = (() => {
+        const rows = (PRED?.load && PRED.load[sid]) || [];
+        if (!rows.length) return null;
+        const p = rows.reduce((a, r) => r.count > a.count ? r : a);
+        return { count: p.count, bin: p.bin_minute };
+    })();
+
+    const kv = document.getElementById('sb-kv');
+    kv.innerHTML = `
+        <dt>live now</dt><dd class="hot">${liveV ?? '–'}</dd>
+        <dt>forecast +30m</dt><dd>${fc30}</dd>
+        <dt>forecast +60m</dt><dd>${fc60}</dd>
+        <dt>CTP now</dt><dd class="warn">${predV ?? '–'}</dd>
+        <dt>CTP peak</dt><dd>${predPeak ? `${predPeak.count} @ ${fmtBin(predPeak.bin)}Z` : '–'}</dd>
+        <dt>capacity</dt><dd>${CAP}</dd>
+    `;
+    drawMiniChart(sid);
+}
+
+function drawMiniChart(sid) {
+    const svg = document.getElementById('sb-chart');
+    const W = 380, H = 130;
+    const M = { l: 26, r: 6, t: 8, b: 20 };
+    const plotW = W - M.l - M.r, plotH = H - M.t - M.b;
+    svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+    const liveRows = (LIVE.load && LIVE.load[sid]) || [];
+    const fcRows = (LIVE.forecast_load && LIVE.forecast_load[sid]) || [];
+    const predRows = (PRED?.load && PRED.load[sid]) || [];
+
+    // X: 11Z-22Z
+    const xMin = 660, xMax = 1320;
+    const binW = LIVE.meta?.bin_minutes || 5;
+    const predBinW = PRED?.meta?.bin_minutes || 5;
+    const all = [...liveRows, ...fcRows, ...predRows].map(r => r.count || 0);
+    const maxC = Math.max(15, CAP, ...all);
+
+    const xScale = t => M.l + (t - xMin) / (xMax - xMin) * plotW;
+    const yScale = v => M.t + plotH - (v / maxC) * plotH;
+    const barW = (plotW / (xMax - xMin)) * binW;
+    const predBarW = (plotW / (xMax - xMin)) * predBinW;
+
+    let html = '';
+    // Gridlines
+    for (let t = xMin; t <= xMax; t += 60) {
+        const x = xScale(t);
+        html += `<line x1="${x}" y1="${M.t}" x2="${x}" y2="${M.t+plotH}" stroke="#2a3142" stroke-width="0.5" stroke-dasharray="2 2"/>`;
+        html += `<text x="${x}" y="${H-4}" fill="#7a8499" font-family="monospace" font-size="9" text-anchor="middle">${String(Math.floor(t/60)).padStart(2,'0')}Z</text>`;
+    }
+    const tick = Math.max(1, Math.ceil(maxC / 4));
+    for (let v = 0; v <= maxC; v += tick) {
+        const y = yScale(v);
+        html += `<line x1="${M.l}" y1="${y}" x2="${M.l+plotW}" y2="${y}" stroke="#2a3142" stroke-width="0.5" stroke-dasharray="2 2"/>`;
+        html += `<text x="${M.l-3}" y="${y+3}" fill="#7a8499" font-family="monospace" font-size="9" text-anchor="end">${v}</text>`;
+    }
+    // Capacity line
+    if (CAP > 0 && CAP <= maxC) {
+        const y = yScale(CAP);
+        html += `<line x1="${M.l}" y1="${y}" x2="${M.l+plotW}" y2="${y}" stroke="#ef6464" stroke-width="1" stroke-dasharray="4 2"/>`;
+    }
+    // Predicted (blue ghost)
+    for (const r of predRows) {
+        if (r.bin_minute < xMin || r.bin_minute > xMax) continue;
+        if ((r.count || 0) <= 0) continue;
+        html += `<rect x="${xScale(r.bin_minute)}" y="${yScale(r.count)}" width="${predBarW-0.5}" height="${plotH+M.t - yScale(r.count)}" fill="#7aa8ff" fill-opacity="0.25"/>`;
+    }
+    // Forecast (outlined green)
+    for (const r of fcRows) {
+        if (r.bin_minute < xMin || r.bin_minute > xMax) continue;
+        if ((r.count || 0) <= 0) continue;
+        html += `<rect x="${xScale(r.bin_minute)}" y="${yScale(r.count)}" width="${barW-0.5}" height="${plotH+M.t - yScale(r.count)}" fill="#5ee0ba" fill-opacity="0.18" stroke="#5ee0ba"/>`;
+    }
+    // Live (solid green)
+    for (const r of liveRows) {
+        const v = r.count || 0;
+        if (v <= 0) continue;
+        html += `<rect x="${xScale(r.bin_minute)}" y="${yScale(v)}" width="${barW-0.5}" height="${plotH+M.t - yScale(v)}" fill="#5ee0ba" fill-opacity="0.9"/>`;
+    }
+    // Now line
+    const latest = LIVE.meta?.bin_latest;
+    if (latest !== null && latest !== undefined) {
+        const x = xScale(latest + binW);
+        html += `<line x1="${x}" y1="${M.t}" x2="${x}" y2="${M.t+plotH}" stroke="#f5a05b" stroke-width="1" stroke-dasharray="3 2"/>`;
+    }
+    svg.innerHTML = html;
+}
+
+document.getElementById('sidebar-close').addEventListener('click', () => {
+    document.getElementById('sidebar').classList.remove('open');
+    if (selectedId && sectorLayers[selectedId]) sectorLayers[selectedId].setStyle({ weight: 1.5 });
+    selectedId = null;
+});
+document.getElementById('cap').addEventListener('change', e => {
+    CAP = parseInt(e.target.value) || 1;
+    updateColors();
+    if (selectedId) drawSidebar(selectedId);
+});
+document.getElementById('mode').addEventListener('change', e => {
+    MODE = e.target.value;
+    updateColors();
+});
+
+loadData();
+setInterval(loadData, REFRESH_SEC * 1000);
+</script>
+</body>
+</html>
