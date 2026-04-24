@@ -3853,6 +3853,42 @@ final class Kernel
             ]);
         });
 
+        // GET /api/v1/ctot/fp/by-cid/{cid} — look up filed plan by CID
+        // without requiring OAuth. Useful as a testing fallback while
+        // VATSIM Connect credentials are being provisioned. Accepts from
+        // any caller; same local-then-live lookup.
+        $app->get('/api/v1/ctot/fp/by-cid/{cid}', function ($req, $res, $args) {
+            $cid = (int) $args['cid'];
+            if ($cid <= 0) {
+                return self::json($res->withStatus(400), ['error' => 'cid must be a positive integer']);
+            }
+            $flight = \Atfm\Models\Flight::where('cid', $cid)
+                ->orderByDesc('updated_at')->first();
+            if ($flight) {
+                return self::json($res, [
+                    'callsign'      => $flight->callsign,
+                    'cid'           => $flight->cid,
+                    'adep'          => $flight->adep,
+                    'ades'          => $flight->ades,
+                    'eobt'          => $flight->eobt?->format('c'),
+                    'route'         => $flight->fp_route,
+                    'aircraft_type' => $flight->aircraft_type,
+                    'cruise_fl'     => $flight->fp_altitude_ft ? (int) ($flight->fp_altitude_ft / 100) : null,
+                    'source'        => 'local',
+                ]);
+            }
+            $live = self::livePilotFpl($cid, null);
+            if ($live) {
+                $live['source'] = 'vatsim_feed';
+                return self::json($res, $live);
+            }
+            return self::json($res->withStatus(404), [
+                'error' => "no filed plan found for CID {$cid}",
+                'hint'  => 'pilot must be connected or have prefiled on my.vatsim.net',
+                'diagnostics' => self::liveFplDiag(null, $cid),
+            ]);
+        });
+
         // GET /api/v1/ctot/fp/{callsign} — ATCO pulls a filed flight plan
         // by callsign. Same dual-source lookup as /fp/me.
         $app->get('/api/v1/ctot/fp/{callsign}', function ($req, $res, $args) {

@@ -107,6 +107,19 @@ th { color: var(--text-dim); font-weight: 400; font-size: 0.72rem; text-transfor
         <span class="muted" style="margin-left:0.5rem;">(auto-fill from your VATSIM flight plan)</span>
     </div>
 
+    <!-- Fallback while OAuth isn't configured -->
+    <div id="manual-pull" class="banner info" style="margin-bottom:0.75rem;">
+        <strong>No sign-in yet?</strong> Enter your VATSIM CID and we'll still look up your
+        connected / prefiled FPL from the network feed:
+        <div style="display:flex; gap:0.5rem; margin-top:0.4rem; align-items:center;">
+            <input id="manual-cid" placeholder="CID e.g. 1234567" style="width:8em; padding:0.25rem 0.4rem;"/>
+            <button class="secondary" onclick="pullByCid()">Pull FPL by CID</button>
+            <span class="muted">or</span>
+            <input id="manual-cs" placeholder="Callsign e.g. ACA123" style="width:9em; padding:0.25rem 0.4rem; text-transform:uppercase;"/>
+            <button class="secondary" onclick="pullByCs()">Pull by callsign</button>
+        </div>
+    </div>
+
     <div class="row"><label>Callsign</label><input id="callsign" placeholder="ACA123"/></div>
     <div class="row"><label>ADEP (4 ltr)</label><input id="adep" maxlength="4" placeholder="KJFK" style="text-transform:uppercase"/></div>
     <div class="row"><label>ADES (4 ltr)</label><input id="ades" maxlength="4" placeholder="EDDF" style="text-transform:uppercase"/></div>
@@ -389,6 +402,55 @@ async function pullMyFp() {
     } catch (e) {
         renderResult('pilot-result', 'error', 'Failed: ' + e.message);
     }
+}
+
+async function pullByCid() {
+    const cid = $('manual-cid').value.trim();
+    if (!cid) { renderResult('pilot-result', 'error', 'CID required'); return; }
+    await pullAndFillViaEndpoint('/api/v1/ctot/fp/by-cid/' + encodeURIComponent(cid));
+}
+
+async function pullByCs() {
+    const cs = $('manual-cs').value.trim().toUpperCase();
+    if (!cs) { renderResult('pilot-result', 'error', 'Callsign required'); return; }
+    await pullAndFillViaEndpoint('/api/v1/ctot/fp/' + encodeURIComponent(cs));
+}
+
+async function pullAndFillViaEndpoint(url) {
+    try {
+        const r = await fetch(url);
+        const d = await r.json();
+        if (r.status === 404) {
+            const diag = d.diagnostics || {};
+            let msg;
+            if (diag.pilot_found === true && diag.has_flight_plan === false) {
+                msg = `${diag.pilot_callsign} (CID ${diag.pilot_cid}) is ${diag.network_status} but has no flight plan attached.`;
+            } else if (diag.pilot_found === false) {
+                msg = `Not found in connected pilots or prefiles. Sign on or prefile at my.vatsim.net.`;
+                if (diag.similar_callsigns && diag.similar_callsigns.length) {
+                    msg += `\nSimilar: ${diag.similar_callsigns.join(', ')}`;
+                }
+            } else {
+                msg = d.error;
+            }
+            if (typeof diag.total_pilots_in_feed === 'number') {
+                msg += `\n(${diag.total_pilots_in_feed} connected + ${diag.total_prefiles_in_feed || 0} prefiled, feed age ${diag.cache_age_sec ?? '?'}s)`;
+            }
+            renderResult('pilot-result', 'warn', msg);
+            return;
+        }
+        if (d.error) { renderResult('pilot-result', 'error', d.error); return; }
+        $('callsign').value = d.callsign || '';
+        $('adep').value = d.adep || '';
+        $('ades').value = d.ades || '';
+        if (d.eobt) { const dt = new Date(d.eobt); $('eobt').value = dt.toISOString().slice(0, 16); }
+        $('type').value = d.aircraft_type || '';
+        $('fl').value = d.cruise_fl || '';
+        $('route').value = d.route || '';
+        if (d.cid) $('my-cid').value = d.cid;
+        renderResult('pilot-result', 'ok',
+            `Loaded ${d.callsign} (CID ${d.cid}${d.network_status ? ', ' + d.network_status : ''}): ${d.adep} → ${d.ades}. Verify + Submit.`);
+    } catch (e) { renderResult('pilot-result', 'error', 'Failed: ' + e.message); }
 }
 
 refreshAuth();
