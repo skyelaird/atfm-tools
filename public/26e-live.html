@@ -241,6 +241,11 @@ let CAP = 55;
 let SHOW_PRED = true;
 const REFRESH_SEC = 60;   // page re-polls JSON once a minute
 
+// Y-axis auto-scales from this floor up to whatever the largest series
+// (live / forecast / predicted / CAP) needs. Low default keeps quiet
+// periods readable, but event-day peaks still fit without truncation.
+const YMAX_FLOOR = 15;
+
 async function load() {
     // Fetch both in parallel. Prediction is optional (if missing the
     // overlay is just skipped — the page still shows live bars).
@@ -322,11 +327,6 @@ function render() {
     const maxBin = Math.max(sortedBins[sortedBins.length - 1] ?? 1320, 1320); // 22Z
     const xMin = Math.floor(minBin / 60) * 60;
     const xMax = Math.ceil((maxBin + (LIVE.meta?.bin_minutes || 15)) / 60) * 60;
-
-    // Y axis auto-scales from a low floor (default 15) up to whatever
-    // any of the three series (live / forecast / predicted) needs.
-    // Traffic-light days stay readable, event-day peaks still fit.
-    const YMAX_FLOOR = 15;
 
     const sectorById = Object.fromEntries((LIVE.sectors || []).map(s => [s.id, s]));
     const pairById   = Object.fromEntries((LIVE.pairs   || []).map(p => [p.id, p]));
