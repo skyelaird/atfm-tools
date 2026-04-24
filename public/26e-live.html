@@ -1,0 +1,542 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>26E Live Sector Demand — CZQM / CZQX</title>
+<style>
+:root {
+    --bg: #0a0e1a;
+    --bg-elev: #121826;
+    --bg-elev-hi: #1a2133;
+    --text: #e8ecf4;
+    --text-dim: #7a8499;
+    --border: #2a3142;
+    --accent: #5ee0ba;
+    --accent-dim: rgba(94, 224, 186, 0.12);
+    --warn: #f5a05b;
+    --alert: #ef6464;
+    --predicted: #7aa8ff;
+    --mono: "SF Mono", "JetBrains Mono", Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body {
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 1rem;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: 14px;
+}
+h1 {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin: 0 0 0.5rem 0;
+}
+h1 .live-dot {
+    display: inline-block;
+    width: 0.6em; height: 0.6em;
+    border-radius: 50%;
+    background: var(--accent);
+    margin-right: 0.3em;
+    vertical-align: baseline;
+    animation: pulse 2s infinite ease-in-out;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+}
+.meta {
+    font-family: var(--mono);
+    color: var(--text-dim);
+    font-size: 0.8rem;
+    margin-bottom: 0.75rem;
+}
+.meta span.hot { color: var(--accent); }
+.meta span.stale { color: var(--alert); }
+.meta a { color: var(--text-dim); text-decoration: underline dotted; }
+.meta a:hover { color: var(--accent); }
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+    gap: 0.75rem;
+}
+.section-header {
+    font-family: var(--mono);
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin: 1rem 0 0.5rem 0;
+    padding-bottom: 0.25rem;
+    border-bottom: 1px solid var(--border);
+}
+section.group {
+    margin-bottom: 0.8rem;
+}
+.card.pair .name {
+    color: var(--warn);
+}
+.card.pair svg {
+    height: 160px;
+}
+.card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.5rem 0.75rem 0.4rem;
+}
+.card .title {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 0.3rem;
+}
+.card .name {
+    font-family: var(--mono);
+    font-weight: 600;
+    color: var(--accent);
+    font-size: 0.95rem;
+}
+.card .label {
+    color: var(--text-dim);
+    font-size: 0.75rem;
+    font-family: var(--mono);
+}
+.card .now {
+    color: var(--warn);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+}
+.card .now .delta-pos { color: var(--alert); }
+.card .now .delta-neg { color: var(--predicted); }
+.card .now .delta-zero { color: var(--text-dim); }
+svg {
+    display: block;
+    width: 100%;
+    height: 120px;
+    background: var(--bg);
+    border-radius: 3px;
+}
+.axis-label {
+    fill: var(--text-dim);
+    font-family: var(--mono);
+    font-size: 9px;
+}
+.bar-live {
+    fill: var(--accent);
+    opacity: 0.9;
+}
+.bar-live:hover {
+    fill: var(--warn);
+}
+.bar-live.current {
+    fill: var(--warn);
+}
+.bar-predicted {
+    fill: var(--predicted);
+    opacity: 0.25;
+}
+.grid-line {
+    stroke: var(--border);
+    stroke-dasharray: 2 2;
+    stroke-width: 0.5;
+}
+.now-line {
+    stroke: var(--warn);
+    stroke-width: 1;
+    stroke-dasharray: 3 2;
+}
+.controls {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    flex-wrap: wrap;
+}
+.controls label { color: var(--text-dim); }
+.controls input[type="number"] {
+    width: 4.5em;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.15rem 0.3rem;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+}
+.controls input[type="checkbox"] {
+    vertical-align: middle;
+}
+.tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--bg-elev-hi);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 0.25rem 0.5rem;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 10;
+}
+.cap-line {
+    stroke: var(--alert);
+    stroke-dasharray: 4 2;
+    stroke-width: 1;
+}
+.legend {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+}
+.legend .swatch {
+    display: inline-block;
+    width: 10px; height: 10px;
+    vertical-align: middle;
+    margin-right: 2px;
+    border-radius: 2px;
+}
+.legend .swatch.live { background: var(--accent); }
+.legend .swatch.pred { background: var(--predicted); opacity: 0.35; }
+</style>
+</head>
+<body>
+<h1><span class="live-dot"></span>26E Live Sector Demand — CZQM / CZQX</h1>
+<div class="meta" id="meta">Loading…</div>
+<div class="controls">
+    <label>Capacity threshold:</label>
+    <input type="number" id="capThreshold" value="55" min="0" step="1"/>
+    <label><input type="checkbox" id="showPredicted" checked/> Overlay CTP prediction</label>
+    <label>Bin:</label>
+    <span id="binInfo">—</span>
+    <span class="legend" style="margin-left:1rem;">
+        <span class="swatch live"></span>live
+        <span class="swatch pred" style="margin-left:0.5rem;"></span>predicted
+    </span>
+</div>
+<div id="groups"></div>
+<div class="tooltip" id="tip"></div>
+
+<script>
+const TIP = document.getElementById('tip');
+let LIVE = null;
+let PRED = null;    // /26e-sector-load.json — CTP sim prediction
+let CAP = 55;
+let SHOW_PRED = true;
+const REFRESH_SEC = 60;   // page re-polls JSON once a minute
+
+async function load() {
+    // Fetch both in parallel. Prediction is optional (if missing the
+    // overlay is just skipped — the page still shows live bars).
+    const [liveR, predR] = await Promise.allSettled([
+        fetch('/26e-live-load.json?t=' + Date.now()),
+        fetch('/26e-sector-load.json?t=' + Date.now()),
+    ]);
+
+    if (liveR.status !== 'fulfilled' || !liveR.value.ok) {
+        document.getElementById('meta').innerHTML =
+            `<span class="stale">No live snapshot yet.</span> ` +
+            `The collector runs every 15 min — first bin will land shortly.`;
+        return;
+    }
+    LIVE = await liveR.value.json();
+    PRED = (predR.status === 'fulfilled' && predR.value.ok)
+        ? await predR.value.json()
+        : null;
+
+    const m = LIVE.meta || {};
+    const feedMin = feedAgeMin(m.vatsim_feed_utc);
+    const feedStaleCls = feedMin > 5 ? 'stale' : 'hot';
+    const binLatest = fmtBin(m.bin_latest);
+    const bins = (LIVE.load && LIVE.load.QM1) ? LIVE.load.QM1.length : 0;
+    document.getElementById('meta').innerHTML =
+        `<span class="${feedStaleCls}">${m.flights_in_sectors_now ?? 0}</span> pilots in CZQM+CZQX now · ` +
+        `feed ${feedMin}m old · latest bin ${binLatest}Z · ` +
+        `${bins} bin${bins === 1 ? '' : 's'} in rolling history · ` +
+        `generated ${(m.generated_utc || '').slice(11, 16)}Z · ` +
+        `<a href="/26e.html">CTP prediction view →</a>`;
+    document.getElementById('binInfo').textContent = `${m.bin_minutes || 15}m`;
+    render();
+}
+
+function feedAgeMin(iso) {
+    if (!iso) return '?';
+    try {
+        const t = new Date(iso);
+        return Math.round((Date.now() - t.getTime()) / 60000);
+    } catch (e) {
+        return '?';
+    }
+}
+
+function fmtBin(min) {
+    if (min === undefined || min === null) return '—';
+    const hh = String(Math.floor(min / 60)).padStart(2, '0');
+    const mm = String(min % 60).padStart(2, '0');
+    return `${hh}${mm}`;
+}
+
+// Same layout groups as the CTP-prediction view so it's easy to eyeball
+// across both tabs.
+const GROUPS = [
+    {title: '1 · QM1 feeds QX1',     pair: 'QM1+QX1', sectors: ['QM1', 'QX1']},
+    {title: '2 · QM2 feeds QX2',     pair: 'QM2+QX2', sectors: ['QM2', 'QX2']},
+    {title: '3 · QM3 feeds QX3',     pair: 'QM3+QX3', sectors: ['QM3', 'QX3']},
+    {title: '4 · QM4 feeds QX4',     pair: 'QM4+QX4', sectors: ['QM4', 'QX4']},
+    {title: 'North · QX5 / QX6+QX7', pair: 'QX6+QX7', sectors: ['QX5', 'QX6', 'QX7']},
+];
+
+function render() {
+    const root = document.getElementById('groups');
+    root.innerHTML = '';
+
+    // X range — anchor to a full 24h clock so empty early/late is obvious.
+    // Pick window = event hours 11-23 UTC, extend to cover data outside.
+    const allBins = new Set();
+    for (const sid in LIVE.load) {
+        for (const p of LIVE.load[sid]) allBins.add(p.bin_minute);
+    }
+    if (PRED) {
+        for (const sid in (PRED.load || {})) {
+            for (const p of PRED.load[sid]) allBins.add(p.bin_minute);
+        }
+    }
+    const sortedBins = [...allBins].sort((a, b) => a - b);
+    const minBin = Math.min(sortedBins[0] ?? 660, 660);     // 11Z
+    const maxBin = Math.max(sortedBins[sortedBins.length - 1] ?? 1320, 1320); // 22Z
+    const xMin = Math.floor(minBin / 60) * 60;
+    const xMax = Math.ceil((maxBin + (LIVE.meta?.bin_minutes || 15)) / 60) * 60;
+
+    const YMAX_OCC_SECTOR = 60;
+    const YMAX_OCC_PAIR   = 100;
+    const YMAX_OCC_PAIR_BY_ID = {'QX6+QX7': 60};
+
+    const sectorById = Object.fromEntries((LIVE.sectors || []).map(s => [s.id, s]));
+    const pairById   = Object.fromEntries((LIVE.pairs   || []).map(p => [p.id, p]));
+
+    // Latest-bin lookup per sector / pair (for the "now" header pill).
+    const latestBinOf = (rows) => {
+        if (!rows || !rows.length) return null;
+        const r = rows[rows.length - 1];
+        return {bin_minute: r.bin_minute, count: r.count};
+    };
+    const predictedFor = (store, id, binMinute) => {
+        const rows = (store && store[id]) || [];
+        const r = rows.find(x => x.bin_minute === binMinute);
+        return r ? r.count : null;
+    };
+
+    const toRender = [];
+
+    for (const g of GROUPS) {
+        const section = document.createElement('section');
+        section.className = 'group';
+        const header = document.createElement('div');
+        header.className = 'section-header';
+        header.textContent = g.title;
+        section.appendChild(header);
+
+        const gridEl = document.createElement('div');
+        gridEl.className = 'grid';
+        section.appendChild(gridEl);
+
+        // Pair card
+        if (g.pair && pairById[g.pair]) {
+            const p = pairById[g.pair];
+            const liveRows = (LIVE.pair_load && LIVE.pair_load[p.id]) || [];
+            const predRows = (PRED?.pair_load && PRED.pair_load[p.id]) || [];
+            const latest = latestBinOf(liveRows);
+            const predNow = latest ? predictedFor(PRED?.pair_load, p.id, latest.bin_minute) : null;
+            const card = document.createElement('div');
+            card.className = 'card pair';
+            card.innerHTML = `
+                <div class="title">
+                    <span class="name">${p.label}</span>
+                    <span class="label">live demand</span>
+                    <span class="now">${nowBadge(latest, predNow)}</span>
+                </div>
+                <svg viewBox="0 0 400 160" preserveAspectRatio="none" id="svg-${p.id}"></svg>
+            `;
+            gridEl.appendChild(card);
+            toRender.push([p.id, liveRows, predRows, {
+                height: 160,
+                yMax: YMAX_OCC_PAIR_BY_ID[p.id] || YMAX_OCC_PAIR,
+            }]);
+        }
+
+        // Individual sector cards
+        for (const sid of g.sectors) {
+            const s = sectorById[sid];
+            if (!s) continue;
+            const liveRows = (LIVE.load && LIVE.load[s.id]) || [];
+            const predRows = (PRED?.load && PRED.load[s.id]) || [];
+            const latest = latestBinOf(liveRows);
+            const predNow = latest ? predictedFor(PRED?.load, s.id, latest.bin_minute) : null;
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
+                <div class="title">
+                    <span class="name">${s.id}</span>
+                    <span class="label">${s.freq || ''} MHz</span>
+                    <span class="now">${nowBadge(latest, predNow)}</span>
+                </div>
+                <svg viewBox="0 0 400 120" preserveAspectRatio="none" id="svg-${s.id}"></svg>
+            `;
+            gridEl.appendChild(card);
+            toRender.push([s.id, liveRows, predRows, {
+                height: 120, yMax: YMAX_OCC_SECTOR,
+            }]);
+        }
+
+        root.appendChild(section);
+    }
+
+    for (const [id, liveRows, predRows, opts] of toRender) {
+        drawChart(id, liveRows, predRows, xMin, xMax, opts);
+    }
+}
+
+function nowBadge(latest, predicted) {
+    if (!latest) return 'no data yet';
+    const hh = String(Math.floor(latest.bin_minute / 60)).padStart(2, '0');
+    const mm = String(latest.bin_minute % 60).padStart(2, '0');
+    const live = latest.count;
+    if (predicted === null || predicted === undefined) {
+        return `now ${live} @ ${hh}${mm}Z`;
+    }
+    const d = live - predicted;
+    const cls = d > 2 ? 'delta-pos' : d < -2 ? 'delta-neg' : 'delta-zero';
+    const sign = d > 0 ? '+' : '';
+    return `now ${live} @ ${hh}${mm}Z <span class="${cls}">(pred ${predicted}, ${sign}${d})</span>`;
+}
+
+function drawChart(id, liveRows, predRows, xMin, xMax, opts) {
+    const svg = document.getElementById(`svg-${id}`);
+    if (!svg) return;
+    const W = 400, H = opts.height || 120;
+    const M = {l: 28, r: 6, t: 8, b: 18};
+    const plotW = W - M.l - M.r;
+    const plotH = H - M.t - M.b;
+    const bin = LIVE.meta?.bin_minutes || 15;
+
+    const maxLive = Math.max(0, ...liveRows.map(r => r.count || 0));
+    const maxPred = SHOW_PRED && predRows ? Math.max(0, ...predRows.map(r => r.count || 0)) : 0;
+    const maxCount = Math.max(CAP, maxLive, maxPred, opts.yMax || 10);
+
+    const xScale = (t) => M.l + (t - xMin) / (xMax - xMin) * plotW;
+    const yScale = (v) => M.t + plotH - (v / maxCount) * plotH;
+    const binPx = (plotW / (xMax - xMin)) * bin;
+
+    // Which bin represents "right now" — last live bin in the series.
+    const latestBin = liveRows.length ? liveRows[liveRows.length - 1].bin_minute : null;
+
+    let html = '';
+
+    // Hour gridlines + X-axis labels
+    for (let t = xMin; t <= xMax; t += 60) {
+        const x = xScale(t);
+        html += `<line class="grid-line" x1="${x}" y1="${M.t}" x2="${x}" y2="${M.t + plotH}"/>`;
+        const hh = Math.floor(t / 60);
+        html += `<text class="axis-label" x="${x}" y="${H - 4}" text-anchor="middle">${String(hh).padStart(2,'0')}Z</text>`;
+    }
+
+    // Y gridlines + labels
+    const tickStep = Math.max(1, Math.ceil(maxCount / 4));
+    for (let v = 0; v <= maxCount; v += tickStep) {
+        const y = yScale(v);
+        html += `<line class="grid-line" x1="${M.l}" y1="${y}" x2="${M.l + plotW}" y2="${y}"/>`;
+        html += `<text class="axis-label" x="${M.l - 3}" y="${y + 3}" text-anchor="end">${v}</text>`;
+    }
+
+    // Capacity line
+    if (CAP > 0 && CAP <= maxCount) {
+        const y = yScale(CAP);
+        html += `<line class="cap-line" x1="${M.l}" y1="${y}" x2="${M.l + plotW}" y2="${y}"/>`;
+    }
+
+    // Predicted overlay (ghost bars)
+    if (SHOW_PRED && predRows) {
+        for (const r of predRows) {
+            if (r.bin_minute < xMin || r.bin_minute > xMax) continue;
+            const v = r.count || 0;
+            if (v <= 0) continue;
+            const x = xScale(r.bin_minute);
+            const y = yScale(v);
+            const h = plotH + M.t - y;
+            html += `<rect class="bar-predicted" x="${x}" y="${y}" width="${binPx - 0.5}" height="${h}" data-pred="${v}" data-bin="${r.bin_minute}"/>`;
+        }
+    }
+
+    // Live bars (drawn on top of predicted so they're the dominant shape)
+    for (const r of liveRows) {
+        const v = r.count || 0;
+        const x = xScale(r.bin_minute);
+        const y = yScale(v);
+        const h = v > 0 ? (plotH + M.t - y) : 0;
+        const cls = r.bin_minute === latestBin ? 'bar-live current' : 'bar-live';
+        if (v > 0) {
+            html += `<rect class="${cls}" x="${x}" y="${y}" width="${binPx - 0.5}" height="${h}" data-live="${v}" data-bin="${r.bin_minute}"/>`;
+        } else {
+            // zero bar: show a 1px tick so the collector's "yes, I looked here" is visible
+            html += `<rect class="${cls}" x="${x}" y="${M.t + plotH - 1}" width="${binPx - 0.5}" height="1" data-live="0" data-bin="${r.bin_minute}"/>`;
+        }
+    }
+
+    // "Now" marker — vertical dashed line at the latest bin
+    if (latestBin !== null) {
+        const x = xScale(latestBin + bin);
+        html += `<line class="now-line" x1="${x}" y1="${M.t}" x2="${x}" y2="${M.t + plotH}"/>`;
+    }
+
+    svg.innerHTML = html;
+
+    svg.addEventListener('mousemove', (e) => {
+        if (e.target.tagName === 'rect') {
+            const rect = e.target;
+            const b = parseInt(rect.getAttribute('data-bin'));
+            const hh = String(Math.floor(b / 60)).padStart(2, '0');
+            const mm = String(b % 60).padStart(2, '0');
+            const live = rect.getAttribute('data-live');
+            const pred = rect.getAttribute('data-pred');
+            let txt = `${hh}${mm}Z  `;
+            if (live !== null) txt += `live ${live}`;
+            if (pred !== null) txt += (live !== null ? ' · ' : '') + `pred ${pred}`;
+            // Look up the counterpart if hovering only one kind of bar
+            if (live !== null && pred === null && SHOW_PRED) {
+                const predRow = predRows.find(r => r.bin_minute === b);
+                if (predRow) txt += ` · pred ${predRow.count}`;
+            }
+            if (pred !== null && live === null) {
+                const liveRow = liveRows.find(r => r.bin_minute === b);
+                if (liveRow) txt += ` · live ${liveRow.count}`;
+            }
+            TIP.textContent = txt;
+            TIP.style.left = (e.clientX + 10) + 'px';
+            TIP.style.top = (e.clientY + 10) + 'px';
+            TIP.style.opacity = '1';
+        } else {
+            TIP.style.opacity = '0';
+        }
+    });
+    svg.addEventListener('mouseleave', () => TIP.style.opacity = '0');
+}
+
+document.getElementById('capThreshold').addEventListener('change', (e) => {
+    CAP = parseInt(e.target.value) || 0;
+    render();
+});
+document.getElementById('showPredicted').addEventListener('change', (e) => {
+    SHOW_PRED = e.target.checked;
+    render();
+});
+
+load();
+setInterval(load, REFRESH_SEC * 1000);
+</script>
+</body>
+</html>
