@@ -369,19 +369,38 @@ function drawChart(svg, actRows, predRows, xMin, xMax) {
         html += `<line x1="${M.l}" y1="${y}" x2="${M.l+plotW}" y2="${y}" stroke="#2a3142" stroke-width="0.5" stroke-dasharray="2 2"/>`;
         html += `<text x="${M.l-3}" y="${y+3}" fill="#7a8499" font-family="monospace" font-size="9" text-anchor="end">${v}</text>`;
     }
-    // Predicted as filled blue
+
+    // Predicted as filled blue bars — the "expected envelope" backdrop
     for (const r of predRows) {
         if (r.bin_minute < xMin || r.bin_minute > xMax) continue;
         const v = r.count || 0;
         if (v <= 0) continue;
-        html += `<rect x="${xScale(r.bin_minute)}" y="${yScale(v)}" width="${predBarW-0.4}" height="${plotH+M.t-yScale(v)}" fill="#7aa8ff" fill-opacity="0.35" data-pred="${v}" data-bin="${r.bin_minute}"/>`;
+        html += `<rect x="${xScale(r.bin_minute)}" y="${yScale(v)}" width="${predBarW-0.4}" height="${plotH+M.t-yScale(v)}" fill="#7aa8ff" fill-opacity="0.4" data-pred="${v}" data-bin="${r.bin_minute}"/>`;
     }
-    // Actual as solid green over top
-    for (const r of actRows) {
-        const v = r.count || 0;
-        if (v <= 0) continue;
-        html += `<rect x="${xScale(r.bin_minute)}" y="${yScale(v)}" width="${actBarW-0.4}" height="${plotH+M.t-yScale(v)}" fill="#5ee0ba" fill-opacity="0.85" data-act="${v}" data-bin="${r.bin_minute}"/>`;
+
+    // Actual as a line + markers ON TOP of the prediction bars.
+    // Line + markers (vs solid bars) makes sparse coverage honest:
+    // gaps between observed bins show up as long line segments
+    // rather than being painted as zeros.  Also lets the eye trace
+    // the actual trajectory cleanly.
+    if (actRows.length) {
+        const sortedAct = [...actRows].sort((a, b) => a.bin_minute - b.bin_minute);
+        const points = sortedAct.map(r => {
+            // Plot at the centre of the bin so the line aligns with
+            // the middle of the prediction bars beneath.
+            const x = xScale(r.bin_minute) + actBarW / 2;
+            const y = yScale(r.count || 0);
+            return [x, y, r];
+        });
+        // Connecting line — drawn first so markers sit on top
+        const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+        html += `<path d="${path}" fill="none" stroke="#5ee0ba" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" pointer-events="none"/>`;
+        // Markers
+        for (const [x, y, r] of points) {
+            html += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3" fill="#5ee0ba" stroke="#0a0e1a" stroke-width="1" data-act="${r.count}" data-bin="${r.bin_minute}"/>`;
+        }
     }
+
     svg.innerHTML = html;
 
     svg.addEventListener('mousemove', (e) => {
