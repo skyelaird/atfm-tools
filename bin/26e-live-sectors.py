@@ -27,7 +27,7 @@ import os
 import re
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
@@ -406,11 +406,35 @@ def main():
     doc.setdefault('forecast_load', {})
     doc.setdefault('forecast_pair_load', {})
 
-    # Upsert current-bin observed counts
+    # Real-time UTC stamp for this snapshot. Stored on each bin so the
+    # rolling-window filter works against actual elapsed time, not the
+    # ambiguous minute-of-day. Without this, yesterday's 22:00 bin and
+    # today's 22:00 bin look identical and either persist or silently
+    # overwrite each other depending on order — not what we want.
+    ts_iso = now.isoformat().replace('+00:00', 'Z')
+    cutoff_iso = (now - timedelta(hours=ROLLING_WINDOW_HOURS)).isoformat().replace('+00:00', 'Z')
+    now_iso = ts_iso
+
+    # Upsert current-bin observed counts at the current bin_minute, and
+    # tag with this snapshot's real timestamp.
     def upsert(series, minute, count):
-        series[:] = [x for x in series if x['bin_minute'] != minute]
-        series.append({'bin_minute': minute, 'count': count})
-        series.sort(key=lambda x: x['bin_minute'])
+        # Drop any prior entry that conflicts: same bin_minute (we're
+        # replacing it with fresh data) OR a stale ts (older than 12h
+        # real time) OR a future-dated ts (carried over from a prior
+        # day's run before this fix).
+        new_series = []
+        for x in series:
+            xts = x.get('ts')
+            if x['bin_minute'] == minute:
+                continue                  # being replaced
+            if xts is None:
+                continue                  # old-format bin, can't trust — drop
+            if xts < cutoff_iso or xts > now_iso:
+                continue                  # outside rolling window
+            new_series.append(x)
+        new_series.append({'bin_minute': minute, 'count': count, 'ts': ts_iso})
+        new_series.sort(key=lambda x: x['ts'])
+        series[:] = new_series
 
     for sid in sector_ids:
         series = doc['load'].setdefault(sid, [])
@@ -419,24 +443,19 @@ def main():
         series = doc['pair_load'].setdefault(pid, [])
         upsert(series, bin_minute, occ_by_pair.get(pid, 0))
 
-    # Replace forecast wholesale — it's a fresh projection each run
+    # Replace forecast wholesale — it's a fresh projection each run.
+    # Forecast bins are tagged with the snapshot ts so consumers can
+    # know how stale the projection is.
     for sid in sector_ids:
         doc['forecast_load'][sid] = sorted(
-            [{'bin_minute': b, 'count': len(forecast_sector[b][sid])}
+            [{'bin_minute': b, 'count': len(forecast_sector[b][sid]), 'ts': ts_iso}
              for b in forecast_bins if len(forecast_sector[b][sid]) > 0],
             key=lambda x: x['bin_minute'])
     for pid in PAIR_MAP:
         doc['forecast_pair_load'][pid] = sorted(
-            [{'bin_minute': b, 'count': len(forecast_pair[b][pid])}
+            [{'bin_minute': b, 'count': len(forecast_pair[b][pid]), 'ts': ts_iso}
              for b in forecast_bins if len(forecast_pair[b][pid]) > 0],
             key=lambda x: x['bin_minute'])
-
-    # Trim rolling window on observed series
-    cutoff = bin_minute - ROLLING_WINDOW_HOURS * 60
-    for sid in sector_ids:
-        doc['load'][sid] = [x for x in doc['load'][sid] if x['bin_minute'] >= cutoff]
-    for pid in PAIR_MAP:
-        doc['pair_load'][pid] = [x for x in doc['pair_load'][pid] if x['bin_minute'] >= cutoff]
 
     total_in_sectors = sum(occ_by_sector.values())
     doc['meta'] = {
