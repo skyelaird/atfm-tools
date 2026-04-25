@@ -14,12 +14,14 @@ name: 26E live sector occupancy
 # Cost: 96 runs/day, each ~15s. Negligible.
 
 on:
-  schedule:
-    # 5-min cadence during/around event days. VATSIM data.vatsim.net has
-    # no formal rate limit and we're 1 request per run; 12 req/h is well
-    # within polite usage. With BIN_MIN=5, every 5-min bin now gets a
-    # real snapshot (no gaps) so the timeline view fills continuously.
-    - cron: '*/5 * * * *'
+  # Schedule disabled at 2000Z 2026-04-25 — the 26E event is over for
+  # today.  Re-enable for the next event by adding back:
+  #   schedule:
+  #     - cron: '*/5 * * * *'
+  # (Or set a window like '*/5 11-22 * 4 *' to cap to event hours
+  # only — note GH Actions cron under load fires at ~50min cadence
+  # anyway, so don't trust the */5 alone — pair with a webhook or
+  # self-hosted runner for the next live event.)
   workflow_dispatch: {}
 
 # A queued run is always staler than its trigger. If a previous run is

@@ -343,6 +343,29 @@ function buildCard(id, kind) {
     return card;
 }
 
+// Catmull-Rom spline -> SVG cubic-bezier path.  Tension 0.5 (the
+// classic "centripetal" feel — smooth without overshoot).  Endpoints
+// are duplicated so the curve starts/ends exactly at the first/last
+// observed point.
+function catmullRomPath(pts) {
+    if (pts.length === 0) return '';
+    if (pts.length === 1) return `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+    if (pts.length === 2) {
+        return `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)} L${pts[1][0].toFixed(1)},${pts[1][1].toFixed(1)}`;
+    }
+    const p = [pts[0], ...pts, pts[pts.length - 1]];   // pad endpoints
+    let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+    for (let i = 1; i < p.length - 2; i++) {
+        const p0 = p[i - 1], p1 = p[i], p2 = p[i + 1], p3 = p[i + 2];
+        const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+        const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+        const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+        const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+        d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+    }
+    return d;
+}
+
 function drawChart(svg, actRows, predRows, xMin, xMax) {
     const W = 400, H = 130;
     const M = { l: 26, r: 6, t: 8, b: 18 };
@@ -378,22 +401,23 @@ function drawChart(svg, actRows, predRows, xMin, xMax) {
         html += `<rect x="${xScale(r.bin_minute)}" y="${yScale(v)}" width="${predBarW-0.4}" height="${plotH+M.t-yScale(v)}" fill="#7aa8ff" fill-opacity="0.4" data-pred="${v}" data-bin="${r.bin_minute}"/>`;
     }
 
-    // Actual as a line + markers ON TOP of the prediction bars.
-    // Line + markers (vs solid bars) makes sparse coverage honest:
-    // gaps between observed bins show up as long line segments
-    // rather than being painted as zeros.  Also lets the eye trace
-    // the actual trajectory cleanly.
+    // Actual as a smoothed curve + markers ON TOP of the prediction bars.
+    // Catmull-Rom-to-Bezier smoothing simulates an envelope through the
+    // observed points: the curve is exactly tangent to the data at each
+    // marker but flows naturally between them, so the implied "shape"
+    // of actual demand reads as a smooth envelope even when bins are
+    // sparse.  Markers stay so the actual data points are honest about
+    // where samples exist.
     if (actRows.length) {
         const sortedAct = [...actRows].sort((a, b) => a.bin_minute - b.bin_minute);
         const points = sortedAct.map(r => {
-            // Plot at the centre of the bin so the line aligns with
+            // Plot at the centre of the bin so the curve aligns with
             // the middle of the prediction bars beneath.
             const x = xScale(r.bin_minute) + actBarW / 2;
             const y = yScale(r.count || 0);
             return [x, y, r];
         });
-        // Connecting line — drawn first so markers sit on top
-        const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+        const path = catmullRomPath(points.map(p => [p[0], p[1]]));
         html += `<path d="${path}" fill="none" stroke="#5ee0ba" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" pointer-events="none"/>`;
         // Markers
         for (const [x, y, r] of points) {
