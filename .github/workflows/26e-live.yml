@@ -57,15 +57,31 @@ jobs:
           # our snapshot wholesale (we own these files end-to-end —
           # no other process writes them), commit, push.  Up to 4 tries
           # in case main keeps moving from twice-daily 26e-refresh.yml.
+          # Snapshot every file the script may have written so we can
+          # restore them after a hard-reset to origin/main during the
+          # retry loop.  Replay files are per-event-day and accumulate,
+          # so they need the same treatment.
+          mkdir -p .snap/data/26E/replay .snap/public
           for attempt in 1 2 3 4; do
-            if [ ! -f data/26E/live-load.json.snap ]; then
-              cp data/26E/live-load.json data/26E/live-load.json.snap
-              cp public/26e-live-load.json public/26e-live-load.json.snap
+            if [ ! -f .snap/done ]; then
+              cp data/26E/live-load.json .snap/data/26E/live-load.json
+              cp public/26e-live-load.json .snap/public/26e-live-load.json
+              if [ -d data/26E/replay ]; then
+                cp -r data/26E/replay/. .snap/data/26E/replay/ 2>/dev/null || true
+              fi
+              cp public/26e-replay-*.json .snap/public/ 2>/dev/null || true
+              touch .snap/done
             fi
             git fetch origin main
             git reset --hard origin/main
-            cp data/26E/live-load.json.snap data/26E/live-load.json
-            cp public/26e-live-load.json.snap public/26e-live-load.json
+            cp .snap/data/26E/live-load.json data/26E/live-load.json
+            cp .snap/public/26e-live-load.json public/26e-live-load.json
+            mkdir -p data/26E/replay
+            if [ -d .snap/data/26E/replay ]; then
+              cp -r .snap/data/26E/replay/. data/26E/replay/ 2>/dev/null || true
+            fi
+            cp .snap/public/26e-replay-*.json public/ 2>/dev/null || true
+            git add data/26E/replay/ public/26e-replay-*.json 2>/dev/null || true
             git add data/26E/live-load.json public/26e-live-load.json
             if git diff --cached --quiet; then
               echo "no changes (attempt $attempt)"
@@ -79,4 +95,4 @@ jobs:
             echo "push failed on attempt $attempt; retrying with fresh main"
             sleep 3
           done
-          rm -f data/26E/live-load.json.snap public/26e-live-load.json.snap
+          rm -rf .snap

@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>26E Post-Event Analysis — Actual vs Predicted</title>
+<style>
+:root {
+    --bg: #0a0e1a;
+    --bg-elev: #121826;
+    --bg-elev-hi: #1a2133;
+    --text: #e8ecf4;
+    --text-dim: #7a8499;
+    --border: #2a3142;
+    --accent: #5ee0ba;
+    --warn: #f5a05b;
+    --alert: #ef6464;
+    --predicted: #7aa8ff;
+    --mono: "SF Mono","JetBrains Mono",Consolas,monospace;
+}
+* { box-sizing: border-box; }
+body {
+    background: var(--bg); color: var(--text);
+    margin: 0; padding: 1rem;
+    font-family: -apple-system, system-ui, sans-serif;
+    font-size: 14px;
+}
+h1 { font-size: 1.1rem; font-weight: 500; margin: 0 0 0.4rem; }
+.sub {
+    font-family: var(--mono); color: var(--text-dim);
+    font-size: 0.8rem; margin-bottom: 0.8rem;
+}
+.sub a { color: var(--accent); text-decoration: none; }
+.sub a:hover { text-decoration: underline; }
+
+table.summary {
+    border-collapse: collapse;
+    margin: 0.5rem 0 1.2rem;
+    font-family: var(--mono); font-size: 0.8rem;
+}
+table.summary th, table.summary td {
+    padding: 0.3rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+    text-align: right;
+}
+table.summary th {
+    color: var(--text-dim); font-weight: 500;
+    text-align: center;
+    background: var(--bg-elev);
+}
+table.summary td:first-child, table.summary th:first-child {
+    text-align: left; color: var(--accent);
+}
+table.summary .delta-pos { color: var(--alert); }
+table.summary .delta-neg { color: var(--predicted); }
+table.summary .delta-zero { color: var(--text-dim); }
+table.summary tr.pair td:first-child { color: var(--warn); }
+table.summary tr.pair td { border-top: 1px solid var(--border); }
+
+.grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 0.8rem;
+}
+.card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.6rem 0.8rem 0.5rem;
+}
+.card .title {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 0.3rem;
+    font-family: var(--mono); font-size: 0.85rem;
+}
+.card .name { color: var(--accent); font-weight: 600; }
+.card.pair .name { color: var(--warn); }
+.card .label { color: var(--text-dim); font-size: 0.72rem; }
+.card svg { display: block; width: 100%; height: 130px; background: var(--bg); border-radius: 3px; }
+
+.legend { font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim); margin: 0 0 0.6rem; }
+.legend .sw { display: inline-block; width: 12px; height: 8px; vertical-align: middle; margin: 0 0.2rem; }
+.legend .sw.actual { background: var(--accent); }
+.legend .sw.pred { background: var(--predicted); }
+
+.tooltip {
+    position: absolute; pointer-events: none;
+    background: var(--bg-elev-hi); color: var(--text);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 0.25rem 0.5rem;
+    font-family: var(--mono); font-size: 0.75rem;
+    opacity: 0; transition: opacity 0.1s;
+    z-index: 10;
+}
+
+section.group {
+    margin-bottom: 1rem;
+}
+.group-header {
+    font-family: var(--mono); color: var(--text-dim);
+    font-size: 0.75rem; letter-spacing: 0.05em; text-transform: uppercase;
+    margin: 0.8rem 0 0.4rem;
+    padding-bottom: 0.2rem;
+    border-bottom: 1px solid var(--border);
+}
+</style>
+</head>
+<body>
+
+<h1>26E Post-Event Analysis — Actual vs Predicted</h1>
+<div class="sub" id="meta">Loading…</div>
+
+<div class="legend">
+    <span class="sw actual"></span> actual (observed)
+    &nbsp;&nbsp;
+    <span class="sw pred"></span> predicted (CTP model)
+    &nbsp;·&nbsp;
+    <a href="/26e-live.html" style="color: var(--accent);">live timeline →</a>
+    &nbsp;·&nbsp;
+    <a href="/26e-map.html" style="color: var(--accent);">live map →</a>
+</div>
+
+<div id="summary"></div>
+<div id="charts"></div>
+<div class="tooltip" id="tip"></div>
+
+<script>
+const TIP = document.getElementById('tip');
+let ACT = null;     // /26e-replay-latest.json (or todays)
+let PRED = null;    // /26e-sector-load.json (CTP prediction)
+const REFRESH_SEC = 60;
+
+const GROUPS = [
+    {title: '1 · QM1 / QX1', pair: 'QM1+QX1', sectors: ['QM1', 'QX1']},
+    {title: '2 · QM2 / QX2', pair: 'QM2+QX2', sectors: ['QM2', 'QX2']},
+    {title: '3 · QM3 / QX3', pair: 'QM3+QX3', sectors: ['QM3', 'QX3']},
+    {title: '4 · QM4 / QX4', pair: 'QM4+QX4', sectors: ['QM4', 'QX4']},
+    {title: 'North · QX5 / QX6+QX7', pair: 'QX6+QX7', sectors: ['QX5', 'QX6', 'QX7']},
+];
+
+async function load() {
+    const [actR, predR] = await Promise.allSettled([
+        fetch('/26e-replay-latest.json?t=' + Date.now()),
+        fetch('/26e-sector-load.json?t=' + Date.now()),
+    ]);
+    if (actR.status !== 'fulfilled' || !actR.value.ok) {
+        document.getElementById('meta').innerHTML =
+            '<span style="color: var(--alert);">No replay file yet — collector hasn\'t run today, or this isn\'t an event day.</span>';
+        return;
+    }
+    ACT = await actR.value.json();
+    PRED = (predR.status === 'fulfilled' && predR.value.ok)
+        ? await predR.value.json() : null;
+
+    const m = ACT.meta || {};
+    const bins = Object.values(ACT.load || {})[0] || [];
+    const span = bins.length ? `${fmtBin(bins[0].bin_minute)}Z - ${fmtBin(bins[bins.length-1].bin_minute)}Z` : '—';
+    document.getElementById('meta').innerHTML =
+        `Event date: <b>${m.event_date || 'unknown'}</b> · ` +
+        `<b>${bins.length}</b> bins captured (${span}) · ` +
+        `last updated ${(m.last_updated_utc || '').slice(11, 16)}Z` +
+        (PRED ? ` · CTP prediction loaded` : ` · <span style="color:var(--warn)">no CTP prediction file</span>`);
+
+    renderSummary();
+    renderCharts();
+}
+
+function fmtBin(min) {
+    if (min === undefined || min === null) return '—';
+    return `${String(Math.floor(min/60)).padStart(2,'0')}${String(min%60).padStart(2,'0')}`;
+}
+
+function getRows(store, id) {
+    return (store && store[id]) || [];
+}
+
+function peakOf(rows) {
+    if (!rows.length) return null;
+    return rows.reduce((a, r) => (r.count || 0) > (a.count || 0) ? r : a);
+}
+
+function meanIn(rows, fromBin, toBin) {
+    const inWin = rows.filter(r => r.bin_minute >= fromBin && r.bin_minute <= toBin);
+    if (!inWin.length) return null;
+    return inWin.reduce((s, r) => s + (r.count || 0), 0) / inWin.length;
+}
+
+function renderSummary() {
+    let html = `<table class="summary">
+        <tr>
+            <th></th>
+            <th colspan="3">Actual (observed)</th>
+            <th colspan="3">Predicted (CTP)</th>
+            <th colspan="2">Δ at peak</th>
+        </tr>
+        <tr>
+            <th>Sector</th>
+            <th>peak</th><th>at</th><th>mean*</th>
+            <th>peak</th><th>at</th><th>mean*</th>
+            <th>count</th><th>time (m)</th>
+        </tr>`;
+
+    function row(id, store, kind) {
+        const actRows = getRows(ACT.load, id);
+        const predRows = PRED ? getRows(PRED.load, id) : [];
+        const pAct = peakOf(actRows);
+        const pPred = peakOf(predRows);
+        // Mean over the event window where actual exists (so prediction
+        // mean is on the same time window for fair compare).
+        let actMean = null, predMean = null;
+        if (actRows.length) {
+            const lo = Math.min(...actRows.map(r => r.bin_minute));
+            const hi = Math.max(...actRows.map(r => r.bin_minute));
+            actMean = meanIn(actRows, lo, hi);
+            predMean = predRows.length ? meanIn(predRows, lo, hi) : null;
+        }
+        const dCount = (pAct && pPred) ? pAct.count - pPred.count : null;
+        const dTime  = (pAct && pPred) ? pAct.bin_minute - pPred.bin_minute : null;
+        const cls = (v) => v === null ? '' : v > 0 ? 'delta-pos' : v < 0 ? 'delta-neg' : 'delta-zero';
+        return `<tr class="${kind}">
+            <td>${id}</td>
+            <td>${pAct ? pAct.count : '—'}</td>
+            <td>${pAct ? fmtBin(pAct.bin_minute) + 'Z' : '—'}</td>
+            <td>${actMean !== null ? actMean.toFixed(1) : '—'}</td>
+            <td>${pPred ? pPred.count : '—'}</td>
+            <td>${pPred ? fmtBin(pPred.bin_minute) + 'Z' : '—'}</td>
+            <td>${predMean !== null ? predMean.toFixed(1) : '—'}</td>
+            <td class="${cls(dCount)}">${dCount === null ? '—' : (dCount > 0 ? '+' : '') + dCount}</td>
+            <td class="${cls(dTime)}">${dTime === null ? '—' : (dTime > 0 ? '+' : '') + dTime}</td>
+        </tr>`;
+    }
+
+    for (const g of GROUPS) {
+        if (g.pair && (ACT.pair_load || {})[g.pair]) {
+            const id = g.pair;
+            const actRows = getRows(ACT.pair_load, id);
+            const predRows = PRED ? getRows(PRED.pair_load, id) : [];
+            const pAct = peakOf(actRows);
+            const pPred = peakOf(predRows);
+            let actMean = null, predMean = null;
+            if (actRows.length) {
+                const lo = Math.min(...actRows.map(r => r.bin_minute));
+                const hi = Math.max(...actRows.map(r => r.bin_minute));
+                actMean = meanIn(actRows, lo, hi);
+                predMean = predRows.length ? meanIn(predRows, lo, hi) : null;
+            }
+            const dCount = (pAct && pPred) ? pAct.count - pPred.count : null;
+            const dTime  = (pAct && pPred) ? pAct.bin_minute - pPred.bin_minute : null;
+            const cls = (v) => v === null ? '' : v > 0 ? 'delta-pos' : v < 0 ? 'delta-neg' : 'delta-zero';
+            html += `<tr class="pair">
+                <td>${id} (pair)</td>
+                <td>${pAct ? pAct.count : '—'}</td>
+                <td>${pAct ? fmtBin(pAct.bin_minute) + 'Z' : '—'}</td>
+                <td>${actMean !== null ? actMean.toFixed(1) : '—'}</td>
+                <td>${pPred ? pPred.count : '—'}</td>
+                <td>${pPred ? fmtBin(pPred.bin_minute) + 'Z' : '—'}</td>
+                <td>${predMean !== null ? predMean.toFixed(1) : '—'}</td>
+                <td class="${cls(dCount)}">${dCount === null ? '—' : (dCount > 0 ? '+' : '') + dCount}</td>
+                <td class="${cls(dTime)}">${dTime === null ? '—' : (dTime > 0 ? '+' : '') + dTime}</td>
+            </tr>`;
+        }
+        for (const sid of g.sectors) {
+            html += row(sid, ACT.load, '');
+        }
+    }
+    html += `</table>
+        <div style="font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); margin-top: -0.6rem; margin-bottom: 1rem;">
+            * mean computed over the time range where actual data exists, so actual mean and predicted mean are on the same window for like-for-like compare.
+        </div>`;
+    document.getElementById('summary').innerHTML = html;
+}
+
+function renderCharts() {
+    const root = document.getElementById('charts');
+    root.innerHTML = '';
+
+    // Determine event-window x-axis range from actual data extent
+    let bins = new Set();
+    for (const sid in (ACT.load || {})) {
+        for (const r of ACT.load[sid]) bins.add(r.bin_minute);
+    }
+    if (PRED) {
+        for (const sid in (PRED.load || {})) {
+            for (const r of PRED.load[sid]) bins.add(r.bin_minute);
+        }
+    }
+    const sorted = [...bins].sort((a, b) => a - b);
+    const xMin = Math.floor((sorted[0] ?? 660) / 60) * 60;
+    const xMax = Math.ceil((sorted[sorted.length-1] ?? 1320) / 60) * 60;
+
+    for (const g of GROUPS) {
+        const section = document.createElement('section');
+        section.className = 'group';
+        const header = document.createElement('div');
+        header.className = 'group-header';
+        header.textContent = g.title;
+        section.appendChild(header);
+
+        const grid = document.createElement('div');
+        grid.className = 'grid';
+        section.appendChild(grid);
+
+        if (g.pair && (ACT.pair_load || {})[g.pair]) {
+            grid.appendChild(buildCard(g.pair, 'pair'));
+        }
+        for (const sid of g.sectors) {
+            grid.appendChild(buildCard(sid, ''));
+        }
+
+        root.appendChild(section);
+    }
+
+    // Draw each chart after attach
+    for (const c of root.querySelectorAll('[data-id]')) {
+        const id = c.getAttribute('data-id');
+        const isPair = c.classList.contains('pair');
+        const actRows = isPair ? getRows(ACT.pair_load, id) : getRows(ACT.load, id);
+        const predRows = isPair ? (PRED ? getRows(PRED.pair_load, id) : [])
+                                : (PRED ? getRows(PRED.load, id) : []);
+        drawChart(c.querySelector('svg'), actRows, predRows, xMin, xMax);
+    }
+}
+
+function buildCard(id, kind) {
+    const card = document.createElement('div');
+    card.className = 'card' + (kind ? ' ' + kind : '');
+    card.dataset.id = id;
+    const actRows = (kind === 'pair' ? ACT.pair_load : ACT.load)[id] || [];
+    const predRows = PRED ? (kind === 'pair' ? PRED.pair_load : PRED.load)[id] || [] : [];
+    const pAct = peakOf(actRows);
+    const pPred = peakOf(predRows);
+    const peakSummary = pAct
+        ? `actual peak ${pAct.count} @ ${fmtBin(pAct.bin_minute)}Z` +
+          (pPred ? ` · pred ${pPred.count} @ ${fmtBin(pPred.bin_minute)}Z` : '')
+        : 'no data';
+    card.innerHTML = `
+        <div class="title">
+            <span class="name">${id}</span>
+            <span class="label">${peakSummary}</span>
+        </div>
+        <svg viewBox="0 0 400 130" preserveAspectRatio="none"></svg>
+    `;
+    return card;
+}
+
+function drawChart(svg, actRows, predRows, xMin, xMax) {
+    const W = 400, H = 130;
+    const M = { l: 26, r: 6, t: 8, b: 18 };
+    const plotW = W - M.l - M.r, plotH = H - M.t - M.b;
+    const actBinW = (ACT.meta?.bin_minutes || 5);
+    const predBinW = (PRED?.meta?.bin_minutes || 5);
+    const all = [...actRows, ...predRows].map(r => r.count || 0);
+    const maxC = Math.max(15, ...all);
+
+    const xScale = t => M.l + (t - xMin) / (xMax - xMin) * plotW;
+    const yScale = v => M.t + plotH - (v / maxC) * plotH;
+    const actBarW = (plotW / (xMax - xMin)) * actBinW;
+    const predBarW = (plotW / (xMax - xMin)) * predBinW;
+
+    let html = '';
+    for (let t = xMin; t <= xMax; t += 60) {
+        const x = xScale(t);
+        html += `<line x1="${x}" y1="${M.t}" x2="${x}" y2="${M.t+plotH}" stroke="#2a3142" stroke-width="0.5" stroke-dasharray="2 2"/>`;
+        html += `<text x="${x}" y="${H-4}" fill="#7a8499" font-family="monospace" font-size="9" text-anchor="middle">${String(Math.floor(t/60)).padStart(2,'0')}Z</text>`;
+    }
+    const tick = Math.max(1, Math.ceil(maxC / 4));
+    for (let v = 0; v <= maxC; v += tick) {
+        const y = yScale(v);
+        html += `<line x1="${M.l}" y1="${y}" x2="${M.l+plotW}" y2="${y}" stroke="#2a3142" stroke-width="0.5" stroke-dasharray="2 2"/>`;
+        html += `<text x="${M.l-3}" y="${y+3}" fill="#7a8499" font-family="monospace" font-size="9" text-anchor="end">${v}</text>`;
+    }
+    // Predicted as filled blue
+    for (const r of predRows) {
+        if (r.bin_minute < xMin || r.bin_minute > xMax) continue;
+        const v = r.count || 0;
+        if (v <= 0) continue;
+        html += `<rect x="${xScale(r.bin_minute)}" y="${yScale(v)}" width="${predBarW-0.4}" height="${plotH+M.t-yScale(v)}" fill="#7aa8ff" fill-opacity="0.35" data-pred="${v}" data-bin="${r.bin_minute}"/>`;
+    }
+    // Actual as solid green over top
+    for (const r of actRows) {
+        const v = r.count || 0;
+        if (v <= 0) continue;
+        html += `<rect x="${xScale(r.bin_minute)}" y="${yScale(v)}" width="${actBarW-0.4}" height="${plotH+M.t-yScale(v)}" fill="#5ee0ba" fill-opacity="0.85" data-act="${v}" data-bin="${r.bin_minute}"/>`;
+    }
+    svg.innerHTML = html;
+
+    svg.addEventListener('mousemove', (e) => {
+        if (e.target.tagName === 'rect') {
+            const rect = e.target;
+            const b = parseInt(rect.getAttribute('data-bin'));
+            const act = (actRows.find(r => r.bin_minute === b) || {}).count;
+            const pred = (predRows.find(r => Math.abs(r.bin_minute - b) <= 5) || {}).count;
+            const parts = [`${fmtBin(b)}Z`];
+            if (act !== undefined) parts.push(`actual ${act}`);
+            if (pred !== undefined) parts.push(`pred ${pred}`);
+            if (act !== undefined && pred !== undefined) {
+                const d = act - pred;
+                parts.push(`Δ ${d > 0 ? '+' : ''}${d}`);
+            }
+            TIP.textContent = parts.join(' · ');
+            TIP.style.left = (e.clientX + 10) + 'px';
+            TIP.style.top = (e.clientY + 10) + 'px';
+            TIP.style.opacity = '1';
+        } else {
+            TIP.style.opacity = '0';
+        }
+    });
+    svg.addEventListener('mouseleave', () => TIP.style.opacity = '0');
+}
+
+load();
+setInterval(load, REFRESH_SEC * 1000);
+</script>
+</body>
+</html>

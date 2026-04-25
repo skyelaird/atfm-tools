@@ -478,6 +478,68 @@ def main():
     with open(OUT_PATH, 'w') as f:
         json.dump(doc, f, indent=1)
 
+    # ------------------------------------------------------------------
+    #  Permanent per-event-day replay file
+    #
+    #  The rolling live-load.json keeps only 12h of bins so the live view
+    #  stays compact; for post-event reporting (actual vs CTP-modeled)
+    #  we want a complete record of every observed bin from the day.
+    #  Write that to data/26E/replay/{event_date}.json — same schema as
+    #  live-load.json but never trimmed.
+    # ------------------------------------------------------------------
+    event_date = now.strftime('%Y-%m-%d')
+    replay_dir = os.path.join(E26_DIR, 'replay')
+    os.makedirs(replay_dir, exist_ok=True)
+    replay_path = os.path.join(replay_dir, f'{event_date}.json')
+
+    if os.path.exists(replay_path):
+        with open(replay_path) as f:
+            replay_doc = json.load(f)
+    else:
+        replay_doc = {
+            'sectors': doc['sectors'],
+            'pairs': doc['pairs'],
+            'load': {sid: [] for sid in sector_ids},
+            'pair_load': {pid: [] for pid in PAIR_MAP},
+        }
+
+    # Upsert by bin_minute — overwrite the same bin's entry with the
+    # freshest count.  No rolling cutoff: we want the full event day
+    # from 0000Z onward for actual-vs-modeled compare.  Forecast is
+    # intentionally NOT stored here (it's a projection, not an actual,
+    # and would balloon the file with redundant per-snapshot snapshots).
+    def replay_upsert(series, minute, count):
+        series[:] = [x for x in series if x['bin_minute'] != minute]
+        series.append({'bin_minute': minute, 'count': count, 'ts': ts_iso})
+        series.sort(key=lambda x: x['bin_minute'])
+
+    for sid in sector_ids:
+        series = replay_doc['load'].setdefault(sid, [])
+        replay_upsert(series, bin_minute, occ_by_sector.get(sid, 0))
+    for pid in PAIR_MAP:
+        series = replay_doc['pair_load'].setdefault(pid, [])
+        replay_upsert(series, bin_minute, occ_by_pair.get(pid, 0))
+
+    replay_doc['meta'] = {
+        'event_date': event_date,
+        'last_updated_utc': ts_iso,
+        'bin_minutes': BIN_MIN,
+        'metric': 'observed_actual_for_event_day',
+        'sector_floor_ft': SECTOR_FLOOR_FT,
+        'bins_captured': len(replay_doc['load'].get(sector_ids[0], [])),
+        'note': 'Permanent record of observed sector occupancy. Compare against CTP prediction at /26e-sector-load.json for actual-vs-modeled reporting.',
+    }
+
+    with open(replay_path, 'w') as f:
+        json.dump(replay_doc, f, indent=1)
+    # Also publish to public/ as latest.
+    public_replay = os.path.join(REPO_ROOT, 'public', f'26e-replay-{event_date}.json')
+    public_latest = os.path.join(REPO_ROOT, 'public', '26e-replay-latest.json')
+    with open(public_replay, 'w') as f:
+        json.dump(replay_doc, f, indent=1)
+    with open(public_latest, 'w') as f:
+        json.dump(replay_doc, f, indent=1)
+
     # Console summary
     hh, mm = divmod(bin_minute, 60)
     print(f'Feed     : {feed_updated}', flush=True)
