@@ -715,116 +715,900 @@
  "load": {
   "QM1": [
    {
-    "bin_minute": 1105,
-    "count": 10,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 6,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 6,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 7,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 3,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 13,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 28,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 42,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 48,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 23,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QM2": [
    {
-    "bin_minute": 1105,
-    "count": 6,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 4,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 4,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 4,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 3,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 18,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 37,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 47,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 37,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 19,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QM3": [
    {
-    "bin_minute": 1105,
-    "count": 6,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 4,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 3,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 4,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 5,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 10,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 18,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 24,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 30,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 8,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QM4": [
    {
-    "bin_minute": 1105,
-    "count": 0,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 3,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 5,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 11,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 12,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 12,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QX1": [
    {
-    "bin_minute": 1105,
+    "bin_minute": 755,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 9,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
     "count": 11,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 20,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 21,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QX2": [
    {
-    "bin_minute": 1105,
-    "count": 13,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 3,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 3,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 5,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 3,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 9,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 20,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 30,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 23,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QX3": [
    {
-    "bin_minute": 1105,
-    "count": 6,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 0,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 0,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 0,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 0,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 7,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 13,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 19,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 24,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QX4": [
    {
-    "bin_minute": 1105,
+    "bin_minute": 755,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
     "count": 0,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 0,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 3,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 9,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 9,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 8,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QX5": [
    {
-    "bin_minute": 1105,
-    "count": 6,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 0,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 4,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 21,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 23,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 37,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 21,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QX6": [
    {
-    "bin_minute": 1105,
-    "count": 24,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 0,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 0,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 10,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 12,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 21,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QX7": [
    {
-    "bin_minute": 1105,
-    "count": 15,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 0,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 0,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 0,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 0,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 10,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 12,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 21,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ]
  },
  "pair_load": {
   "QM1+QX1": [
    {
-    "bin_minute": 1105,
-    "count": 21,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 8,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 8,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 9,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 4,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 15,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 37,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 53,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 68,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 44,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QM2+QX2": [
    {
-    "bin_minute": 1105,
-    "count": 19,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 6,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 7,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 7,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 8,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 21,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 46,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 67,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 67,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 42,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QM3+QX3": [
    {
-    "bin_minute": 1105,
-    "count": 12,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 4,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 3,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 4,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 6,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 10,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 25,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 37,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 49,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 32,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QM4+QX4": [
    {
-    "bin_minute": 1105,
-    "count": 0,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 3,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 5,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 4,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 2,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 5,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 14,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 21,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 21,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 10,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ],
   "QX6+QX7": [
    {
-    "bin_minute": 1105,
-    "count": 39,
-    "ts": "2026-04-25T18:28:32.712186Z"
+    "bin_minute": 755,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 765,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 770,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 835,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 885,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 925,
+    "count": 1,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 965,
+    "count": 20,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1020,
+    "count": 24,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
+   },
+   {
+    "bin_minute": 1070,
+    "count": 42,
+    "ts": "2026-04-25T17:55:00Z",
+    "salvaged": true
    }
   ]
  },
@@ -834,7 +1618,8 @@
   "bin_minutes": 5,
   "metric": "observed_actual_for_event_day",
   "sector_floor_ft": 29000,
-  "bins_captured": 1,
-  "note": "Permanent record of observed sector occupancy. Compare against CTP prediction at /26e-sector-load.json for actual-vs-modeled reporting."
+  "bins_captured": 9,
+  "note": "Permanent record of observed sector occupancy. Compare against CTP prediction at /26e-sector-load.json for actual-vs-modeled reporting.",
+  "salvage_note": "Bins matching workflow run times 12:39Z..17:52Z were salvaged from v0.7.12-era live-load.json. Bins between those run times are missing because the GH Actions cron fired only ~hourly (scheduler drift under load). Going forward, ts-tagged bins land natively from each subsequent run."
  }
 }
