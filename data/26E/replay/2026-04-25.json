@@ -767,6 +767,11 @@
     "count": 23,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 6,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QM2": [
@@ -823,6 +828,11 @@
     "count": 19,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 4,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QM3": [
@@ -879,6 +889,11 @@
     "count": 8,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 5,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QM4": [
@@ -935,6 +950,11 @@
     "count": 2,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 0,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QX1": [
@@ -991,6 +1011,11 @@
     "count": 21,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 9,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QX2": [
@@ -1047,6 +1072,11 @@
     "count": 23,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 10,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QX3": [
@@ -1103,6 +1133,11 @@
     "count": 24,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 1,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QX4": [
@@ -1159,6 +1194,11 @@
     "count": 8,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 0,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QX5": [
@@ -1215,6 +1255,11 @@
     "count": 21,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 1,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QX6": [
@@ -1271,6 +1316,11 @@
     "count": 21,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 14,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QX7": [
@@ -1327,6 +1377,11 @@
     "count": 21,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 8,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ]
  },
@@ -1385,6 +1440,11 @@
     "count": 44,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 15,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QM2+QX2": [
@@ -1441,6 +1501,11 @@
     "count": 42,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 14,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QM3+QX3": [
@@ -1497,6 +1562,11 @@
     "count": 32,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 6,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QM4+QX4": [
@@ -1553,6 +1623,11 @@
     "count": 10,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 0,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ],
   "QX6+QX7": [
@@ -1609,17 +1684,21 @@
     "count": 42,
     "ts": "2026-04-25T17:55:00Z",
     "salvaged": true
+   },
+   {
+    "bin_minute": 1125,
+    "count": 22,
+    "ts": "2026-04-25T18:46:05.979516Z"
    }
   ]
  },
  "meta": {
   "event_date": "2026-04-25",
-  "last_updated_utc": "2026-04-25T18:28:32.712186Z",
+  "last_updated_utc": "2026-04-25T18:46:05.979516Z",
   "bin_minutes": 5,
   "metric": "observed_actual_for_event_day",
   "sector_floor_ft": 29000,
-  "bins_captured": 9,
-  "note": "Permanent record of observed sector occupancy. Compare against CTP prediction at /26e-sector-load.json for actual-vs-modeled reporting.",
-  "salvage_note": "Bins matching workflow run times 12:39Z..17:52Z were salvaged from v0.7.12-era live-load.json. Bins between those run times are missing because the GH Actions cron fired only ~hourly (scheduler drift under load). Going forward, ts-tagged bins land natively from each subsequent run."
+  "bins_captured": 10,
+  "note": "Permanent record of observed sector occupancy. Compare against CTP prediction at /26e-sector-load.json for actual-vs-modeled reporting."
  }
 }
