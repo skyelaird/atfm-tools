@@ -187,11 +187,34 @@ function meanIn(rows, fromBin, toBin) {
 }
 
 // Trapezoidal "volume" = integral of occupancy over time, in
-// flight-hours.  Sums each bin's count × bin_width / 60.  Bin widths
-// vary across data sources (5m for both right now, but kept robust).
-function volumeOf(rows, binMin) {
-    if (!rows.length) return 0;
-    return rows.reduce((s, r) => s + (r.count || 0) * binMin, 0) / 60;
+// flight-hours, between two specified bin_minute bounds.
+//
+// Why a real trapezoid (not just sum-of-bin × bin_width):
+// actual samples are sparse (one per ~50min when GH cron drifts),
+// predicted samples are dense (5min). A naive sum-of-count × bin_min
+// would compare 9 actual samples × 5 min against 60+ predicted
+// samples × 5 min — a 10× sampling-rate disparity that makes the
+// actual look ~10% of predicted no matter what really happened.
+//
+// Trapezoidal integration treats each pair of consecutive samples as
+// a slice of width = (t[i+1] - t[i]) regardless of how dense the
+// sampling was, so dense and sparse series integrate to comparable
+// areas as long as the underlying curve is similar.
+function volumeOf(rows, lo, hi) {
+    const inRange = rows.filter(r => r.bin_minute >= lo && r.bin_minute <= hi)
+                        .sort((a, b) => a.bin_minute - b.bin_minute);
+    if (inRange.length === 0) return 0;
+    if (inRange.length === 1) {
+        // single sample — extend across the window (best we can do)
+        return (inRange[0].count || 0) * (hi - lo) / 60;
+    }
+    let area = 0;
+    for (let i = 0; i < inRange.length - 1; i++) {
+        const dt = inRange[i+1].bin_minute - inRange[i].bin_minute;
+        const avg = ((inRange[i].count || 0) + (inRange[i+1].count || 0)) / 2;
+        area += avg * dt;
+    }
+    return area / 60;
 }
 
 function renderSummary() {
@@ -224,14 +247,16 @@ function renderSummary() {
         const predRows = PRED ? (isPair ? getRows(PRED.pair_load, id) : getRows(PRED.load, id)) : [];
         const pAct = peakOf(actRows);
         const pPred = peakOf(predRows);
-        // Restrict prediction's volume integration to the actual's
-        // observed window so the comparison is like-for-like.
+        // Compare volumes over the time window where actual data
+        // exists — both series get integrated trapezoidally over the
+        // same [lo, hi] so sampling-rate differences don't bias the
+        // ratio.
         let actVol = 0, predVol = 0;
         if (actRows.length) {
             const lo = Math.min(...actRows.map(r => r.bin_minute));
             const hi = Math.max(...actRows.map(r => r.bin_minute));
-            actVol = volumeOf(actRows, actBin);
-            predVol = volumeOf(predRows.filter(r => r.bin_minute >= lo && r.bin_minute <= hi), predBin);
+            actVol = volumeOf(actRows, lo, hi);
+            predVol = volumeOf(predRows, lo, hi);
         }
         // Track for headline (sectors only, not pairs — pairs would double-count)
         if (!isPair) {
