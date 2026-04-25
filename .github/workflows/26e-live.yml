@@ -15,7 +15,11 @@ name: 26E live sector occupancy
 
 on:
   schedule:
-    - cron: '*/15 * * * *'
+    # 5-min cadence during/around event days. VATSIM data.vatsim.net has
+    # no formal rate limit and we're 1 request per run; 12 req/h is well
+    # within polite usage. With BIN_MIN=5, every 5-min bin now gets a
+    # real snapshot (no gaps) so the timeline view fills continuously.
+    - cron: '*/5 * * * *'
   workflow_dispatch: {}
 
 # Prevent two runs from stepping on each other if one drifts long.
