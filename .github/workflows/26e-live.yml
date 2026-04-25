@@ -22,10 +22,12 @@ on:
     - cron: '*/5 * * * *'
   workflow_dispatch: {}
 
-# Prevent two runs from stepping on each other if one drifts long.
+# A queued run is always staler than its trigger. If a previous run is
+# mid-flight when the next 5-min cron fires, kill the old one — its
+# snapshot would just lose the rebase race anyway.
 concurrency:
   group: 26e-live
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   snapshot:
@@ -50,14 +52,31 @@ jobs:
         run: |
           git config user.name  "26e-live-bot"
           git config user.email "26e-live-bot@users.noreply.github.com"
-          git add data/26E/live-load.json public/26e-live-load.json
-          if git diff --cached --quiet; then
-            echo "no changes"
-          else
+
+          # Retry loop: stash our snapshot, fetch latest main, re-apply
+          # our snapshot wholesale (we own these files end-to-end —
+          # no other process writes them), commit, push.  Up to 4 tries
+          # in case main keeps moving from twice-daily 26e-refresh.yml.
+          for attempt in 1 2 3 4; do
+            if [ ! -f data/26E/live-load.json.snap ]; then
+              cp data/26E/live-load.json data/26E/live-load.json.snap
+              cp public/26e-live-load.json public/26e-live-load.json.snap
+            fi
+            git fetch origin main
+            git reset --hard origin/main
+            cp data/26E/live-load.json.snap data/26E/live-load.json
+            cp public/26e-live-load.json.snap public/26e-live-load.json
+            git add data/26E/live-load.json public/26e-live-load.json
+            if git diff --cached --quiet; then
+              echo "no changes (attempt $attempt)"
+              break
+            fi
             git commit -m "26e: live snapshot $(date -u +%H%MZ)"
-            # Rebase first in case another workflow landed a commit
-            # while we were running (26e-refresh.yml twice a day could
-            # collide otherwise). Retry once on push failure.
-            git pull --rebase origin main || true
-            git push || (sleep 5 && git pull --rebase origin main && git push)
-          fi
+            if git push; then
+              echo "pushed on attempt $attempt"
+              break
+            fi
+            echo "push failed on attempt $attempt; retrying with fresh main"
+            sleep 3
+          done
+          rm -f data/26E/live-load.json.snap public/26e-live-load.json.snap
