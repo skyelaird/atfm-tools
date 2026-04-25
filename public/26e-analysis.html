@@ -120,6 +120,7 @@ section.group {
     <a href="/26e-map.html" style="color: var(--accent);">live map →</a>
 </div>
 
+<div id="headline" style="font-size: 0.92rem; line-height: 1.5; color: var(--text); background: var(--bg-elev); border-left: 3px solid var(--accent); padding: 0.6rem 0.85rem; margin: 0.4rem 0 0.9rem; max-width: 70rem;"></div>
 <div id="summary"></div>
 <div id="charts"></div>
 <div class="tooltip" id="tip"></div>
@@ -185,88 +186,106 @@ function meanIn(rows, fromBin, toBin) {
     return inWin.reduce((s, r) => s + (r.count || 0), 0) / inWin.length;
 }
 
+// Trapezoidal "volume" = integral of occupancy over time, in
+// flight-hours.  Sums each bin's count × bin_width / 60.  Bin widths
+// vary across data sources (5m for both right now, but kept robust).
+function volumeOf(rows, binMin) {
+    if (!rows.length) return 0;
+    return rows.reduce((s, r) => s + (r.count || 0) * binMin, 0) / 60;
+}
+
 function renderSummary() {
+    const actBin = ACT.meta?.bin_minutes || 5;
+    const predBin = PRED?.meta?.bin_minutes || 5;
+
+    // Aggregate totals for the headline narrative
+    let totalActVol = 0, totalPredVol = 0;
+    let dTimes = [];
+    let dCounts = [];
+
     let html = `<table class="summary">
         <tr>
             <th></th>
-            <th colspan="3">Actual (observed)</th>
-            <th colspan="3">Predicted (CTP)</th>
-            <th colspan="2">Δ at peak</th>
+            <th colspan="2">Actual</th>
+            <th colspan="2">Predicted (CTP)</th>
+            <th colspan="2">Δ peak</th>
+            <th>Volume</th>
         </tr>
         <tr>
             <th>Sector</th>
-            <th>peak</th><th>at</th><th>mean*</th>
-            <th>peak</th><th>at</th><th>mean*</th>
+            <th>peak</th><th>at</th>
+            <th>peak</th><th>at</th>
             <th>count</th><th>time (m)</th>
+            <th>act / pred (flt-hr)</th>
         </tr>`;
 
-    function row(id, store, kind) {
-        const actRows = getRows(ACT.load, id);
-        const predRows = PRED ? getRows(PRED.load, id) : [];
+    function row(id, isPair) {
+        const actRows = isPair ? getRows(ACT.pair_load, id) : getRows(ACT.load, id);
+        const predRows = PRED ? (isPair ? getRows(PRED.pair_load, id) : getRows(PRED.load, id)) : [];
         const pAct = peakOf(actRows);
         const pPred = peakOf(predRows);
-        // Mean over the event window where actual exists (so prediction
-        // mean is on the same time window for fair compare).
-        let actMean = null, predMean = null;
+        // Restrict prediction's volume integration to the actual's
+        // observed window so the comparison is like-for-like.
+        let actVol = 0, predVol = 0;
         if (actRows.length) {
             const lo = Math.min(...actRows.map(r => r.bin_minute));
             const hi = Math.max(...actRows.map(r => r.bin_minute));
-            actMean = meanIn(actRows, lo, hi);
-            predMean = predRows.length ? meanIn(predRows, lo, hi) : null;
+            actVol = volumeOf(actRows, actBin);
+            predVol = volumeOf(predRows.filter(r => r.bin_minute >= lo && r.bin_minute <= hi), predBin);
+        }
+        // Track for headline (sectors only, not pairs — pairs would double-count)
+        if (!isPair) {
+            totalActVol += actVol;
+            totalPredVol += predVol;
+            if (pAct && pPred) {
+                dCounts.push(pAct.count - pPred.count);
+                dTimes.push(pAct.bin_minute - pPred.bin_minute);
+            }
         }
         const dCount = (pAct && pPred) ? pAct.count - pPred.count : null;
         const dTime  = (pAct && pPred) ? pAct.bin_minute - pPred.bin_minute : null;
         const cls = (v) => v === null ? '' : v > 0 ? 'delta-pos' : v < 0 ? 'delta-neg' : 'delta-zero';
-        return `<tr class="${kind}">
-            <td>${id}</td>
+        const volRatio = (predVol > 0) ? (actVol / predVol * 100).toFixed(0) + '%' : '—';
+        const volCls = predVol > 0 ? (actVol / predVol > 0.95 ? 'delta-zero' : actVol / predVol > 0.7 ? '' : 'delta-neg') : '';
+        return `<tr class="${isPair ? 'pair' : ''}">
+            <td>${id}${isPair ? ' (pair)' : ''}</td>
             <td>${pAct ? pAct.count : '—'}</td>
             <td>${pAct ? fmtBin(pAct.bin_minute) + 'Z' : '—'}</td>
-            <td>${actMean !== null ? actMean.toFixed(1) : '—'}</td>
             <td>${pPred ? pPred.count : '—'}</td>
             <td>${pPred ? fmtBin(pPred.bin_minute) + 'Z' : '—'}</td>
-            <td>${predMean !== null ? predMean.toFixed(1) : '—'}</td>
             <td class="${cls(dCount)}">${dCount === null ? '—' : (dCount > 0 ? '+' : '') + dCount}</td>
             <td class="${cls(dTime)}">${dTime === null ? '—' : (dTime > 0 ? '+' : '') + dTime}</td>
+            <td class="${volCls}">${actVol.toFixed(1)} / ${predVol.toFixed(1)}  ${volRatio}</td>
         </tr>`;
     }
 
     for (const g of GROUPS) {
         if (g.pair && (ACT.pair_load || {})[g.pair]) {
-            const id = g.pair;
-            const actRows = getRows(ACT.pair_load, id);
-            const predRows = PRED ? getRows(PRED.pair_load, id) : [];
-            const pAct = peakOf(actRows);
-            const pPred = peakOf(predRows);
-            let actMean = null, predMean = null;
-            if (actRows.length) {
-                const lo = Math.min(...actRows.map(r => r.bin_minute));
-                const hi = Math.max(...actRows.map(r => r.bin_minute));
-                actMean = meanIn(actRows, lo, hi);
-                predMean = predRows.length ? meanIn(predRows, lo, hi) : null;
-            }
-            const dCount = (pAct && pPred) ? pAct.count - pPred.count : null;
-            const dTime  = (pAct && pPred) ? pAct.bin_minute - pPred.bin_minute : null;
-            const cls = (v) => v === null ? '' : v > 0 ? 'delta-pos' : v < 0 ? 'delta-neg' : 'delta-zero';
-            html += `<tr class="pair">
-                <td>${id} (pair)</td>
-                <td>${pAct ? pAct.count : '—'}</td>
-                <td>${pAct ? fmtBin(pAct.bin_minute) + 'Z' : '—'}</td>
-                <td>${actMean !== null ? actMean.toFixed(1) : '—'}</td>
-                <td>${pPred ? pPred.count : '—'}</td>
-                <td>${pPred ? fmtBin(pPred.bin_minute) + 'Z' : '—'}</td>
-                <td>${predMean !== null ? predMean.toFixed(1) : '—'}</td>
-                <td class="${cls(dCount)}">${dCount === null ? '—' : (dCount > 0 ? '+' : '') + dCount}</td>
-                <td class="${cls(dTime)}">${dTime === null ? '—' : (dTime > 0 ? '+' : '') + dTime}</td>
-            </tr>`;
+            html += row(g.pair, true);
         }
         for (const sid of g.sectors) {
-            html += row(sid, ACT.load, '');
+            html += row(sid, false);
         }
     }
-    html += `</table>
-        <div style="font-family: var(--mono); font-size: 0.7rem; color: var(--text-dim); margin-top: -0.6rem; margin-bottom: 1rem;">
-            * mean computed over the time range where actual data exists, so actual mean and predicted mean are on the same window for like-for-like compare.
-        </div>`;
+    html += `</table>`;
+
+    // Headline narrative. Median of per-sector deltas (median is more
+    // robust than mean against the 1-2 outlier sectors).
+    const median = arr => {
+        const a = [...arr].sort((x, y) => x - y);
+        return a.length ? a[Math.floor(a.length / 2)] : 0;
+    };
+    const volPct = totalPredVol > 0 ? Math.round(totalActVol / totalPredVol * 100) : 0;
+    const medianTimeShift = dTimes.length ? median(dTimes) : 0;
+    const medianCountDelta = dCounts.length ? median(dCounts) : 0;
+    const arrow = medianTimeShift > 0 ? 'later' : medianTimeShift < 0 ? 'earlier' : 'on time';
+    document.getElementById('headline').innerHTML = `
+        Across all 11 CZQM/CZQX sectors, observed traffic delivered
+        <b>${totalActVol.toFixed(0)} flight-hours</b> against the CTP model's
+        <b>${totalPredVol.toFixed(0)}</b> over the same window — <b>${volPct}%</b> of booked volume.
+        Peaks ran a median <b>${Math.abs(medianTimeShift)} min ${arrow}</b> than predicted, and
+        <b>${medianCountDelta < 0 ? medianCountDelta : '+' + medianCountDelta}</b> aircraft below predicted at the peak.
+    `;
     document.getElementById('summary').innerHTML = html;
 }
 
