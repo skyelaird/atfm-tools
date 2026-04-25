@@ -1,0 +1,56 @@
+name: Wind snapshot (daily)
+
+# Captures Open-Meteo GFS forecast for the NAT/Canadian-airspace grid
+# at lead times {T+0, T+24, T+72, T+168} once a day. Builds a
+# verification corpus for demand-curve-uncertainty modelling — see
+# bin/wind-snapshot.py for rationale.
+#
+# Storage cost: ~50 KB per file × 365 days ≈ 18 MB/year.  Trivial.
+#
+# Cron at 13Z catches the 12Z GFS cycle (Open-Meteo's GFS source needs
+# ~4-5h to propagate after each cycle's publication).
+
+on:
+  schedule:
+    - cron: '0 13 * * *'   # 13:00 UTC daily
+  workflow_dispatch: {}
+
+concurrency:
+  group: wind-snapshot
+  cancel-in-progress: true
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run wind snapshot
+        run: python bin/wind-snapshot.py
+
+      - name: Commit + push if changed
+        run: |
+          git config user.name  "wind-snapshot-bot"
+          git config user.email "wind-snapshot-bot@users.noreply.github.com"
+          git add data/wind-archive/snapshots/
+          if git diff --cached --quiet; then
+            echo "no changes (already snapshotted today?)"
+            exit 0
+          fi
+          git commit -m "wind: $(date -u +%Y-%m-%d) snapshot"
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git pull --rebase -X ours origin main
+            if git push; then
+              echo "pushed on attempt $attempt"
+              break
+            fi
+            sleep 3
+          done
