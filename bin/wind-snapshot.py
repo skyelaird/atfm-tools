@@ -42,6 +42,13 @@ from urllib.error import URLError
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ARCHIVE_DIR = os.path.join(REPO_ROOT, 'data', 'wind-archive', 'snapshots')
 
+# Collection-window end.  CTP events run in spring; jet-stream patterns
+# are seasonal, so we want to capture late-April / May data only — that's
+# what's representative for next year's spring CTP.  Past this date the
+# script no-ops cleanly so the cron stops accumulating without manual
+# intervention.  Update if you want to extend.
+COLLECTION_END_UTC = datetime(2026, 5, 25, 23, 59, 59, tzinfo=timezone.utc)
+
 # Same grid as the CTP sim — covers NAT + Canadian airspace + EU coast
 LAT_MIN, LAT_MAX, LAT_STEP = 25, 70, 5
 LON_MIN, LON_MAX, LON_STEP = -100, 20, 5
@@ -100,12 +107,17 @@ def to_uv(speed_kt, dir_deg):
 
 
 def main():
+    now = datetime.now(timezone.utc)
+    if now > COLLECTION_END_UTC:
+        print(f'Past collection window ({COLLECTION_END_UTC.date()}) — no-op.', flush=True)
+        print('Edit COLLECTION_END_UTC in this file to extend.', flush=True)
+        return
+
     os.makedirs(ARCHIVE_DIR, exist_ok=True)
 
     # Fetch time floored to the most recent GFS cycle (00/06/12/18Z).
     # GFS publishes about 4-5h after the cycle, so by the time we run
     # at +5 of cycle (e.g. cron at 05/11/17/23Z) the data is ready.
-    now = datetime.now(timezone.utc)
     cycle_hour = (now.hour // 6) * 6
     fetch_dt = now.replace(hour=cycle_hour, minute=0, second=0, microsecond=0)
     fetch_iso = fetch_dt.isoformat().replace('+00:00', 'Z')

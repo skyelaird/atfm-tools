@@ -5,7 +5,11 @@ name: Wind snapshot (daily)
 # verification corpus for demand-curve-uncertainty modelling — see
 # bin/wind-snapshot.py for rationale.
 #
-# Storage cost: ~50 KB per file × 365 days ≈ 18 MB/year.  Trivial.
+# Collection window: 1 month (late-April through late-May 2026) — captures
+# spring-jet-stream conditions representative of next year's spring CTP.
+# Hard cutoff is in bin/wind-snapshot.py (COLLECTION_END_UTC); past that
+# the script no-ops so this cron can stay enabled indefinitely without
+# accumulating off-season data.
 #
 # Cron at 13Z catches the 12Z GFS cycle (Open-Meteo's GFS source needs
 # ~4-5h to propagate after each cycle's publication).
