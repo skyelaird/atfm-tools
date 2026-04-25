@@ -759,6 +759,10 @@
     "count": 6
    },
    {
+    "bin_minute": 770,
+    "count": 7
+   },
+   {
     "bin_minute": 945,
     "count": 5
    },
@@ -850,6 +854,10 @@
    },
    {
     "bin_minute": 765,
+    "count": 4
+   },
+   {
+    "bin_minute": 770,
     "count": 4
    },
    {
@@ -947,6 +955,10 @@
     "count": 3
    },
    {
+    "bin_minute": 770,
+    "count": 4
+   },
+   {
     "bin_minute": 945,
     "count": 3
    },
@@ -1041,6 +1053,10 @@
     "count": 3
    },
    {
+    "bin_minute": 770,
+    "count": 2
+   },
+   {
     "bin_minute": 945,
     "count": 1
    },
@@ -1132,6 +1148,10 @@
    },
    {
     "bin_minute": 765,
+    "count": 2
+   },
+   {
+    "bin_minute": 770,
     "count": 2
    },
    {
@@ -1229,6 +1249,10 @@
     "count": 3
    },
    {
+    "bin_minute": 770,
+    "count": 3
+   },
+   {
     "bin_minute": 945,
     "count": 2
    },
@@ -1320,6 +1344,10 @@
    },
    {
     "bin_minute": 765,
+    "count": 0
+   },
+   {
+    "bin_minute": 770,
     "count": 0
    },
    {
@@ -1417,6 +1445,10 @@
     "count": 2
    },
    {
+    "bin_minute": 770,
+    "count": 2
+   },
+   {
     "bin_minute": 945,
     "count": 0
    },
@@ -1508,6 +1540,10 @@
    },
    {
     "bin_minute": 765,
+    "count": 2
+   },
+   {
+    "bin_minute": 770,
     "count": 2
    },
    {
@@ -1605,6 +1641,10 @@
     "count": 1
    },
    {
+    "bin_minute": 770,
+    "count": 1
+   },
+   {
     "bin_minute": 945,
     "count": 0
    },
@@ -1696,6 +1736,10 @@
    },
    {
     "bin_minute": 765,
+    "count": 0
+   },
+   {
+    "bin_minute": 770,
     "count": 0
    },
    {
@@ -1795,6 +1839,10 @@
     "count": 8
    },
    {
+    "bin_minute": 770,
+    "count": 9
+   },
+   {
     "bin_minute": 945,
     "count": 5
    },
@@ -1886,6 +1934,10 @@
    },
    {
     "bin_minute": 765,
+    "count": 7
+   },
+   {
+    "bin_minute": 770,
     "count": 7
    },
    {
@@ -1983,6 +2035,10 @@
     "count": 3
    },
    {
+    "bin_minute": 770,
+    "count": 4
+   },
+   {
     "bin_minute": 945,
     "count": 6
    },
@@ -2077,6 +2133,10 @@
     "count": 5
    },
    {
+    "bin_minute": 770,
+    "count": 4
+   },
+   {
     "bin_minute": 945,
     "count": 1
    },
@@ -2168,6 +2228,10 @@
    },
    {
     "bin_minute": 765,
+    "count": 1
+   },
+   {
+    "bin_minute": 770,
     "count": 1
    },
    {
@@ -2242,34 +2306,30 @@
  },
  "flights": [],
  "meta": {
-  "generated_utc": "2026-04-25T12:47:16.873405Z",
-  "vatsim_feed_utc": "2026-04-25T12:46:54.1800964Z",
+  "generated_utc": "2026-04-25T12:50:36.469992Z",
+  "vatsim_feed_utc": "2026-04-25T12:50:09.1800178Z",
   "bin_minutes": 5,
   "metric": "live_snapshot_instantaneous_occupancy",
   "sector_floor_ft": 29000,
   "rolling_window_hours": 12,
   "forecast_horizon_minutes": 90,
-  "pilots_in_feed": 2404,
-  "airborne_pilots": 1360,
-  "forecast_candidates": 306,
-  "forecast_candidates_with_route": 266,
-  "flights_in_sectors_now": 26,
+  "pilots_in_feed": 2453,
+  "airborne_pilots": 1368,
+  "forecast_candidates": 318,
+  "forecast_candidates_with_route": 270,
+  "flights_in_sectors_now": 27,
   "pilots_below_floor_in_polygon": 0,
-  "bin_latest": 765
+  "bin_latest": 770
  },
  "forecast_load": {
   "QM1": [
-   {
-    "bin_minute": 770,
-    "count": 8
-   },
    {
     "bin_minute": 775,
     "count": 8
    },
    {
     "bin_minute": 780,
-    "count": 8
+    "count": 9
    },
    {
     "bin_minute": 785,
@@ -2277,11 +2337,11 @@
    },
    {
     "bin_minute": 790,
-    "count": 6
+    "count": 5
    },
    {
     "bin_minute": 795,
-    "count": 7
+    "count": 8
    },
    {
     "bin_minute": 800,
@@ -2297,11 +2357,11 @@
    },
    {
     "bin_minute": 815,
-    "count": 5
+    "count": 6
    },
    {
     "bin_minute": 820,
-    "count": 4
+    "count": 5
    },
    {
     "bin_minute": 825,
@@ -2309,7 +2369,7 @@
    },
    {
     "bin_minute": 830,
-    "count": 3
+    "count": 4
    },
    {
     "bin_minute": 835,
@@ -2317,7 +2377,7 @@
    },
    {
     "bin_minute": 840,
-    "count": 2
+    "count": 3
    },
    {
     "bin_minute": 845,
@@ -2325,15 +2385,15 @@
    },
    {
     "bin_minute": 850,
+    "count": 4
+   },
+   {
+    "bin_minute": 855,
     "count": 4
    }
   ],
   "QM2": [
    {
-    "bin_minute": 770,
-    "count": 5
-   },
-   {
     "bin_minute": 775,
     "count": 5
    },
@@ -2343,11 +2403,11 @@
    },
    {
     "bin_minute": 785,
-    "count": 4
+    "count": 5
    },
    {
     "bin_minute": 790,
-    "count": 7
+    "count": 5
    },
    {
     "bin_minute": 795,
@@ -2375,7 +2435,7 @@
    },
    {
     "bin_minute": 825,
-    "count": 6
+    "count": 7
    },
    {
     "bin_minute": 830,
@@ -2387,7 +2447,7 @@
    },
    {
     "bin_minute": 840,
-    "count": 9
+    "count": 8
    },
    {
     "bin_minute": 845,
@@ -2395,17 +2455,17 @@
    },
    {
     "bin_minute": 850,
-    "count": 6
+    "count": 7
+   },
+   {
+    "bin_minute": 855,
+    "count": 8
    }
   ],
   "QM3": [
    {
-    "bin_minute": 770,
-    "count": 4
-   },
-   {
     "bin_minute": 775,
-    "count": 3
+    "count": 4
    },
    {
     "bin_minute": 780,
@@ -2425,7 +2485,7 @@
    },
    {
     "bin_minute": 800,
-    "count": 4
+    "count": 3
    },
    {
     "bin_minute": 805,
@@ -2437,49 +2497,41 @@
    },
    {
     "bin_minute": 815,
-    "count": 2
-   },
-   {
-    "bin_minute": 820,
     "count": 3
    },
    {
-    "bin_minute": 825,
+    "bin_minute": 820,
     "count": 2
+   },
+   {
+    "bin_minute": 825,
+    "count": 3
    },
    {
     "bin_minute": 830,
-    "count": 2
+    "count": 3
    },
    {
     "bin_minute": 835,
-    "count": 1
+    "count": 2
    },
    {
-    "bin_minute": 845,
-    "count": 1
-   },
-   {
-    "bin_minute": 850,
-    "count": 1
+    "bin_minute": 840,
+    "count": 2
    }
   ],
   "QM4": [
    {
-    "bin_minute": 770,
+    "bin_minute": 775,
     "count": 2
    },
    {
-    "bin_minute": 775,
+    "bin_minute": 780,
     "count": 1
    },
    {
-    "bin_minute": 780,
-    "count": 4
-   },
-   {
     "bin_minute": 785,
-    "count": 4
+    "count": 3
    },
    {
     "bin_minute": 790,
@@ -2499,7 +2551,7 @@
    },
    {
     "bin_minute": 810,
-    "count": 4
+    "count": 3
    },
    {
     "bin_minute": 815,
@@ -2511,37 +2563,37 @@
    },
    {
     "bin_minute": 825,
-    "count": 3
+    "count": 4
    },
    {
     "bin_minute": 830,
-    "count": 3
+    "count": 1
    },
    {
     "bin_minute": 835,
-    "count": 2
+    "count": 1
    },
    {
     "bin_minute": 840,
-    "count": 2
+    "count": 1
    },
    {
     "bin_minute": 845,
-    "count": 2
+    "count": 1
    },
    {
     "bin_minute": 850,
-    "count": 2
+    "count": 1
+   },
+   {
+    "bin_minute": 855,
+    "count": 1
    }
   ],
   "QX1": [
    {
-    "bin_minute": 770,
-    "count": 2
-   },
-   {
     "bin_minute": 775,
-    "count": 3
+    "count": 2
    },
    {
     "bin_minute": 780,
@@ -2549,7 +2601,7 @@
    },
    {
     "bin_minute": 785,
-    "count": 5
+    "count": 6
    },
    {
     "bin_minute": 790,
@@ -2573,11 +2625,11 @@
    },
    {
     "bin_minute": 815,
-    "count": 6
+    "count": 5
    },
    {
     "bin_minute": 820,
-    "count": 4
+    "count": 5
    },
    {
     "bin_minute": 825,
@@ -2602,20 +2654,20 @@
    {
     "bin_minute": 850,
     "count": 3
+   },
+   {
+    "bin_minute": 855,
+    "count": 2
    }
   ],
   "QX2": [
    {
-    "bin_minute": 770,
-    "count": 3
-   },
-   {
     "bin_minute": 775,
     "count": 2
    },
    {
     "bin_minute": 780,
-    "count": 5
+    "count": 2
    },
    {
     "bin_minute": 785,
@@ -2631,7 +2683,7 @@
    },
    {
     "bin_minute": 800,
-    "count": 5
+    "count": 4
    },
    {
     "bin_minute": 805,
@@ -2663,7 +2715,7 @@
    },
    {
     "bin_minute": 840,
-    "count": 4
+    "count": 5
    },
    {
     "bin_minute": 845,
@@ -2671,12 +2723,16 @@
    },
    {
     "bin_minute": 850,
-    "count": 5
+    "count": 4
+   },
+   {
+    "bin_minute": 855,
+    "count": 6
    }
   ],
   "QX3": [
    {
-    "bin_minute": 775,
+    "bin_minute": 780,
     "count": 1
    },
    {
@@ -2697,7 +2753,7 @@
    },
    {
     "bin_minute": 835,
-    "count": 3
+    "count": 1
    },
    {
     "bin_minute": 840,
@@ -2709,15 +2765,15 @@
    },
    {
     "bin_minute": 850,
+    "count": 2
+   },
+   {
+    "bin_minute": 855,
     "count": 2
    }
   ],
   "QX4": [
    {
-    "bin_minute": 770,
-    "count": 2
-   },
-   {
     "bin_minute": 775,
     "count": 2
    },
@@ -2731,7 +2787,7 @@
    },
    {
     "bin_minute": 790,
-    "count": 1
+    "count": 2
    },
    {
     "bin_minute": 795,
@@ -2747,7 +2803,69 @@
    },
    {
     "bin_minute": 810,
+    "count": 1
+   },
+   {
+    "bin_minute": 815,
     "count": 2
+   },
+   {
+    "bin_minute": 820,
+    "count": 1
+   },
+   {
+    "bin_minute": 825,
+    "count": 1
+   },
+   {
+    "bin_minute": 830,
+    "count": 1
+   },
+   {
+    "bin_minute": 835,
+    "count": 1
+   },
+   {
+    "bin_minute": 840,
+    "count": 1
+   },
+   {
+    "bin_minute": 855,
+    "count": 1
+   }
+  ],
+  "QX5": [
+   {
+    "bin_minute": 775,
+    "count": 2
+   },
+   {
+    "bin_minute": 780,
+    "count": 2
+   },
+   {
+    "bin_minute": 785,
+    "count": 3
+   },
+   {
+    "bin_minute": 790,
+    "count": 3
+   },
+   {
+    "bin_minute": 795,
+    "count": 1
+   },
+   {
+    "bin_minute": 800,
+    "count": 1
+   },
+   {
+    "bin_minute": 805,
+    "count": 1
+   },
+   {
+    "bin_minute": 810,
+    "count": 1
    },
    {
     "bin_minute": 815,
@@ -2772,64 +2890,6 @@
    {
     "bin_minute": 840,
     "count": 1
-   }
-  ],
-  "QX5": [
-   {
-    "bin_minute": 770,
-    "count": 2
-   },
-   {
-    "bin_minute": 775,
-    "count": 2
-   },
-   {
-    "bin_minute": 780,
-    "count": 2
-   },
-   {
-    "bin_minute": 785,
-    "count": 3
-   },
-   {
-    "bin_minute": 790,
-    "count": 2
-   },
-   {
-    "bin_minute": 795,
-    "count": 1
-   },
-   {
-    "bin_minute": 800,
-    "count": 1
-   },
-   {
-    "bin_minute": 805,
-    "count": 1
-   },
-   {
-    "bin_minute": 810,
-    "count": 1
-   },
-   {
-    "bin_minute": 815,
-    "count": 1
-   },
-   {
-    "bin_minute": 820,
-    "count": 1
-   },
-   {
-    "bin_minute": 825,
-    "count": 1
-   },
-   {
-    "bin_minute": 830,
-    "count": 1
-   },
-   {
-    "bin_minute": 840,
-    "count": 1
    },
    {
     "bin_minute": 845,
@@ -2838,15 +2898,19 @@
    {
     "bin_minute": 850,
     "count": 1
+   },
+   {
+    "bin_minute": 855,
+    "count": 2
    }
   ],
   "QX6": [
    {
-    "bin_minute": 770,
+    "bin_minute": 775,
     "count": 1
    },
    {
-    "bin_minute": 775,
+    "bin_minute": 780,
     "count": 1
    },
    {
@@ -2883,6 +2947,10 @@
    },
    {
     "bin_minute": 850,
+    "count": 1
+   },
+   {
+    "bin_minute": 855,
     "count": 1
    }
   ],
@@ -2891,10 +2959,6 @@
  "forecast_pair_load": {
   "QM1+QX1": [
    {
-    "bin_minute": 770,
-    "count": 10
-   },
-   {
     "bin_minute": 775,
     "count": 10
    },
@@ -2904,7 +2968,7 @@
    },
    {
     "bin_minute": 785,
-    "count": 10
+    "count": 11
    },
    {
     "bin_minute": 790,
@@ -2932,11 +2996,11 @@
    },
    {
     "bin_minute": 820,
-    "count": 8
+    "count": 9
    },
    {
     "bin_minute": 825,
-    "count": 6
+    "count": 7
    },
    {
     "bin_minute": 830,
@@ -2948,7 +3012,7 @@
    },
    {
     "bin_minute": 840,
-    "count": 5
+    "count": 6
    },
    {
     "bin_minute": 845,
@@ -2956,21 +3020,21 @@
    },
    {
     "bin_minute": 850,
-    "count": 6
+    "count": 7
+   },
+   {
+    "bin_minute": 855,
+    "count": 5
    }
   ],
   "QM2+QX2": [
-   {
-    "bin_minute": 770,
-    "count": 8
-   },
    {
     "bin_minute": 775,
     "count": 7
    },
    {
     "bin_minute": 780,
-    "count": 9
+    "count": 7
    },
    {
     "bin_minute": 785,
@@ -2978,7 +3042,7 @@
    },
    {
     "bin_minute": 790,
-    "count": 11
+    "count": 9
    },
    {
     "bin_minute": 795,
@@ -3002,7 +3066,7 @@
    },
    {
     "bin_minute": 820,
-    "count": 10
+    "count": 11
    },
    {
     "bin_minute": 825,
@@ -3022,19 +3086,19 @@
    },
    {
     "bin_minute": 845,
-    "count": 12
+    "count": 13
    },
    {
     "bin_minute": 850,
-    "count": 10
+    "count": 11
+   },
+   {
+    "bin_minute": 855,
+    "count": 12
    }
   ],
   "QM3+QX3": [
    {
-    "bin_minute": 770,
-    "count": 4
-   },
-   {
     "bin_minute": 775,
     "count": 4
    },
@@ -3056,7 +3120,7 @@
    },
    {
     "bin_minute": 800,
-    "count": 4
+    "count": 3
    },
    {
     "bin_minute": 805,
@@ -3072,15 +3136,15 @@
    },
    {
     "bin_minute": 820,
-    "count": 4
+    "count": 3
    },
    {
     "bin_minute": 825,
-    "count": 3
+    "count": 4
    },
    {
     "bin_minute": 830,
-    "count": 3
+    "count": 4
    },
    {
     "bin_minute": 835,
@@ -3092,25 +3156,25 @@
    },
    {
     "bin_minute": 845,
-    "count": 4
+    "count": 3
    },
    {
     "bin_minute": 850,
-    "count": 3
+    "count": 2
+   },
+   {
+    "bin_minute": 855,
+    "count": 2
    }
   ],
   "QM4+QX4": [
    {
-    "bin_minute": 770,
+    "bin_minute": 775,
     "count": 4
    },
    {
-    "bin_minute": 775,
-    "count": 3
-   },
-   {
     "bin_minute": 780,
-    "count": 5
+    "count": 2
    },
    {
     "bin_minute": 785,
@@ -3134,7 +3198,7 @@
    },
    {
     "bin_minute": 810,
-    "count": 5
+    "count": 4
    },
    {
     "bin_minute": 815,
@@ -3146,36 +3210,40 @@
    },
    {
     "bin_minute": 825,
-    "count": 4
+    "count": 5
    },
    {
     "bin_minute": 830,
-    "count": 4
-   },
-   {
-    "bin_minute": 835,
-    "count": 3
-   },
-   {
-    "bin_minute": 840,
-    "count": 3
-   },
-   {
-    "bin_minute": 845,
     "count": 2
    },
    {
+    "bin_minute": 835,
+    "count": 2
+   },
+   {
+    "bin_minute": 840,
+    "count": 2
+   },
+   {
+    "bin_minute": 845,
+    "count": 1
+   },
+   {
     "bin_minute": 850,
+    "count": 1
+   },
+   {
+    "bin_minute": 855,
     "count": 2
    }
   ],
   "QX6+QX7": [
    {
-    "bin_minute": 770,
+    "bin_minute": 775,
     "count": 1
    },
    {
-    "bin_minute": 775,
+    "bin_minute": 780,
     "count": 1
    },
    {
@@ -3212,6 +3280,10 @@
    },
    {
     "bin_minute": 850,
+    "count": 1
+   },
+   {
+    "bin_minute": 855,
     "count": 1
    }
   ]
