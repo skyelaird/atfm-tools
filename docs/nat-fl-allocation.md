@@ -217,8 +217,67 @@ Apply the ADS-B 14/15 separation to the 5/3/5 stack:
 | C | 5 | ~170/hr | ~1.5 | 100×+ |
 | **Total per track** | 13 | **~440 acft/hr** | ~30 | **~14×** |
 
-Translation: in practice, NAT capacity is **never the binding
-constraint** for VATSIM CTP — OEP throughput, controller workload,
-and pilot density are. The 5/3/5 FL allocation is about *organising*
-the traffic for clean trail-spacing and tier compatibility, not about
-*creating* more capacity than the airspace can absorb.
+But this isn't the binding number — see next section.
+
+## CTP planning track cap = 20 acft/hr
+
+**The actual operational ceiling is set by CTP planning, not airspace
+physics.** CTP constrains each track at **20 aircraft per hour** to
+protect downstream domestic sectors (Canadian arrival sectors at
+CYUL/CYYZ/etc., European arrival sectors at EHAM/EGLL/EDDP) from
+being crushed by a wall of arrivals.
+
+Hierarchy of separation constraints:
+
+| Layer | Limit per track | Why |
+|---|---|---|
+| **CTP planning cap** | **20 acft/hr** | Protects domestic sectors at OXP and beyond |
+| Operational ADS-B | ~440 acft/hr (theoretical) | Physical NAT-HLA capacity (14/15 nm) |
+| 5-min PBCS planning | ~118 acft/hr (theoretical) | Conservative planning model |
+
+**The 20/hr cap is what we plan against** for CTP demand sizing. The
+larger numbers are useful only as "what if" headroom margin — for
+example, if a track program had to absorb a sudden burst due to
+a re-route, the airspace can swallow it; the domestic sectors maybe
+not.
+
+26E peak per-track was ~25-30 because CTP sized at 20 acft/hr/track
+and bursts to ~30 in the peak hour are tolerated. Demand spread
+across ~9-10 active tracks in the 13Z hour gives total CTP capacity
+of ~180-200 acft/hr — close to the observed peak of 275 trans-Atlantic
+pushbacks. Match.
+
+### Downstream protection logic
+
+Each NAT track terminates at a fix that feeds an arrival corridor.
+Several arrival corridors converge on the major European arrival
+airports (EHAM, EGLL, LFPG, EDDP, etc.). If CTP didn't cap track
+flow at 20/hr:
+
+- 13 FLs × 34/hr at ADS-B = up to 440 acft/hr could enter at OEP
+- After 4-5h crossing, all of that arrives at OXP nearly simultaneously
+- European TMA arrival rates are ~40-60/hr at the busiest hubs
+- Without CTP cap, 7-10× over-delivery to TMA = stack-up, holding,
+  diversions — the actual pain point of any uncontrolled flow
+
+CTP's 20/hr cap distributes pain across multiple tracks and prevents
+any single arrival sector from being saturated. It's a downstream
+protection rule masquerading as an airspace cap.
+
+### What this means for our FL allocation
+
+The 5/3/5 model still matters because:
+
+- **Within the 20/hr cap**, the FL split determines which sectors
+  see the demand earliest (high-FL flights cross faster).
+- **Tier compatibility within bands** keeps trail spacing clean
+  inside the 20/hr flow.
+- **A-band still sets the bottleneck** even at 20/hr cap — at typical
+  fleet mix, ~15 of those 20 are A-tier, distributed across 5 FLs
+  = ~3/FL. Comfortable.
+- **B-band carries ~4 of 20** at typical mix → ~1.3/FL. Loose.
+- **C-band carries <1 of 20** → 0.2/FL. Effectively empty.
+
+The FL allocation is about *organising* the 20/hr/track flow for
+clean trail-spacing and tier compatibility, not about *creating*
+capacity.
