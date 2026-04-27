@@ -48,28 +48,35 @@ within ~5% across NAT events.
 | C | A | ✗ A will catch up; eject A to higher track or flow control |
 | C | C | ✓ |
 
-## FL allocation: 3/3/3 model
+## FL allocation: 5/3/5 model (full RVSM stack inside NAT-HLA)
 
-Eastbound NAT, full RVSM stack (FL290-FL410). VATSIM treats all
-aircraft as RVSM-capable; failures drop out of the system rather than
-needing a non-RVSM reserve FL.
+Inside NAT-HLA (between OEP and OXP), vertical separation is RVSM
+1000 ft throughout — the ICAO semicircular rule (odd thousands
+eastbound) does NOT apply. All 13 RVSM levels FL290-FL410 are
+allocatable in either direction. The semicircular rule re-applies
+once aircraft cross OXP back into continental airspace.
 
-| Band | FLs | Aircraft tier | Cruise Mach | Types |
+VATSIM treats all aircraft as RVSM-capable; failures drop out of the
+system rather than needing a non-RVSM reserve FL.
+
+| Band | FLs (every 1000 ft) | Aircraft tier | Cruise Mach | Types |
 |---|---|---|---|---|
-| **High (A)** | FL370 / 390 / 410 | M0.84-0.85 | A-tier | B77W, B772, B77L, A359, A35K, B789, A332 (light), A388 |
+| **High (A)** | FL370 / 380 / 390 / 400 / 410 | M0.84-0.85 | A-tier | B77W, B772, B77L, A359, A35K, B789, A332 (light), A388 |
 | **Middle (B)** | FL340 / 350 / 360 | M0.82-0.83 | B-tier | A346 (boundary), A339, A343, A333, MD11, A332 (heavy) |
-| **Low (C)** | FL290 / 310 / 330 | M0.78-0.80 | C-tier | A21N, B737 |
+| **Low (C)** | FL290 / 300 / 310 / 320 / 330 | M0.78-0.80 | C-tier | A21N, B737 |
 
 ### Per-track capacity
 
-One NAT track = one longitudinal corridor across all FLs.
+One NAT track = one longitudinal corridor across all FLs inside
+NAT-HLA. Continental segments before OEP and after OXP cap at half
+this density (only odd thousands available eastbound).
 
 | Band | # FLs | Capacity (acft/hr) | 26E peak demand* | Headroom |
 |---|---|---|---|---|
-| A | 3 | ~33 | ~22 | 1.5× |
+| A | 5 | ~55 | ~22 | 2.5× |
 | B | 3 | ~33 | ~6 | 5.5× |
-| C | 3 | ~18 | ~1.5 | 12× |
-| **Total per track** | **9** | **~84 acft/hr** | **~30 acft/hr** | **~2.8×** |
+| C | 5 | ~30 | ~1.5 | 20× |
+| **Total per track** | **13** | **~118 acft/hr** | **~30 acft/hr** | **~3.9×** |
 
 \* 275 trans-Atlantic pushbacks in 13Z hour across ~9 active tracks (see
 PERTI 26E departure analytics, Jeremy Peterson, vATCSCC).
@@ -86,42 +93,48 @@ PERTI 26E departure analytics, Jeremy Peterson, vATCSCC).
 - **A21N / B737** → C-band only; don't let them reach for FL370 and
   block A-tier capacity.
 
-## Why 3/3/3 not 2/2/2
+## Model evolution
 
-Earlier analysis used a 2/2/2 split (A=FL390/410, B=FL350/370, C=FL310/330).
-That left the A-band at the wall — 22/hr demand vs 22/hr capacity — with
-no headroom for fleet-mix drift or demand growth.
+Three iterations refined the allocation:
 
-Adding FL370 to A-band:
+| Model | A-band | B-band | C-band | A-band capacity | Headroom at 26E peak |
+|---|---|---|---|---|---|
+| 2/2/2 (odds-only) | FL390, 410 | FL350, 370 | FL310, 330 | ~22/hr | 1.0× (at wall) |
+| 3/3/3 (odds-only) | FL370, 390, 410 | FL340, 350, 360 | FL290, 310, 330 | ~33/hr | 1.5× |
+| **5/3/5 (full RVSM)** | **FL370-410 every 1000 ft** | FL340-360 | **FL290-330 every 1000 ft** | **~55/hr** | **2.5×** |
 
-| Metric | 2/2/2 model | 3/3/3 model |
-|---|---|---|
-| A-band capacity | ~22/hr | ~33/hr |
-| A-band headroom at 26E peak | 1.0× (at wall) | 1.5× |
-| Headroom under +30% demand growth | 0.77× (overflow) | 1.15× (comfortable) |
-| Headroom under fleet drift to 85% A-tier | 0.88× | 1.30× |
+The first jump (2/2/2 → 3/3/3) added FL370 to A-band to relieve the
+bottleneck. The second jump (3/3/3 → 5/3/5) acknowledged that NAT-HLA
+uses 1000-ft RVSM throughout — even thousands are available eastbound
+inside the oceanic segment.
 
-Trade-off: B-tier types fly at FL340-360 (vs their natural FL370-390
-optimum). On VATSIM the ~3-5% extra fuel burn on a 4h crossing is
-invisible. In real-world ops dispatchers might push back, but for our
-purposes B-tier are mostly older A330/A340/MD11 in mid-weight cruise
-where ±2000 ft has minimal efficiency cost.
+Trade-off in B-band: B-tier types fly at FL340-360 (vs their natural
+FL370-390 optimum). On VATSIM the ~3-5% extra fuel burn on a 4h
+crossing is invisible. In real-world ops dispatchers might push back,
+but for our purposes B-tier are mostly older A330/A340/MD11 in
+mid-weight cruise where ±2000 ft has minimal efficiency cost.
 
 ## Capacity-growth tolerance
 
-Forward-looking sizing for next CTP planning:
+Forward-looking sizing for next CTP planning, against the 5/3/5 model
+(A-band capacity ~55/hr/track):
 
 | Scenario | A-band demand | A-band headroom |
 |---|---|---|
-| 26E baseline (2026 spring) | 22/hr/track | 1.5× |
-| Fleet drift to 85% A-tier (5-10y horizon) | 25/hr/track | 1.3× |
-| Demand growth +30% over baseline | 29/hr/track | 1.15× |
-| Demand growth +50% AND fleet drift | 36/hr/track | 0.92× → overflow |
+| 26E baseline (2026 spring) | 22/hr/track | 2.5× |
+| Fleet drift to 85% A-tier (5-10y horizon) | 25/hr/track | 2.2× |
+| Demand growth +30% over baseline | 29/hr/track | 1.9× |
+| Demand growth +50% AND fleet drift | 36/hr/track | 1.5× |
+| Demand growth +100% (very busy event) | 44/hr/track | 1.25× |
 
-**Rule of thumb:** when A-band demand exceeds ~28/hr per track, open
-more tracks rather than compressing the FL allocation further. Stealing
-FL360 from B-band into A-band gives temporary relief but unbalances the
-tier compatibility.
+The 5/3/5 model has comfortable headroom across all foreseeable
+scenarios. Bottleneck shifts from FL allocation to OEP entry rate
+and ATC workload before A-band saturation becomes the limit.
+
+**Rule of thumb:** when A-band demand exceeds ~45/hr per track, open
+more tracks rather than compressing the FL allocation further. The
+13-FL stack inside NAT-HLA is already maximal — there's nothing more
+to extract vertically.
 
 ## Operational implication for CTP coordinator
 
