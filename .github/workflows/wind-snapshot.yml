@@ -1,22 +1,31 @@
-name: Wind snapshot (daily)
+name: Wind snapshot (4x daily)
 
 # Captures Open-Meteo GFS forecast for the NAT/Canadian-airspace grid
-# at lead times {T+0, T+24, T+72, T+168} once a day. Builds a
-# verification corpus for demand-curve-uncertainty modelling — see
-# bin/wind-snapshot.py for rationale.
+# at lead times {T+0, +6, +12, +18, +24, +72, +168} once per GFS cycle.
+# Builds a verification corpus for demand-curve-uncertainty modelling —
+# see bin/wind-snapshot.py for rationale.
 #
-# Collection window: 1 month (late-April through late-May 2026) — captures
-# spring-jet-stream conditions representative of next year's spring CTP.
-# Hard cutoff is in bin/wind-snapshot.py (COLLECTION_END_UTC); past that
-# the script no-ops so this cron can stay enabled indefinitely without
-# accumulating off-season data.
+# Cron fires 4x/day to catch each GFS cycle (00/06/12/18Z) once data
+# has propagated through Open-Meteo (~3-5h lag).  This guarantees
+# every 6-hour-aligned target hour eventually gets a T+0 verifying
+# analysis from the cycle that fires on it, so short-lead pairs
+# (T+6/12/18) are verifiable too — not just the daily T+24/72/168
+# of the original 1×/day design.
 #
-# Cron at 13Z catches the 12Z GFS cycle (Open-Meteo's GFS source needs
-# ~4-5h to propagate after each cycle's publication).
+# Collection window: 1 month (late-April through late-May 2026) —
+# spring-jet-stream conditions representative of next year's spring
+# CTP.  Hard cutoff in bin/wind-snapshot.py (COLLECTION_END_UTC);
+# past that the script no-ops so this cron can stay enabled.
 
 on:
   schedule:
-    - cron: '0 13 * * *'   # 13:00 UTC daily
+    # Each cron entry catches ONE GFS cycle.  GFS publishes ~3-5h after
+    # the cycle hour; we run +5h to be safe (Open-Meteo's free tier can
+    # lag the official NCEP feed by an hour).
+    - cron: '0 5 * * *'    # 00Z cycle
+    - cron: '0 11 * * *'   # 06Z cycle
+    - cron: '0 17 * * *'   # 12Z cycle
+    - cron: '0 23 * * *'   # 18Z cycle
   workflow_dispatch: {}
 
 concurrency:

@@ -61,12 +61,19 @@ LON_MIN, LON_MAX, LON_STEP = -100, 20, 5
 LEVELS = (200, 250, 300)
 
 # Lead times we sample per cycle (hours from fetch time).
-# Chosen for ATFM-planning relevance, not full skill-curve resolution.
+# Mix of short-range (within-24h creep) and operational ATFM leads:
 #   T+0    = analysis at fetch hour — verifier for older snapshots
+#   T+6    = morning-of refresh window
+#   T+12   = mid-day refresh
+#   T+18   = D-1 evening (latest pre-event refresh)
 #   T+24   = D-1 (day-before, when issuing CTOTs)
 #   T+72   = D-3 (typical event-planning lead, what 26E used)
 #   T+168  = D-7 (booking-window-opening lead)
-LEAD_HOURS = (0, 24, 72, 168)
+#
+# T+6/12/18 added to answer: does the wind picture firm up meaningfully
+# inside the final 24h, or is the D-1 forecast already stable?  Drives
+# the "do we re-run morning-of" decision for next CTP planning.
+LEAD_HOURS = (0, 6, 12, 18, 24, 72, 168)
 
 # Open-Meteo GFS goes to 384h; 8 days covers T+168 with margin.
 FORECAST_DAYS = 8
