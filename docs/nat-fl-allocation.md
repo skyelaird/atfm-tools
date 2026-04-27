@@ -1,0 +1,144 @@
+# NAT eastbound FL allocation — 3/3/3 model
+
+Tier-aware flight-level allocation for trans-Atlantic CTP traffic.
+Maximises track capacity by stratifying types by Mach class to their
+natural cruise altitude, keeping trail-spacing compatible within each
+band.
+
+Derived from the 26E (CTP Eastbound, 2026-04-25) fleet mix and the
+post-event analysis at `docs/wind-skill-2026-spring.md` (pending).
+
+## Aircraft tier reference
+
+Tier is set by typical cruise Mach. Boundaries are operational, not
+absolute — borderline types (A346, A332) shift between A and B based
+on weight and dispatch mode.
+
+| Type | 26E count | Typical NAT cruise | Range | Tier | Notes |
+|---|---|---|---|---|---|
+| B77W | 173 | M0.84 | 0.82-0.86 | **A** | Anchor type for high-Mach tracks |
+| A359 | 171 | M0.85 | 0.83-0.87 | **A** | Most efficient tier; mixes freely with B77W |
+| B772 | 107 | M0.84 | 0.82-0.85 | A | |
+| B77L | 77 | M0.84 | 0.82-0.85 | A | |
+| A346 | 38 | M0.83 | 0.80-0.85 | A/B | Boundary; M0.82 in fuel-save mode |
+| A339 | 40 | M0.82 | 0.78-0.85 | **B** | A330neo |
+| A343 | 33 | M0.82 | 0.78-0.85 | B | |
+| A35K | 28 | M0.85 | 0.83-0.87 | A | A350-1000 — same as A359 |
+| A333 | 25 | M0.82 | 0.78-0.85 | B | |
+| B789 | 23 | M0.85 | 0.82-0.87 | A | 787-9; loves the top |
+| MD11 | 32 | M0.82 | 0.80-0.84 | B | DC-10 lineage |
+| A388 | 13 | M0.85 | 0.82-0.89 | A | A380; step-climbs full A-band |
+| A21N | 14 | M0.78 | 0.72-0.80 | **C** | Narrow body |
+| A332 | 7 | M0.82 | 0.78-0.85 | B | A330-200 (heavy load); A-tier when light |
+| B737 | 8 | M0.78 | 0.74-0.80 | C | Narrow body |
+
+**Fleet composition at 26E:** A-tier 75% / B-tier 22% / C-tier 3%. Universal
+within ~5% across NAT events.
+
+## Tier compatibility for NAT trail-spacing
+
+| Lead | Trail | Compatibility |
+|---|---|---|
+| A | A | ✓ natural pair, no gap creation |
+| A | B | △ trail slowly opens 0.02-0.03M gap (~8-12 nm/hr) |
+| A | C | ✗ large opening, wastes track capacity |
+| B | A | △ compression risk if A overtakes; 10-min spacing needed |
+| B | B | ✓ |
+| B | C | △ mild opening |
+| C | A | ✗ A will catch up; eject A to higher track or flow control |
+| C | C | ✓ |
+
+## FL allocation: 3/3/3 model
+
+Eastbound NAT, full RVSM stack (FL290-FL410). VATSIM treats all
+aircraft as RVSM-capable; failures drop out of the system rather than
+needing a non-RVSM reserve FL.
+
+| Band | FLs | Aircraft tier | Cruise Mach | Types |
+|---|---|---|---|---|
+| **High (A)** | FL370 / 390 / 410 | M0.84-0.85 | A-tier | B77W, B772, B77L, A359, A35K, B789, A332 (light), A388 |
+| **Middle (B)** | FL340 / 350 / 360 | M0.82-0.83 | B-tier | A346 (boundary), A339, A343, A333, MD11, A332 (heavy) |
+| **Low (C)** | FL290 / 310 / 330 | M0.78-0.80 | C-tier | A21N, B737 |
+
+### Per-track capacity
+
+One NAT track = one longitudinal corridor across all FLs.
+
+| Band | # FLs | Capacity (acft/hr) | 26E peak demand* | Headroom |
+|---|---|---|---|---|
+| A | 3 | ~33 | ~22 | 1.5× |
+| B | 3 | ~33 | ~6 | 5.5× |
+| C | 3 | ~18 | ~1.5 | 12× |
+| **Total per track** | **9** | **~84 acft/hr** | **~30 acft/hr** | **~2.8×** |
+
+\* 275 trans-Atlantic pushbacks in 13Z hour across ~9 active tracks (see
+PERTI 26E departure analytics, Jeremy Peterson, vATCSCC).
+
+### Allocation rules
+
+- **B77W early-cruise (heavy)** → FL370 bottom of A-band; step-climbs
+  to FL390/FL410 as fuel burns.
+- **A35K full payload** → FL370 until weight drops, then FL390+.
+- **A388** step-climbs through entire A-band (FL370 → 390 → 410); plan
+  one A388 = two A-tier slots over the crossing.
+- **A346** boundary type — fits at FL370 on its natural M0.83; drop to
+  FL360 if running fuel-save M0.82.
+- **A21N / B737** → C-band only; don't let them reach for FL370 and
+  block A-tier capacity.
+
+## Why 3/3/3 not 2/2/2
+
+Earlier analysis used a 2/2/2 split (A=FL390/410, B=FL350/370, C=FL310/330).
+That left the A-band at the wall — 22/hr demand vs 22/hr capacity — with
+no headroom for fleet-mix drift or demand growth.
+
+Adding FL370 to A-band:
+
+| Metric | 2/2/2 model | 3/3/3 model |
+|---|---|---|
+| A-band capacity | ~22/hr | ~33/hr |
+| A-band headroom at 26E peak | 1.0× (at wall) | 1.5× |
+| Headroom under +30% demand growth | 0.77× (overflow) | 1.15× (comfortable) |
+| Headroom under fleet drift to 85% A-tier | 0.88× | 1.30× |
+
+Trade-off: B-tier types fly at FL340-360 (vs their natural FL370-390
+optimum). On VATSIM the ~3-5% extra fuel burn on a 4h crossing is
+invisible. In real-world ops dispatchers might push back, but for our
+purposes B-tier are mostly older A330/A340/MD11 in mid-weight cruise
+where ±2000 ft has minimal efficiency cost.
+
+## Capacity-growth tolerance
+
+Forward-looking sizing for next CTP planning:
+
+| Scenario | A-band demand | A-band headroom |
+|---|---|---|
+| 26E baseline (2026 spring) | 22/hr/track | 1.5× |
+| Fleet drift to 85% A-tier (5-10y horizon) | 25/hr/track | 1.3× |
+| Demand growth +30% over baseline | 29/hr/track | 1.15× |
+| Demand growth +50% AND fleet drift | 36/hr/track | 0.92× → overflow |
+
+**Rule of thumb:** when A-band demand exceeds ~28/hr per track, open
+more tracks rather than compressing the FL allocation further. Stealing
+FL360 from B-band into A-band gives temporary relief but unbalances the
+tier compatibility.
+
+## Operational implication for CTP coordinator
+
+- The 3/3/3 model puts the bottleneck at **A-band capacity per track**,
+  where it should be — that's where high-performance traffic stacks.
+- Pre-allocate aircraft to FL bands at CTOT issuance based on filed type;
+  pilots accept their natural FL more readily than wrong-tier assignment.
+- Need **~8-10 active tracks at peak hour** for a 26E-scale event.
+- Morning-of FL re-allocation rarely useful — fleet mix is locked at
+  booking time.
+
+## Sector-load modelling note
+
+For ATFM demand-curve simulation: using a single average M0.83 for all
+NAT traffic introduces ~3-5 min flight-time error vs full tier-aware
+Mach modelling. For demand-curve-to-±5-flights-at-peak tolerance, that
+single-Mach assumption is fine.
+
+The tier and FL model in this doc primarily affects **tactical track
+assignment and capacity sizing**, not the demand curve itself.
