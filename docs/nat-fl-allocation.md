@@ -146,12 +146,51 @@ to extract vertically.
 - Morning-of FL re-allocation rarely useful — fleet mix is locked at
   booking time.
 
-## Sector-load modelling note
+## Two Mach numbers — don't conflate
 
-For ATFM demand-curve simulation: using a single average M0.83 for all
-NAT traffic introduces ~3-5 min flight-time error vs full tier-aware
-Mach modelling. For demand-curve-to-±5-flights-at-peak tolerance, that
-single-Mach assumption is fine.
+Three different Mach values appear in this work:
 
-The tier and FL model in this doc primarily affects **tactical track
-assignment and capacity sizing**, not the demand curve itself.
+| Use | Value | Why |
+|---|---|---|
+| **Tier Mach (cruise only)** | M0.84-0.85 (A) / M0.82 (B) / M0.78 (C) | Drives trail-spacing compatibility within a single FL band |
+| **Simulation Mach (trip-averaged)** | **M0.82** | Used in `bin/26e-sector-load.py` for ETA prediction across the whole flight |
+| **Spacing baseline (in-trail at cruise)** | M0.84 (A-tier) / M0.82 (B) / M0.78 (C) | Sets the per-FL throughput rate (5-min PBCS = ~12 acft/hr per FL at A-tier) |
+
+The **simulation Mach (M0.82)** is intentionally lower than the
+A-tier cruise Mach because it averages across climb (~M0.74-0.78
+for ~30 min), cruise (~M0.84-0.85), and descent (~M0.78 for ~20 min).
+On a 5h transatlantic flight that weighted average lands near M0.82.
+
+If we instead modelled at M0.84 (cruise-only), ETAs would be ~3-4
+min early on average — exactly the bias we'd want to *avoid* in
+a demand-curve sim, since climb/descent does take real time.
+
+For demand-curve-to-±5-flights-at-peak tolerance, the M0.82 single-
+Mach assumption is fine. Tier-aware Mach modelling would refine
+this to ±2-3 min ETA precision but isn't necessary for capacity
+planning.
+
+## Longitudinal spacing assumption
+
+Per-FL throughput rates in this doc assume **5-minute in-trail
+separation (PBCS standard)**. NAT PBCS requires RNP-4 + CPDLC + ADS-C,
+which is the default on VATSIM (every aircraft treated as full
+capability).
+
+| Standard | Sep | Required equipment | Rate/FL/hr |
+|---|---|---|---|
+| **PBCS (assumed here)** | **5 min in-trail** | RNP-4 + CPDLC + ADS-C | **~12** |
+| MNPS legacy | 10 min in-trail | Basic INS-MNPS | ~6 |
+| Distance-based (RNP-4) | 30 nm | RNP-4 + ADS-B/ADS-C | ~6-7 at M0.84 |
+| Mach-difference rule | 10/15/20 min | Per ICAO Doc 4444 §5.4.2.4 | varies |
+
+Operational rate is ~11/hr per FL for A and B tier (slight discount
+from the 12/hr theoretical for track entry/exit jitter and step-climb
+disruptions). C-tier uses the more conservative 6/hr per FL because
+narrow bodies have wider Mach jitter and more compression risk in mixed-
+tier trail.
+
+**If a future event imposes legacy MNPS spacing (10-min)** — e.g. for
+training, or specific equipment limitations — all tier rates halve and
+per-track capacity drops to ~78 acft/hr in the 5/3/5 stack. Still
+2.6× 26E peak demand.
