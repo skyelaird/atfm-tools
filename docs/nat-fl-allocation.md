@@ -172,25 +172,53 @@ planning.
 
 ## Longitudinal spacing assumption
 
-Per-FL throughput rates in this doc assume **5-minute in-trail
-separation (PBCS standard)**. NAT PBCS requires RNP-4 + CPDLC + ADS-C,
-which is the default on VATSIM (every aircraft treated as full
-capability).
+Per-FL throughput rates in this doc are derived from a **conservative
+5-minute in-trail PBCS planning model**. The actual operational
+separation in NAT-HLA today is tighter — ADS-B-equipped traffic is
+separated at **14 nm longitudinal and 15 nm lateral** (RLatSM with
+ATSAW). The conservative planning number gives margin against the
+worst-case mix of equipment, controller workload, and disruption.
 
-| Standard | Sep | Required equipment | Rate/FL/hr |
-|---|---|---|---|
-| **PBCS (assumed here)** | **5 min in-trail** | RNP-4 + CPDLC + ADS-C | **~12** |
-| MNPS legacy | 10 min in-trail | Basic INS-MNPS | ~6 |
-| Distance-based (RNP-4) | 30 nm | RNP-4 + ADS-B/ADS-C | ~6-7 at M0.84 |
-| Mach-difference rule | 10/15/20 min | Per ICAO Doc 4444 §5.4.2.4 | varies |
+### Actual vs. modelled
 
-Operational rate is ~11/hr per FL for A and B tier (slight discount
-from the 12/hr theoretical for track entry/exit jitter and step-climb
-disruptions). C-tier uses the more conservative 6/hr per FL because
-narrow bodies have wider Mach jitter and more compression risk in mixed-
-tier trail.
+| Standard | Sep | Equipment | Rate/FL/hr | Notes |
+|---|---|---|---|---|
+| **Operational today** | **14 nm long, 15 nm lat** | ADS-B + PBCS | **~34** | Actual NAT-HLA enforced separation |
+| Distance-based RNP-4 | 30 nm long | RNP-4 + ADS-C | ~16 | Legacy modern standard |
+| **5-min PBCS (modelled)** | 5 min in-trail | RNP-4 + CPDLC + ADS-C | **~12** | What this doc's capacity numbers use |
+| MNPS legacy | 10 min in-trail | Basic INS-MNPS | ~6 | Pre-PBCS standard |
+| Mach-difference rule | 10/15/20 min | Per ICAO Doc 4444 §5.4.2.4 | varies | Used when speeds differ |
 
-**If a future event imposes legacy MNPS spacing (10-min)** — e.g. for
-training, or specific equipment limitations — all tier rates halve and
-per-track capacity drops to ~78 acft/hr in the 5/3/5 stack. Still
-2.6× 26E peak demand.
+At 14 nm / M0.84 (~480 kt GS) longitudinal sep is ~1.75 min in-trail,
+so theoretical per-FL capacity is ~34/hr — nearly 3× the planning
+model's 12/hr. **Capacity numbers in this doc are therefore
+conservative**; operational reality has more margin than shown.
+
+Why use the 5-min model anyway:
+- Builds in headroom for non-uniform speed mix within a tier
+- Tolerates step-climb requests and ATC workload variance
+- Equates "demand fits" between this VATSIM context and real-world
+  airline planning that uses 5-min for capacity planning
+- If anything goes wrong (equipment, weather), real capacity drops
+  toward the modelled value rather than collapsing further
+
+C-tier uses 6/hr per FL — the legacy MNPS rate — because narrow bodies
+have wider Mach jitter and rare appearance on NAT make tighter spacing
+operationally clumsy.
+
+### Headroom in operational terms
+
+Apply the ADS-B 14/15 separation to the 5/3/5 stack:
+
+| Band | # FLs | At 14 nm sep | 26E peak demand | Headroom (operational) |
+|---|---|---|---|---|
+| A | 5 | ~170/hr | ~22 | 7.7× |
+| B | 3 | ~100/hr | ~6 | 17× |
+| C | 5 | ~170/hr | ~1.5 | 100×+ |
+| **Total per track** | 13 | **~440 acft/hr** | ~30 | **~14×** |
+
+Translation: in practice, NAT capacity is **never the binding
+constraint** for VATSIM CTP — OEP throughput, controller workload,
+and pilot density are. The 5/3/5 FL allocation is about *organising*
+the traffic for clean trail-spacing and tier compatibility, not about
+*creating* more capacity than the airspace can absorb.
