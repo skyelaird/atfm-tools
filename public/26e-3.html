@@ -86,8 +86,19 @@ svg {
 .axis-label { fill: var(--text-dim); font-family: var(--mono); font-size: 9px; }
 .grid-line { stroke: var(--border); stroke-dasharray: 2 2; stroke-width: 0.5; }
 .cap-line { stroke: var(--alert); stroke-dasharray: 4 2; stroke-width: 1; }
-.center-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
-.band { fill: var(--accent); fill-opacity: 0.30; stroke: var(--accent); stroke-width: 0.5; stroke-opacity: 0.5; }
+.line-nominal { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+.line-high    { fill: none; stroke: #7aa8ff; stroke-width: 1.5; stroke-linejoin: round; stroke-opacity: 0.9; stroke-dasharray: 4 2; }
+.line-low     { fill: none; stroke: var(--warn); stroke-width: 1.5; stroke-linejoin: round; stroke-opacity: 0.9; stroke-dasharray: 4 2; }
+.legend-line {
+    display: inline-block;
+    width: 18px; height: 0;
+    border-top: 2px solid;
+    vertical-align: middle;
+    margin: 0 0.2rem 0 0.5rem;
+}
+.legend-line.high    { border-top-color: #7aa8ff; border-top-style: dashed; }
+.legend-line.nominal { border-top-color: var(--accent); }
+.legend-line.low     { border-top-color: var(--warn); border-top-style: dashed; }
 
 .tooltip {
     position: absolute; pointer-events: none;
@@ -103,9 +114,10 @@ svg {
 <h1>26E CTP Sector Load — <span class="lead">D-3 forecast lens (σ_ETA = 9.1 min)</span></h1>
 <div class="sub" id="meta">Loading…</div>
 <div class="sub">
-    Same booked-traffic prediction; different wind-uncertainty lens.
-    Center line = CTP demand sim output. Shaded band = ±σ time-shift envelope —
-    where the curve could plausibly fall given the wind forecast error at this lead.
+    <span class="legend-line high"></span>faster (+17 kt) ·
+    <span class="legend-line nominal"></span>nominal ·
+    <span class="legend-line low"></span>slower (−17 kt)
+    &nbsp;— each booked flight perturbed by ±17 kt for the whole route, replayed independently.
     <span class="lens-nav">
         <a href="/26e-1.html" class="lens-3-1">D-1</a>
         <a href="/26e-2.html" class="lens-3-2">D-2</a>
@@ -431,25 +443,26 @@ function drawChart(sectorId, rows, xMin, xMax, opts) {
     }
 
     if (rows.length) {
-        const isPairId = !!(window._mc?.pair_load?.[sectorId]);
-        const banded = bandsFor(rows, SIGMA_MIN, sectorId, isPairId);
-        // Plot bin centres so the curve aligns with the original bars
+        const isPairForThis = !!(window._mc?.pair_load?.[sectorId]);
+        const lowKey = isPairForThis ? 'pair_load_low' : 'load_low';
+        const highKey = isPairForThis ? 'pair_load_high' : 'load_high';
+        const lowRows  = (window._mc?.[lowKey]  || {})[sectorId] || [];
+        const highRows = (window._mc?.[highKey] || {})[sectorId] || [];
         const cx = r => xScale(r.bin_minute) + (plotW / (xMax - xMin)) * bin / 2;
+        const ptsFor = arr => arr.map(r => [cx(r), yScale(r.count)]);
 
-        // Band polygon: traverse forward at hi, return at lo
-        const upperPts = banded.map(r => [cx(r), yScale(r.hi)]);
-        const lowerPts = banded.map(r => [cx(r), yScale(r.lo)]).reverse();
-        const bandPoints = [...upperPts, ...lowerPts]
-            .map(p => `${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
-        html += `<polygon class="band" points="${bandPoints}"/>`;
+        // Three explicit lines:
+        //   high (faster flights, +X kt) — arrives earlier, blue
+        //   nominal (booked sim) — green
+        //   low (slower flights, -X kt) — arrives later, orange
+        if (highRows.length) html += `<path class="line-high" d="${smoothPath(ptsFor(highRows))}"/>`;
+        if (lowRows.length)  html += `<path class="line-low" d="${smoothPath(ptsFor(lowRows))}"/>`;
+        html += `<path class="line-nominal" d="${smoothPath(ptsFor(rows))}"/>`;
 
-        // Centre line: smoothed Catmull-Rom through the actual counts
-        const centerPts = banded.map(r => [cx(r), yScale(r.count)]);
-        html += `<path class="center-line" d="${smoothPath(centerPts)}"/>`;
-
-        // Invisible hover circles for tooltips
-        for (const r of banded) {
-            html += `<circle cx="${cx(r).toFixed(1)}" cy="${yScale(r.count).toFixed(1)}" r="3" fill="transparent" data-bin="${r.bin_minute}" data-count="${r.count}" data-lo="${r.lo}" data-hi="${r.hi}"/>`;
+        for (const r of rows) {
+            const lowAt  = lowRows.find(x => x.bin_minute === r.bin_minute)?.count ?? 0;
+            const highAt = highRows.find(x => x.bin_minute === r.bin_minute)?.count ?? 0;
+            html += `<circle cx="${cx(r).toFixed(1)}" cy="${yScale(r.count).toFixed(1)}" r="3" fill="transparent" data-bin="${r.bin_minute}" data-count="${r.count}" data-lo="${lowAt}" data-hi="${highAt}"/>`;
         }
     }
 
