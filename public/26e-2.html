@@ -136,38 +136,109 @@ async function load() {
     document.getElementById('meta').innerHTML =
         `Booked CTP fleet: <b>${m.flights_touching_sector}</b> of ${m.flights_total} flights through these sectors · ` +
         `cruise M${m.cruise_mach || '0.82'} · bin ${m.bin_minutes}m · ` +
-        `lens applies ±${SIGMA_MIN} min ETA-shift envelope`;
+        `per-flight MC at sigma_grid=12 kt -> mean ±${(window._mc?.meanSigmaMin ?? 0).toFixed(1)} min ETA shift`;
     document.querySelector(`.lens-${LEAD_DAYS}-${LEAD_DAYS}`)?.classList.add('active');
-    // Per-sector sigma calibration: wind ETA error scales with flight time.
-    const NOMINAL_HOURS = 4;
-    const sectorSigma = {};
+    // Per-flight Monte Carlo simulation. Each booked flight gets its own
+    // sigma_i from sqrt-scaling against grid wind RMSE; intervals shifted
+    // by +/-sigma_i seconds and re-aggregated. Captures spatial wind-error
+    // decorrelation (flights average ~5-7 independent samples across NAT).
+    const SIGMA_GRID_KT = 12;
+    const GS_KT = 460;
+    const L_CORR_NM = 540;       // ~1000 km synoptic correlation length
+    const L_CORR_HR = L_CORR_NM / GS_KT;
+    function sigmaForFlight(tFlightMin) {
+        if (tFlightMin <= 0) return 0;
+        const tHr = tFlightMin / 60;
+        return SIGMA_GRID_KT * Math.sqrt(tHr * L_CORR_HR) / GS_KT * 60;
+    }
+    function ctotToSec(s) {
+        const parts = s.split(':');
+        return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60;
+    }
+
+    const BIN_MIN = DATA.meta.bin_minutes;
+    const BIN_SEC = BIN_MIN * 60;
+
+    const acc = { load: {}, load_low: {}, load_high: {},
+                  pair_load: {}, pair_load_low: {}, pair_load_high: {} };
+    for (const s of DATA.sectors) {
+        acc.load[s.id] = {}; acc.load_low[s.id] = {}; acc.load_high[s.id] = {};
+    }
+    for (const p of (DATA.pairs || [])) {
+        acc.pair_load[p.id] = {}; acc.pair_load_low[p.id] = {}; acc.pair_load_high[p.id] = {};
+    }
+
+    let totalFlights = 0, totalSigmaMin = 0;
     for (const fr of (DATA.flights || [])) {
-        const ctotMin = (() => {
-            const [hh, mm] = fr.ctot.split(':');
-            return parseInt(hh) * 60 + parseInt(mm);
-        })();
-        for (const [sid, intervals] of Object.entries(fr.sectors || {})) {
-            if (!sectorSigma[sid]) sectorSigma[sid] = { sum: 0, n: 0 };
-            const firstEntrySec = intervals[0][0];
-            const ctotSec = ctotMin * 60;
-            const flightTimeMin = (firstEntrySec - ctotSec) / 60;
-            if (flightTimeMin > 0 && flightTimeMin < 600) {
-                sectorSigma[sid].sum += flightTimeMin;
-                sectorSigma[sid].n += 1;
+        const sectorIds = Object.keys(fr.sectors || {});
+        if (!sectorIds.length) continue;
+        const ctotSec = ctotToSec(fr.ctot);
+        let firstEntry = Infinity;
+        for (const sid of sectorIds) {
+            for (const iv of fr.sectors[sid]) {
+                if (iv[0] < firstEntry) firstEntry = iv[0];
+            }
+        }
+        const tFlightMin = (firstEntry - ctotSec) / 60;
+        const sigmaMin = sigmaForFlight(tFlightMin);
+        const sigmaSec = sigmaMin * 60;
+        totalFlights++;
+        totalSigmaMin += sigmaMin;
+
+        const shifts = [-sigmaSec, 0, +sigmaSec];
+        const targets = ['load_low', 'load', 'load_high'];
+        const pairTargets = ['pair_load_low', 'pair_load', 'pair_load_high'];
+        for (let k = 0; k < 3; k++) {
+            const shift = shifts[k];
+            const tgt = acc[targets[k]];
+            const ptgt = acc[pairTargets[k]];
+            const sectorBins = {};
+            for (const sid of sectorIds) {
+                sectorBins[sid] = new Set();
+                for (const iv of fr.sectors[sid]) {
+                    const start = iv[0], end = iv[1];
+                    const startBin = Math.floor((start + shift) / BIN_SEC) * BIN_MIN;
+                    const endBin   = Math.floor((end   + shift) / BIN_SEC) * BIN_MIN;
+                    for (let b = startBin; b <= endBin; b += BIN_MIN) {
+                        sectorBins[sid].add(b);
+                    }
+                }
+            }
+            for (const sid of sectorIds) {
+                for (const b of sectorBins[sid]) {
+                    tgt[sid][b] = (tgt[sid][b] || 0) + 1;
+                }
+            }
+            for (const p of (DATA.pairs || [])) {
+                const memberBins = new Set();
+                for (const m of p.members) {
+                    if (sectorBins[m]) {
+                        for (const b of sectorBins[m]) memberBins.add(b);
+                    }
+                }
+                for (const b of memberBins) {
+                    ptgt[p.id][b] = (ptgt[p.id][b] || 0) + 1;
+                }
             }
         }
     }
-    for (const sid of Object.keys(sectorSigma)) {
-        const meanMin = sectorSigma[sid].n > 0 ? sectorSigma[sid].sum / sectorSigma[sid].n : 240;
-        sectorSigma[sid] = SIGMA_MIN * (meanMin / 60 / NOMINAL_HOURS);
+
+    function toRows(byBin) {
+        return Object.entries(byBin)
+            .map(([b, c]) => ({ bin_minute: parseInt(b), count: c }))
+            .sort((a, b) => a.bin_minute - b.bin_minute);
     }
-    for (const p of (DATA.pairs || [])) {
-        const memberSigmas = p.members.filter(m => sectorSigma[m]).map(m => sectorSigma[m]);
-        if (memberSigmas.length) {
-            sectorSigma[p.id] = memberSigmas.reduce((a,b) => a+b, 0) / memberSigmas.length;
-        }
+    window._mc = {};
+    for (const which of ['load', 'load_low', 'load_high']) {
+        window._mc[which] = {};
+        for (const sid in acc[which]) window._mc[which][sid] = toRows(acc[which][sid]);
     }
-    window._sectorSigma = sectorSigma;
+    for (const which of ['pair_load', 'pair_load_low', 'pair_load_high']) {
+        window._mc[which] = {};
+        for (const pid in acc[which]) window._mc[which][pid] = toRows(acc[which][pid]);
+    }
+    window._mc.meanSigmaMin = totalFlights > 0 ? totalSigmaMin / totalFlights : 0;
+    window._mc.totalFlights = totalFlights;
     render();
 }
 
@@ -196,75 +267,33 @@ function smoothPath(pts) {
     return d;
 }
 
-// Per-flight independent jitter model.  Each booked flight has its own
-// ±σ ETA error from wind forecast uncertainty (largely uncorrelated
-// because each flight takes its own trajectory through different
-// parts of the grid).  The aggregate effect is a GAUSSIAN CONVOLUTION
-// of the predicted curve:
-//
-//   E[count(t)] = (C_predicted ∗ G(σ))(t)
-//
-// Visually:
-//   - Peak reduced (some flights spread out of the peak bin)
-//   - Tails extended by ~σ on each side
-//   - Trough/valley filled in slightly
-//
-// The ±band is the per-bin count-noise from the binomial-like trial
-// (each flight has probability p of being in this bin given its ETA
-// jitter); approximated as √(N) Poisson-ish.
-function bandsFor(rows, sigmaMin) {
-    if (rows.length === 0) return [];
-    const bin = DATA.meta.bin_minutes;
-    const sorted = [...rows].sort((a, b) => a.bin_minute - b.bin_minute);
-    const tFirst = sorted[0].bin_minute;
-    const tLast  = sorted[sorted.length - 1].bin_minute;
-
-    function predictedAt(t) {
-        if (t < tFirst || t > tLast) return 0;
-        for (let i = 0; i < sorted.length - 1; i++) {
-            const t1 = sorted[i].bin_minute, t2 = sorted[i+1].bin_minute;
-            if (t >= t1 && t <= t2) {
-                const frac = (t2 === t1) ? 0 : (t - t1) / (t2 - t1);
-                return sorted[i].count * (1 - frac) + sorted[i+1].count * frac;
-            }
-        }
-        return 0;
-    }
-
-    function smoothed(t) {
-        // Gaussian convolution at t with σ = sigmaMin minutes.
-        // ±3σ window, sub-bin sampling for accuracy.
-        const window = Math.ceil(3 * sigmaMin);
-        const step = Math.max(1, bin / 4);
-        let total = 0, wsum = 0;
-        for (let dt = -window; dt <= window; dt += step) {
-            const w = Math.exp(-(dt * dt) / (2 * sigmaMin * sigmaMin));
-            total += predictedAt(t + dt) * w;
-            wsum += w;
-        }
-        return wsum > 0 ? total / wsum : 0;
-    }
-
-    // Sample beyond the predicted range so tail extension is visible.
-    const tail = Math.ceil(3 * sigmaMin / bin) * bin;
-    const xLo = tFirst - tail;
-    const xHi = tLast + tail;
-
-    const samples = [];
-    for (let t = xLo; t <= xHi; t += bin) {
-        const cSmooth = smoothed(t);
-        // Per-bin count uncertainty: √N Poisson-ish floor + scaling
-        // factor to keep the band visible without overstating it.
-        const radius = Math.sqrt(Math.max(0.5, cSmooth)) * 0.6;
-        samples.push({
-            bin_minute: t,
-            count: cSmooth,
-            lo: Math.max(0, cSmooth - radius),
-            hi: cSmooth + radius,
-            predicted: predictedAt(t),  // for the dashed reference line
-        });
-    }
-    return samples;
+// Bands sourced from per-flight Monte Carlo aggregates: low (-sigma
+// per-flight shift), nominal (0), high (+sigma).
+function bandsFor(rows, sigmaMin, sectorOrPairId, isPair) {
+    const lowKey = isPair ? 'pair_load_low' : 'load_low';
+    const highKey = isPair ? 'pair_load_high' : 'load_high';
+    const lowRows = (window._mc?.[lowKey] || {})[sectorOrPairId] || [];
+    const highRows = (window._mc?.[highKey] || {})[sectorOrPairId] || [];
+    const lowByBin  = Object.fromEntries(lowRows.map(r => [r.bin_minute, r.count]));
+    const highByBin = Object.fromEntries(highRows.map(r => [r.bin_minute, r.count]));
+    const allBins = new Set([
+        ...rows.map(r => r.bin_minute),
+        ...lowRows.map(r => r.bin_minute),
+        ...highRows.map(r => r.bin_minute),
+    ]);
+    const sorted = [...allBins].sort((a, b) => a - b);
+    return sorted.map(b => {
+        const nominalRow = rows.find(r => r.bin_minute === b);
+        const c  = nominalRow ? nominalRow.count : 0;
+        const lo = lowByBin[b]  ?? 0;
+        const hi = highByBin[b] ?? 0;
+        return {
+            bin_minute: b,
+            count: c,
+            lo: Math.min(lo, c, hi),
+            hi: Math.max(lo, c, hi),
+        };
+    });
 }
 
 function render() {
@@ -325,7 +354,7 @@ function render() {
             card.innerHTML = `
                 <div class="title">
                     <span class="name">${p.label}</span>
-                    <span class="label">D-${LEAD_DAYS} lens · ±${(window._sectorSigma?.[p.id] ?? SIGMA_MIN).toFixed(1)}m</span>
+                    <span class="label">D-${LEAD_DAYS} MC bands</span>
                     <span class="peak">${peakLabel(rows)} · ${totalsByPair[p.id]||0} flt</span>
                 </div>
                 <svg viewBox="0 0 400 160" preserveAspectRatio="none" id="svg-${p.id}"></svg>
@@ -387,8 +416,8 @@ function drawChart(sectorId, rows, xMin, xMax, opts) {
     }
 
     if (rows.length) {
-        const sigmaForThis = window._sectorSigma?.[sectorId] ?? SIGMA_MIN;
-        const banded = bandsFor(rows, sigmaForThis);
+        const isPairId = !!(window._mc?.pair_load?.[sectorId]);
+        const banded = bandsFor(rows, SIGMA_MIN, sectorId, isPairId);
         // Plot bin centres so the curve aligns with the original bars
         const cx = r => xScale(r.bin_minute) + (plotW / (xMax - xMin)) * bin / 2;
 
