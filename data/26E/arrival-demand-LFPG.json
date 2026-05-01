@@ -5,7 +5,7 @@
   "n_flights": 127,
   "cruise_tas_kt": 480,
   "level_mb": "250",
-  "bin_minutes": 10,
+  "bin_minutes": 15,
   "sigma_grid_kt_by_lead": {
    "D-1": 8,
    "D-2": 12,
@@ -16,584 +16,460 @@
  "series": {
   "nominal": [
    {
+    "bin_minute": 1155,
+    "count": 1.0
+   },
+   {
     "bin_minute": 1170,
-    "count": 3
+    "count": 3.75
    },
    {
-    "bin_minute": 1180,
-    "count": 3
-   },
-   {
-    "bin_minute": 1190,
-    "count": 5
+    "bin_minute": 1185,
+    "count": 6.25
    },
    {
     "bin_minute": 1200,
-    "count": 5
+    "count": 7.75
    },
    {
-    "bin_minute": 1210,
-    "count": 5
-   },
-   {
-    "bin_minute": 1220,
-    "count": 7
+    "bin_minute": 1215,
+    "count": 9.0
    },
    {
     "bin_minute": 1230,
-    "count": 6
+    "count": 10.25
    },
    {
-    "bin_minute": 1240,
-    "count": 7
-   },
-   {
-    "bin_minute": 1250,
-    "count": 9
+    "bin_minute": 1245,
+    "count": 11.0
    },
    {
     "bin_minute": 1260,
-    "count": 6
+    "count": 10.25
    },
    {
-    "bin_minute": 1270,
-    "count": 7
-   },
-   {
-    "bin_minute": 1280,
-    "count": 6
+    "bin_minute": 1275,
+    "count": 10.25
    },
    {
     "bin_minute": 1290,
-    "count": 8
+    "count": 12.0
    },
    {
-    "bin_minute": 1300,
-    "count": 11
-   },
-   {
-    "bin_minute": 1310,
-    "count": 7
+    "bin_minute": 1305,
+    "count": 13.75
    },
    {
     "bin_minute": 1320,
-    "count": 12
+    "count": 14.0
    },
    {
-    "bin_minute": 1330,
-    "count": 6
-   },
-   {
-    "bin_minute": 1340,
-    "count": 9
+    "bin_minute": 1335,
+    "count": 10.75
    },
    {
     "bin_minute": 1350,
-    "count": 3
+    "count": 5.25
    },
    {
-    "bin_minute": 1360,
-    "count": 2
+    "bin_minute": 1365,
+    "count": 1.5
+   },
+   {
+    "bin_minute": 1380,
+    "count": 0.25
    }
   ],
   "D-1-fast": [
    {
-    "bin_minute": 1160,
-    "count": 1
+    "bin_minute": 1140,
+    "count": 0.25
+   },
+   {
+    "bin_minute": 1155,
+    "count": 2.25
    },
    {
     "bin_minute": 1170,
-    "count": 5
+    "count": 5.25
    },
    {
-    "bin_minute": 1180,
-    "count": 3
-   },
-   {
-    "bin_minute": 1190,
-    "count": 5
+    "bin_minute": 1185,
+    "count": 7.0
    },
    {
     "bin_minute": 1200,
-    "count": 6
+    "count": 8.25
    },
    {
-    "bin_minute": 1210,
-    "count": 6
-   },
-   {
-    "bin_minute": 1220,
-    "count": 6
+    "bin_minute": 1215,
+    "count": 9.0
    },
    {
     "bin_minute": 1230,
-    "count": 8
+    "count": 10.25
    },
    {
-    "bin_minute": 1240,
-    "count": 8
-   },
-   {
-    "bin_minute": 1250,
-    "count": 7
+    "bin_minute": 1245,
+    "count": 11.5
    },
    {
     "bin_minute": 1260,
-    "count": 4
+    "count": 10.75
    },
    {
-    "bin_minute": 1270,
-    "count": 9
-   },
-   {
-    "bin_minute": 1280,
-    "count": 7
+    "bin_minute": 1275,
+    "count": 11.5
    },
    {
     "bin_minute": 1290,
-    "count": 8
+    "count": 13.5
    },
    {
-    "bin_minute": 1300,
-    "count": 10
-   },
-   {
-    "bin_minute": 1310,
-    "count": 10
+    "bin_minute": 1305,
+    "count": 13.0
    },
    {
     "bin_minute": 1320,
-    "count": 9
+    "count": 11.25
    },
    {
-    "bin_minute": 1330,
-    "count": 9
-   },
-   {
-    "bin_minute": 1340,
-    "count": 3
+    "bin_minute": 1335,
+    "count": 8.5
    },
    {
     "bin_minute": 1350,
-    "count": 3
+    "count": 4.0
+   },
+   {
+    "bin_minute": 1365,
+    "count": 0.75
    }
   ],
   "D-1-slow": [
    {
+    "bin_minute": 1155,
+    "count": 0.5
+   },
+   {
     "bin_minute": 1170,
-    "count": 1
+    "count": 2.5
    },
    {
-    "bin_minute": 1180,
-    "count": 3
-   },
-   {
-    "bin_minute": 1190,
-    "count": 4
+    "bin_minute": 1185,
+    "count": 5.25
    },
    {
     "bin_minute": 1200,
-    "count": 4
+    "count": 7.25
    },
    {
-    "bin_minute": 1210,
-    "count": 4
-   },
-   {
-    "bin_minute": 1220,
-    "count": 8
+    "bin_minute": 1215,
+    "count": 8.25
    },
    {
     "bin_minute": 1230,
-    "count": 4
+    "count": 8.5
    },
    {
-    "bin_minute": 1240,
-    "count": 7
-   },
-   {
-    "bin_minute": 1250,
-    "count": 6
+    "bin_minute": 1245,
+    "count": 9.5
    },
    {
     "bin_minute": 1260,
-    "count": 10
+    "count": 10.75
    },
    {
-    "bin_minute": 1270,
-    "count": 6
-   },
-   {
-    "bin_minute": 1280,
-    "count": 6
+    "bin_minute": 1275,
+    "count": 10.75
    },
    {
     "bin_minute": 1290,
-    "count": 8
+    "count": 12.25
    },
    {
-    "bin_minute": 1300,
-    "count": 9
-   },
-   {
-    "bin_minute": 1310,
-    "count": 11
+    "bin_minute": 1305,
+    "count": 14.75
    },
    {
     "bin_minute": 1320,
-    "count": 6
+    "count": 14.0
    },
    {
-    "bin_minute": 1330,
-    "count": 12
-   },
-   {
-    "bin_minute": 1340,
-    "count": 7
+    "bin_minute": 1335,
+    "count": 11.0
    },
    {
     "bin_minute": 1350,
-    "count": 6
+    "count": 7.5
    },
    {
-    "bin_minute": 1360,
-    "count": 3
+    "bin_minute": 1365,
+    "count": 3.5
    },
    {
-    "bin_minute": 1370,
-    "count": 2
+    "bin_minute": 1380,
+    "count": 0.75
    }
   ],
   "D-2-fast": [
    {
-    "bin_minute": 1160,
-    "count": 4
+    "bin_minute": 1140,
+    "count": 1.0
+   },
+   {
+    "bin_minute": 1155,
+    "count": 3.25
    },
    {
     "bin_minute": 1170,
-    "count": 3
+    "count": 5.25
    },
    {
-    "bin_minute": 1180,
-    "count": 3
-   },
-   {
-    "bin_minute": 1190,
-    "count": 6
+    "bin_minute": 1185,
+    "count": 7.25
    },
    {
     "bin_minute": 1200,
-    "count": 6
+    "count": 8.75
    },
    {
-    "bin_minute": 1210,
-    "count": 6
-   },
-   {
-    "bin_minute": 1220,
-    "count": 6
+    "bin_minute": 1215,
+    "count": 9.5
    },
    {
     "bin_minute": 1230,
-    "count": 7
+    "count": 10.5
    },
    {
-    "bin_minute": 1240,
-    "count": 10
-   },
-   {
-    "bin_minute": 1250,
-    "count": 5
+    "bin_minute": 1245,
+    "count": 10.75
    },
    {
     "bin_minute": 1260,
-    "count": 8
+    "count": 10.75
    },
    {
-    "bin_minute": 1270,
-    "count": 7
-   },
-   {
-    "bin_minute": 1280,
-    "count": 7
+    "bin_minute": 1275,
+    "count": 12.0
    },
    {
     "bin_minute": 1290,
-    "count": 10
+    "count": 13.75
    },
    {
-    "bin_minute": 1300,
-    "count": 7
-   },
-   {
-    "bin_minute": 1310,
-    "count": 12
+    "bin_minute": 1305,
+    "count": 14.0
    },
    {
     "bin_minute": 1320,
-    "count": 6
+    "count": 11.25
    },
    {
-    "bin_minute": 1330,
-    "count": 9
-   },
-   {
-    "bin_minute": 1340,
-    "count": 3
+    "bin_minute": 1335,
+    "count": 6.25
    },
    {
     "bin_minute": 1350,
-    "count": 2
+    "count": 2.25
+   },
+   {
+    "bin_minute": 1365,
+    "count": 0.5
    }
   ],
   "D-2-slow": [
    {
-    "bin_minute": 1180,
-    "count": 3
+    "bin_minute": 1155,
+    "count": 0.25
    },
    {
-    "bin_minute": 1190,
-    "count": 2
+    "bin_minute": 1170,
+    "count": 1.5
+   },
+   {
+    "bin_minute": 1185,
+    "count": 4.0
    },
    {
     "bin_minute": 1200,
-    "count": 5
+    "count": 6.5
    },
    {
-    "bin_minute": 1210,
-    "count": 5
-   },
-   {
-    "bin_minute": 1220,
-    "count": 5
+    "bin_minute": 1215,
+    "count": 7.75
    },
    {
     "bin_minute": 1230,
-    "count": 7
+    "count": 9.0
    },
    {
-    "bin_minute": 1240,
-    "count": 6
-   },
-   {
-    "bin_minute": 1250,
-    "count": 7
+    "bin_minute": 1245,
+    "count": 11.0
    },
    {
     "bin_minute": 1260,
-    "count": 8
+    "count": 11.25
    },
    {
-    "bin_minute": 1270,
-    "count": 6
-   },
-   {
-    "bin_minute": 1280,
-    "count": 7
+    "bin_minute": 1275,
+    "count": 10.25
    },
    {
     "bin_minute": 1290,
-    "count": 7
+    "count": 11.0
    },
    {
-    "bin_minute": 1300,
-    "count": 7
-   },
-   {
-    "bin_minute": 1310,
-    "count": 10
+    "bin_minute": 1305,
+    "count": 12.5
    },
    {
     "bin_minute": 1320,
-    "count": 8
+    "count": 13.25
    },
    {
-    "bin_minute": 1330,
-    "count": 13
-   },
-   {
-    "bin_minute": 1340,
-    "count": 6
+    "bin_minute": 1335,
+    "count": 12.75
    },
    {
     "bin_minute": 1350,
-    "count": 8
+    "count": 9.75
    },
    {
-    "bin_minute": 1360,
-    "count": 5
+    "bin_minute": 1365,
+    "count": 5.0
    },
    {
-    "bin_minute": 1370,
-    "count": 2
+    "bin_minute": 1380,
+    "count": 1.25
    }
   ],
   "D-3-fast": [
    {
-    "bin_minute": 1150,
-    "count": 1
+    "bin_minute": 1140,
+    "count": 1.25
    },
    {
-    "bin_minute": 1160,
-    "count": 4
+    "bin_minute": 1155,
+    "count": 3.75
    },
    {
     "bin_minute": 1170,
-    "count": 4
+    "count": 6.25
    },
    {
-    "bin_minute": 1180,
-    "count": 5
-   },
-   {
-    "bin_minute": 1190,
-    "count": 6
+    "bin_minute": 1185,
+    "count": 8.25
    },
    {
     "bin_minute": 1200,
-    "count": 5
+    "count": 9.25
    },
    {
-    "bin_minute": 1210,
-    "count": 5
-   },
-   {
-    "bin_minute": 1220,
-    "count": 9
+    "bin_minute": 1215,
+    "count": 10.25
    },
    {
     "bin_minute": 1230,
-    "count": 6
+    "count": 10.5
    },
    {
-    "bin_minute": 1240,
-    "count": 9
-   },
-   {
-    "bin_minute": 1250,
-    "count": 5
+    "bin_minute": 1245,
+    "count": 10.25
    },
    {
     "bin_minute": 1260,
-    "count": 8
+    "count": 11.25
    },
    {
-    "bin_minute": 1270,
-    "count": 6
-   },
-   {
-    "bin_minute": 1280,
-    "count": 10
+    "bin_minute": 1275,
+    "count": 12.0
    },
    {
     "bin_minute": 1290,
-    "count": 10
+    "count": 13.0
    },
    {
-    "bin_minute": 1300,
-    "count": 10
-   },
-   {
-    "bin_minute": 1310,
-    "count": 8
+    "bin_minute": 1305,
+    "count": 13.75
    },
    {
     "bin_minute": 1320,
-    "count": 7
+    "count": 10.75
    },
    {
-    "bin_minute": 1330,
-    "count": 6
+    "bin_minute": 1335,
+    "count": 5.25
    },
    {
-    "bin_minute": 1340,
-    "count": 3
+    "bin_minute": 1350,
+    "count": 1.25
    }
   ],
   "D-3-slow": [
    {
-    "bin_minute": 1180,
-    "count": 1
+    "bin_minute": 1170,
+    "count": 1.0
    },
    {
-    "bin_minute": 1190,
-    "count": 3
+    "bin_minute": 1185,
+    "count": 3.5
    },
    {
     "bin_minute": 1200,
-    "count": 4
+    "count": 5.75
    },
    {
-    "bin_minute": 1210,
-    "count": 4
-   },
-   {
-    "bin_minute": 1220,
-    "count": 5
+    "bin_minute": 1215,
+    "count": 7.5
    },
    {
     "bin_minute": 1230,
-    "count": 8
+    "count": 8.5
    },
    {
-    "bin_minute": 1240,
-    "count": 4
-   },
-   {
-    "bin_minute": 1250,
-    "count": 5
+    "bin_minute": 1245,
+    "count": 9.5
    },
    {
     "bin_minute": 1260,
-    "count": 8
+    "count": 11.0
    },
    {
-    "bin_minute": 1270,
-    "count": 9
-   },
-   {
-    "bin_minute": 1280,
-    "count": 6
+    "bin_minute": 1275,
+    "count": 10.75
    },
    {
     "bin_minute": 1290,
-    "count": 6
+    "count": 10.75
    },
    {
-    "bin_minute": 1300,
-    "count": 9
-   },
-   {
-    "bin_minute": 1310,
-    "count": 8
+    "bin_minute": 1305,
+    "count": 12.0
    },
    {
     "bin_minute": 1320,
-    "count": 11
+    "count": 13.75
    },
    {
-    "bin_minute": 1330,
-    "count": 7
-   },
-   {
-    "bin_minute": 1340,
-    "count": 12
+    "bin_minute": 1335,
+    "count": 14.25
    },
    {
     "bin_minute": 1350,
-    "count": 7
+    "count": 10.5
    },
    {
-    "bin_minute": 1360,
-    "count": 5
-   },
-   {
-    "bin_minute": 1370,
-    "count": 3
+    "bin_minute": 1365,
+    "count": 5.5
    },
    {
     "bin_minute": 1380,
-    "count": 2
+    "count": 2.25
+   },
+   {
+    "bin_minute": 1395,
+    "count": 0.5
    }
   ]
  }

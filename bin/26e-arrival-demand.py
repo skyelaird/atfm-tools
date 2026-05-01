@@ -34,7 +34,13 @@ WINDS_PATH = os.path.join(DATA_DIR, 'winds-cache.json')
 # Cruise model — kept deliberately simple. No climb, no descent, no taxi.
 CRUISE_TAS_KT = 480     # M0.84 at FL340
 LEVEL_MB = '250'        # FL340 level for wind interpolation
-BIN_MIN = 10            # arrival-rate bin (5-min was too spiky with peak counts of 7-8)
+BIN_MIN = 15            # arrival-rate bin
+SMOOTH_PASSES = 1       # number of 3-point [1,2,1]/4 smoothing passes after binning
+                        # Kills the booking-pattern clumping that comes from CTOTs
+                        # being issued at 5-min track spacing — flights pile up at
+                        # exact 5-min boundaries which produces fake high-frequency
+                        # modulation in the demand curve. Smoothing flattens that
+                        # while preserving the broader trend.
 
 # Grid-wind RMSE per forecast lead (kt) — from current verifier corpus.
 SIGMA_GRID_KT = {'D-1': 8, 'D-2': 12, 'D-3': 17}
@@ -182,7 +188,8 @@ def main():
             series[f'{lead}-slow'].append(ctot_s + slow_t)
     print(f'Traced {n_routed} flights')
 
-    # Bin arrivals to 5-min bins (minute-of-day)
+    # Bin arrivals (minute-of-day) and apply a [1,2,1]/4 smoothing pass to
+    # damp booking-pattern clumping (see SMOOTH_PASSES note above).
     BIN_SEC = BIN_MIN * 60
     binned = {}
     for name, arrivals in series.items():
@@ -190,10 +197,23 @@ def main():
         for arr_sec in arrivals:
             bm = int(arr_sec // BIN_SEC) * BIN_MIN
             counts[bm] += 1
-        rows = sorted(
-            [{'bin_minute': b, 'count': c} for b, c in counts.items()],
-            key=lambda x: x['bin_minute']
-        )
+        if not counts:
+            binned[name] = []
+            continue
+        bmin = min(counts) - BIN_MIN
+        bmax = max(counts) + BIN_MIN
+        # Dense array over the full range so the smoothing kernel sees zeros at edges
+        bins = list(range(bmin, bmax + BIN_MIN, BIN_MIN))
+        vals = [float(counts.get(b, 0)) for b in bins]
+        for _ in range(SMOOTH_PASSES):
+            sm = vals[:]
+            for i in range(len(vals)):
+                left  = vals[i - 1] if i - 1 >= 0          else vals[i]
+                right = vals[i + 1] if i + 1 < len(vals)   else vals[i]
+                sm[i] = (left + 2 * vals[i] + right) / 4
+            vals = sm
+        rows = [{'bin_minute': b, 'count': round(v, 2)}
+                for b, v in zip(bins, vals) if v > 0.05]
         binned[name] = rows
 
     out = {
@@ -240,8 +260,8 @@ def main():
 
         def fmt(b):
             return f'{b // 60:02d}{b % 60:02d}Z'
-        print(f'  {name:>10s}  {sum(r["count"] for r in rows):>7d}  '
-              f'{fmt(first):>8s}  {peak["count"]:>5d}  {fmt(peak["bin_minute"]):>7s}  '
+        print(f'  {name:>10s}  {sum(r["count"] for r in rows):>7.1f}  '
+              f'{fmt(first):>8s}  {peak["count"]:>5.1f}  {fmt(peak["bin_minute"]):>7s}  '
               f'{fmt(last):>8s}')
 
 
