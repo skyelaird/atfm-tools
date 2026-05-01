@@ -133,10 +133,6 @@ async function load() {
     const r = await fetch('/26e-sector-load.json');
     DATA = await r.json();
     const m = DATA.meta;
-    document.getElementById('meta').innerHTML =
-        `Booked CTP fleet: <b>${m.flights_touching_sector}</b> of ${m.flights_total} flights through these sectors · ` +
-        `cruise M${m.cruise_mach || '0.82'} · bin ${m.bin_minutes}m · ` +
-        `velocity perturbation ±8 kt → mean ±${(window._mc?.meanShiftMin ?? 0).toFixed(1)} min shift at sector entry`;
     document.querySelector(`.lens-${LEAD_DAYS}-${LEAD_DAYS}`)?.classList.add('active');
     // Per-flight Monte Carlo via VELOCITY perturbation.
     //
@@ -254,6 +250,10 @@ async function load() {
     }
     window._mc.meanShiftMin = totalFlights > 0 ? totalShiftAtFirstEntry / totalFlights : 0;
     window._mc.totalFlights = totalFlights;
+    document.getElementById('meta').innerHTML =
+        `Booked CTP fleet: <b>${m.flights_touching_sector}</b> of ${m.flights_total} flights through these sectors · ` +
+        `cruise M${m.cruise_mach || '0.82'} · bin ${m.bin_minutes}m · ` +
+        `velocity perturbation ±8 kt → mean ±${(window._mc?.meanShiftMin ?? 0).toFixed(1)} min shift at sector entry`;
     render();
 }
 
