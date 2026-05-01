@@ -87,7 +87,7 @@ svg {
 .grid-line { stroke: var(--border); stroke-dasharray: 2 2; stroke-width: 0.5; }
 .cap-line { stroke: var(--alert); stroke-dasharray: 4 2; stroke-width: 1; }
 .center-line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
-.band { fill: var(--accent); fill-opacity: 0.18; stroke: none; }
+.band { fill: var(--accent); fill-opacity: 0.30; stroke: var(--accent); stroke-width: 0.5; stroke-opacity: 0.5; }
 
 .tooltip {
     position: absolute; pointer-events: none;
@@ -166,20 +166,30 @@ function smoothPath(pts) {
     return d;
 }
 
-// At each bin t, compute the envelope [lo, hi] of counts within ±σ of t.
-// This represents "if the demand curve shifted left/right by σ minutes
-// due to wind forecast error, the count at t could fall anywhere in
-// this band."
+// 1σ uncertainty band derived from a linearization of timing error +
+// Poisson-ish count statistics:
+//   timing_radius = |dC/dt| × σ       (curve slope × forecast error)
+//   count_radius  = √(C) × 0.5         (statistical noise on the count)
+//   total radius  = √(timing² + count²)
+//
+// On rising/falling slopes the band is wider (timing error matters
+// where the curve is moving fast); near the peak the band shrinks
+// (count is robust to timing shift but Poisson noise is largest there).
 function bandsFor(rows, sigmaMin) {
-    return rows.map(r => {
-        let lo = r.count, hi = r.count;
-        for (const r2 of rows) {
-            if (Math.abs(r2.bin_minute - r.bin_minute) <= sigmaMin) {
-                if (r2.count > hi) hi = r2.count;
-                if (r2.count < lo) lo = r2.count;
-            }
-        }
-        return { bin_minute: r.bin_minute, count: r.count, lo, hi };
+    const bin = DATA.meta.bin_minutes;
+    return rows.map((r, i) => {
+        const prev = i > 0 ? rows[i-1].count : r.count;
+        const next = i < rows.length - 1 ? rows[i+1].count : r.count;
+        const slope = (next - prev) / (2 * bin);   // flights per minute
+        const timingRadius = Math.abs(slope) * sigmaMin;
+        const countRadius  = Math.sqrt(Math.max(1, r.count)) * 0.5;
+        const radius = Math.sqrt(timingRadius * timingRadius + countRadius * countRadius);
+        return {
+            bin_minute: r.bin_minute,
+            count: r.count,
+            lo: Math.max(0, r.count - radius),
+            hi: r.count + radius,
+        };
     });
 }
 
