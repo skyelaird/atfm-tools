@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>26E CTP Arrival Demand — wind-uncertainty lens</title>
+<style>
+:root {
+    --bg: #0a0e1a;
+    --bg-elev: #121826;
+    --bg-elev-hi: #1a2133;
+    --text: #e8ecf4;
+    --text-dim: #7a8499;
+    --border: #2a3142;
+    --accent: #5ee0ba;
+    --accent-dim: rgba(94, 224, 186, 0.18);
+    --warn: #f5a05b;
+    --alert: #ef6464;
+    --mono: "SF Mono","JetBrains Mono",Consolas,monospace;
+}
+* { box-sizing: border-box; }
+body {
+    background: var(--bg); color: var(--text);
+    margin: 0; padding: 1rem;
+    font-family: -apple-system, system-ui, sans-serif; font-size: 14px;
+}
+h1 { font-size: 1.1rem; font-weight: 500; margin: 0 0 0.4rem; }
+h1 .lead { color: var(--warn); font-family: var(--mono); }
+.sub {
+    font-family: var(--mono); color: var(--text-dim);
+    font-size: 0.8rem; margin-bottom: 0.8rem;
+}
+.sub a { color: var(--accent); text-decoration: none; }
+.sub a:hover { text-decoration: underline; }
+
+.lens-nav {
+    display: inline-flex; gap: 0.4rem; margin-left: 0.5rem;
+    font-family: var(--mono); font-size: 0.75rem;
+}
+.lens-nav a, .lens-nav button {
+    padding: 0.15rem 0.5rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-dim);
+    text-decoration: none;
+    background: transparent;
+    font-family: var(--mono); font-size: 0.75rem;
+    cursor: pointer;
+}
+.lens-nav button.active { border-color: var(--warn); color: var(--warn); }
+.lens-nav a:hover, .lens-nav button:hover { color: var(--accent); border-color: var(--accent); }
+
+.card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.75rem 1rem 0.6rem;
+    margin-bottom: 0.8rem;
+}
+.card .title {
+    display: flex; justify-content: space-between; align-items: baseline;
+    margin-bottom: 0.4rem;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+}
+.card .name {
+    font-family: var(--mono); font-weight: 600; color: var(--accent);
+    font-size: 1rem;
+}
+.card .label { color: var(--text-dim); font-size: 0.75rem; font-family: var(--mono); }
+.card .peak { color: var(--warn); font-family: var(--mono); font-size: 0.75rem; }
+
+svg {
+    display: block; width: 100%; height: 360px;
+    background: var(--bg); border-radius: 3px;
+}
+.axis-label { fill: var(--text-dim); font-family: var(--mono); font-size: 10px; }
+.grid-line { stroke: var(--border); stroke-dasharray: 2 2; stroke-width: 0.5; }
+.line-nominal { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linejoin: round; }
+.line-high    { fill: none; stroke: #7aa8ff; stroke-width: 1.8; stroke-linejoin: round; stroke-opacity: 0.95; stroke-dasharray: 4 2; }
+.line-low     { fill: none; stroke: var(--warn); stroke-width: 1.8; stroke-linejoin: round; stroke-opacity: 0.95; stroke-dasharray: 4 2; }
+.legend-line {
+    display: inline-block;
+    width: 18px; height: 0;
+    border-top: 2px solid;
+    vertical-align: middle;
+    margin: 0 0.2rem 0 0.5rem;
+}
+.legend-line.high    { border-top-color: #7aa8ff; border-top-style: dashed; }
+.legend-line.nominal { border-top-color: var(--accent); }
+.legend-line.low     { border-top-color: var(--warn); border-top-style: dashed; }
+
+.tooltip {
+    position: absolute; pointer-events: none;
+    background: var(--bg-elev-hi); color: var(--text);
+    border: 1px solid var(--border); border-radius: 3px;
+    padding: 0.3rem 0.6rem;
+    font-family: var(--mono); font-size: 0.75rem;
+    opacity: 0; transition: opacity 0.1s; z-index: 10;
+    line-height: 1.4;
+}
+.note {
+    font-family: var(--mono); color: var(--text-dim);
+    font-size: 0.72rem; margin-top: 0.4rem;
+}
+</style>
+</head>
+<body>
+<h1>26E CTP Arrival Demand — <span class="lead" id="lead-label">D-3 lens (±17 kt)</span></h1>
+<div class="sub" id="meta">Loading…</div>
+<div class="sub">
+    <span class="legend-line high"></span>faster (whole fleet +X kt) ·
+    <span class="legend-line nominal"></span>nominal ·
+    <span class="legend-line low"></span>slower (whole fleet −X kt)
+    <span class="lens-nav">
+        <button data-lead="D-1">D-1 (±8 kt)</button>
+        <button data-lead="D-2">D-2 (±12 kt)</button>
+        <button data-lead="D-3" class="active">D-3 (±17 kt)</button>
+        <a href="/26e-1.html" style="color:var(--text-dim);">← sector view</a>
+    </span>
+</div>
+<div id="root"></div>
+<div class="tooltip" id="tip"></div>
+
+<script>
+const TIP = document.getElementById('tip');
+let DATA = null;
+let CURRENT_LEAD = 'D-3';
+
+async function load() {
+    const r = await fetch('/26e-arrival-LFPG.json');
+    DATA = await r.json();
+    const m = DATA.meta;
+    document.getElementById('meta').innerHTML =
+        `target ${m.target_icao} · ${m.n_flights} booked flights · ` +
+        `cruise-only (M0.84 / FL340 / no descent / no taxi) · ` +
+        `${m.bin_minutes}-min bins · ETD = CTOT · ` +
+        `each curve = whole fleet shifted by ±X kt`;
+    render();
+}
+
+function bindLens() {
+    document.querySelectorAll('.lens-nav button').forEach(b => {
+        b.addEventListener('click', () => {
+            CURRENT_LEAD = b.dataset.lead;
+            document.querySelectorAll('.lens-nav button')
+                .forEach(x => x.classList.toggle('active', x === b));
+            const X = DATA.meta.sigma_grid_kt_by_lead[CURRENT_LEAD];
+            document.getElementById('lead-label').textContent =
+                `${CURRENT_LEAD} lens (±${X} kt)`;
+            render();
+        });
+    });
+}
+
+function smoothPath(pts) {
+    if (!pts.length) return '';
+    if (pts.length === 1) return `M${pts[0][0]},${pts[0][1]}`;
+    const p = [pts[0], ...pts, pts[pts.length-1]];
+    let d = `M${pts[0][0].toFixed(1)},${pts[0][1].toFixed(1)}`;
+    for (let i = 1; i < p.length - 2; i++) {
+        const p0 = p[i-1], p1 = p[i], p2 = p[i+1], p3 = p[i+2];
+        const c1x = p1[0] + (p2[0] - p0[0]) / 6;
+        const c1y = p1[1] + (p2[1] - p0[1]) / 6;
+        const c2x = p2[0] - (p3[0] - p1[0]) / 6;
+        const c2y = p2[1] - (p3[1] - p1[1]) / 6;
+        d += ` C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+    }
+    return d;
+}
+
+function fmtTime(b) {
+    const hh = String(Math.floor(b/60) % 24).padStart(2,'0');
+    const mm = String(b % 60).padStart(2,'0');
+    return `${hh}${mm}Z`;
+}
+
+function peakLabel(rows) {
+    if (!rows.length) return '(no flights)';
+    const p = rows.reduce((a,r) => (r.count > a.count) ? r : a);
+    return `peak ${p.count} @ ${fmtTime(p.bin_minute)}`;
+}
+
+function render() {
+    const root = document.getElementById('root');
+    root.innerHTML = '';
+
+    const nom  = DATA.series['nominal']           || [];
+    const fast = DATA.series[`${CURRENT_LEAD}-fast`] || [];
+    const slow = DATA.series[`${CURRENT_LEAD}-slow`] || [];
+
+    // X range across all three series, snapped to 30-min boundaries
+    const allBins = new Set();
+    for (const r of nom)  allBins.add(r.bin_minute);
+    for (const r of fast) allBins.add(r.bin_minute);
+    for (const r of slow) allBins.add(r.bin_minute);
+    const sorted = [...allBins].sort((a,b) => a-b);
+    if (!sorted.length) {
+        root.innerHTML = '<div class="card"><div class="label">no data</div></div>';
+        return;
+    }
+    const minBin = sorted[0], maxBin = sorted[sorted.length-1];
+    const xMin = Math.floor(minBin / 30) * 30;
+    const xMax = Math.ceil((maxBin + DATA.meta.bin_minutes) / 30) * 30;
+
+    // Y max across all three series (with 20% headroom)
+    let maxCount = 0;
+    for (const arr of [nom, fast, slow]) {
+        for (const r of arr) if (r.count > maxCount) maxCount = r.count;
+    }
+    const yMax = Math.max(5, Math.ceil(maxCount * 1.2));
+
+    const card = document.createElement('div');
+    card.className = 'card';
+    const X = DATA.meta.sigma_grid_kt_by_lead[CURRENT_LEAD];
+    const firstNom = nom[0]?.bin_minute, lastNom = nom[nom.length-1]?.bin_minute;
+    const firstFast = fast[0]?.bin_minute, lastSlow = slow[slow.length-1]?.bin_minute;
+    const earlyShift = firstNom - firstFast;
+    const lateShift = lastSlow - lastNom;
+    card.innerHTML = `
+        <div class="title">
+            <span class="name">${DATA.meta.target_icao} — arrival demand</span>
+            <span class="label">${CURRENT_LEAD} lens · ±${X} kt</span>
+            <span class="peak">${peakLabel(nom)} · ${DATA.meta.n_flights} flt</span>
+        </div>
+        <svg viewBox="0 0 800 360" preserveAspectRatio="none" id="svg-arr"></svg>
+        <div class="note">
+            tail extension at this lens:
+            faster fleet's first arrival ${earlyShift > 0 ? earlyShift+' min earlier' : 'same'}
+            (${fmtTime(firstFast)}); slower fleet's last arrival
+            ${lateShift > 0 ? lateShift+' min later' : 'same'} (${fmtTime(lastSlow)}).
+        </div>
+    `;
+    root.appendChild(card);
+
+    drawChart('arr', nom, fast, slow, xMin, xMax, yMax);
+}
+
+function drawChart(id, nom, fast, slow, xMin, xMax, yMax) {
+    const svg = document.getElementById(`svg-${id}`);
+    const W = 800, H = 360;
+    const M = {l: 36, r: 12, t: 12, b: 24};
+    const plotW = W - M.l - M.r;
+    const plotH = H - M.t - M.b;
+    const bin = DATA.meta.bin_minutes;
+    const xScale = t => M.l + (t - xMin) / (xMax - xMin) * plotW;
+    const yScale = v => M.t + plotH - (v / yMax) * plotH;
+
+    let html = '';
+    // Vertical gridlines every 30 min, label every hour
+    for (let t = xMin; t <= xMax; t += 30) {
+        const x = xScale(t);
+        html += `<line class="grid-line" x1="${x}" y1="${M.t}" x2="${x}" y2="${M.t+plotH}"/>`;
+        if (t % 60 === 0) {
+            html += `<text class="axis-label" x="${x}" y="${H-6}" text-anchor="middle">${fmtTime(t)}</text>`;
+        }
+    }
+    // Horizontal gridlines + y labels
+    const tickStep = Math.max(1, Math.ceil(yMax / 6));
+    for (let v = 0; v <= yMax; v += tickStep) {
+        const y = yScale(v);
+        html += `<line class="grid-line" x1="${M.l}" y1="${y}" x2="${M.l+plotW}" y2="${y}"/>`;
+        html += `<text class="axis-label" x="${M.l-4}" y="${y+3}" text-anchor="end">${v}</text>`;
+    }
+
+    const cx = r => xScale(r.bin_minute) + (plotW / (xMax - xMin)) * bin / 2;
+    const ptsFor = arr => arr.map(r => [cx(r), yScale(r.count)]);
+
+    if (fast.length) html += `<path class="line-high" d="${smoothPath(ptsFor(fast))}"/>`;
+    if (slow.length) html += `<path class="line-low"  d="${smoothPath(ptsFor(slow))}"/>`;
+    if (nom.length)  html += `<path class="line-nominal" d="${smoothPath(ptsFor(nom))}"/>`;
+
+    // Hover circles — union of all bins in any series
+    const allBins = new Set();
+    for (const r of nom)  allBins.add(r.bin_minute);
+    for (const r of fast) allBins.add(r.bin_minute);
+    for (const r of slow) allBins.add(r.bin_minute);
+    const nomMap  = Object.fromEntries(nom.map(r => [r.bin_minute, r.count]));
+    const fastMap = Object.fromEntries(fast.map(r => [r.bin_minute, r.count]));
+    const slowMap = Object.fromEntries(slow.map(r => [r.bin_minute, r.count]));
+    for (const b of allBins) {
+        const x = xScale(b) + (plotW / (xMax - xMin)) * bin / 2;
+        const c = nomMap[b] ?? 0;
+        const f = fastMap[b] ?? 0;
+        const s = slowMap[b] ?? 0;
+        // Anchor circle at the highest of the three so hover area stays close to the lines
+        const peakV = Math.max(c, f, s);
+        html += `<circle cx="${x.toFixed(1)}" cy="${yScale(peakV).toFixed(1)}" r="6" fill="transparent" data-bin="${b}" data-c="${c}" data-f="${f}" data-s="${s}"/>`;
+    }
+
+    svg.innerHTML = html;
+    svg.addEventListener('mousemove', e => {
+        if (e.target.tagName === 'circle') {
+            const c = e.target;
+            const b = parseInt(c.getAttribute('data-bin'));
+            TIP.innerHTML =
+                `${fmtTime(b)}<br>` +
+                `<span style="color:#7aa8ff">faster</span> ${c.getAttribute('data-f')} · ` +
+                `<span style="color:var(--accent)">nominal</span> ${c.getAttribute('data-c')} · ` +
+                `<span style="color:var(--warn)">slower</span> ${c.getAttribute('data-s')}`;
+            TIP.style.left = (e.clientX + 12) + 'px';
+            TIP.style.top  = (e.clientY + 12) + 'px';
+            TIP.style.opacity = '1';
+        } else {
+            TIP.style.opacity = '0';
+        }
+    });
+    svg.addEventListener('mouseleave', () => { TIP.style.opacity = '0'; });
+}
+
+bindLens();
+load();
+</script>
+</body>
+</html>
