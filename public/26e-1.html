@@ -138,6 +138,46 @@ async function load() {
         `cruise M${m.cruise_mach || '0.82'} · bin ${m.bin_minutes}m · ` +
         `lens applies ±${SIGMA_MIN} min ETA-shift envelope`;
     document.querySelector(`.lens-${LEAD_DAYS}-${LEAD_DAYS}`)?.classList.add('active');
+    // Per-sector σ calibration: wind ETA error scales with flight time.
+    // σ_sector = σ_nominal × (mean_time_to_sector / NOMINAL_HOURS).
+    // mean_time_to_sector derived from each flight's CTOT (in minutes-of-day
+    // from sector-load.json's flights array) vs its first sector entry bin.
+    const NOMINAL_HOURS = 4;
+    const sectorSigma = {};
+    for (const fr of (DATA.flights || [])) {
+        const ctotMin = (() => {
+            const [hh, mm] = fr.ctot.split(':');
+            return parseInt(hh) * 60 + parseInt(mm);
+        })();
+        for (const [sid, intervals] of Object.entries(fr.sectors || {})) {
+            if (!sectorSigma[sid]) sectorSigma[sid] = { sum: 0, n: 0 };
+            // first interval's start = first time the flight enters this sector
+            const firstEntrySec = intervals[0][0];
+            // Convert ctot (min of day) + firstEntrySec → flight-time-to-sector
+            // ctotSec is seconds-of-day from CTOT
+            const ctotSec = ctotMin * 60;
+            const flightTimeMin = (firstEntrySec - ctotSec) / 60;
+            if (flightTimeMin > 0 && flightTimeMin < 600) {
+                sectorSigma[sid].sum += flightTimeMin;
+                sectorSigma[sid].n += 1;
+            }
+        }
+    }
+    // Convert to scaling factor and per-sector σ
+    for (const sid of Object.keys(sectorSigma)) {
+        const meanMin = sectorSigma[sid].n > 0 ? sectorSigma[sid].sum / sectorSigma[sid].n : 240;
+        const meanHours = meanMin / 60;
+        sectorSigma[sid] = SIGMA_MIN * (meanHours / NOMINAL_HOURS);
+    }
+    // Pairs use the sum of their member sectors weighted by avg flight time
+    // (in practice ~average of the two members' σ).
+    for (const p of (DATA.pairs || [])) {
+        const memberSigmas = p.members.filter(m => sectorSigma[m]).map(m => sectorSigma[m]);
+        if (memberSigmas.length) {
+            sectorSigma[p.id] = memberSigmas.reduce((a,b) => a+b, 0) / memberSigmas.length;
+        }
+    }
+    window._sectorSigma = sectorSigma;
     render();
 }
 
@@ -295,7 +335,7 @@ function render() {
             card.innerHTML = `
                 <div class="title">
                     <span class="name">${p.label}</span>
-                    <span class="label">D-${LEAD_DAYS} lens · ±${SIGMA_MIN}m</span>
+                    <span class="label">D-${LEAD_DAYS} lens · ±${(window._sectorSigma?.[p.id] ?? SIGMA_MIN).toFixed(1)}m</span>
                     <span class="peak">${peakLabel(rows)} · ${totalsByPair[p.id]||0} flt</span>
                 </div>
                 <svg viewBox="0 0 400 160" preserveAspectRatio="none" id="svg-${p.id}"></svg>
@@ -357,7 +397,8 @@ function drawChart(sectorId, rows, xMin, xMax, opts) {
     }
 
     if (rows.length) {
-        const banded = bandsFor(rows, SIGMA_MIN);
+        const sigmaForThis = window._sectorSigma?.[sectorId] ?? SIGMA_MIN;
+        const banded = bandsFor(rows, sigmaForThis);
         // Plot bin centres so the curve aligns with the original bars
         const cx = r => xScale(r.bin_minute) + (plotW / (xMax - xMin)) * bin / 2;
 
