@@ -15,19 +15,24 @@ DIR = r'D:\GitHub\atfm-tools\public'
 GRID_KT = {1: 8, 2: 12, 3: 17}
 
 PRELOAD_BLOCK = r"""
-    // Per-flight Monte Carlo simulation. Each booked flight gets its own
-    // sigma_i from sqrt-scaling against grid wind RMSE; intervals shifted
-    // by +/-sigma_i seconds and re-aggregated. Captures spatial wind-error
-    // decorrelation (flights average ~5-7 independent samples across NAT).
+    // Per-flight Monte Carlo via VELOCITY perturbation.
+    //
+    // Each booked flight is replayed at three speeds: nominal, +X kt
+    // faster, -X kt slower (where X = grid wind RMSE at this lead).
+    // The whole flight is perturbed uniformly — which means entry and
+    // exit times for each sector shift PROPORTIONALLY TO THEIR DISTANCE
+    // from the origin:
+    //
+    //   shift_at_point_P = -t_to_P × X / GS    (faster: arrives sooner)
+    //
+    // So a 4h-flight crossing a sector at hour 3.5 gets a bigger entry
+    // shift than at hour 1.5.  Sector dwell stretches/shrinks too:
+    //   new_dwell = nominal_dwell × (1 -+ X/GS)
+    //
+    // Not a CTOT block-shift — every interval boundary shifts by its
+    // own amount based on how far into the flight it occurs.
     const SIGMA_GRID_KT = __SIGMA_GRID_KT__;
     const GS_KT = 460;
-    const L_CORR_NM = 540;       // ~1000 km synoptic correlation length
-    const L_CORR_HR = L_CORR_NM / GS_KT;
-    function sigmaForFlight(tFlightMin) {
-        if (tFlightMin <= 0) return 0;
-        const tHr = tFlightMin / 60;
-        return SIGMA_GRID_KT * Math.sqrt(tHr * L_CORR_HR) / GS_KT * 60;
-    }
     function ctotToSec(s) {
         const parts = s.split(':');
         return parseInt(parts[0]) * 3600 + parseInt(parts[1]) * 60;
@@ -45,7 +50,13 @@ PRELOAD_BLOCK = r"""
         acc.pair_load[p.id] = {}; acc.pair_load_low[p.id] = {}; acc.pair_load_high[p.id] = {};
     }
 
-    let totalFlights = 0, totalSigmaMin = 0;
+    let totalFlights = 0, totalShiftAtFirstEntry = 0;
+    // Three velocity perturbations: -X (slower → arrives later),
+    // 0 (nominal), +X (faster → arrives sooner).
+    const velPerturbs = [-SIGMA_GRID_KT, 0, +SIGMA_GRID_KT];
+    const targetKeys = ['load_low', 'load', 'load_high'];
+    const pairTargetKeys = ['pair_load_low', 'pair_load', 'pair_load_high'];
+
     for (const fr of (DATA.flights || [])) {
         const sectorIds = Object.keys(fr.sectors || {});
         if (!sectorIds.length) continue;
@@ -56,26 +67,30 @@ PRELOAD_BLOCK = r"""
                 if (iv[0] < firstEntry) firstEntry = iv[0];
             }
         }
-        const tFlightMin = (firstEntry - ctotSec) / 60;
-        const sigmaMin = sigmaForFlight(tFlightMin);
-        const sigmaSec = sigmaMin * 60;
         totalFlights++;
-        totalSigmaMin += sigmaMin;
+        // Mean shift size to first sector entry, for the meta line
+        const tFirstHr = (firstEntry - ctotSec) / 3600;
+        totalShiftAtFirstEntry += tFirstHr * SIGMA_GRID_KT / GS_KT * 60;  // in minutes
 
-        const shifts = [-sigmaSec, 0, +sigmaSec];
-        const targets = ['load_low', 'load', 'load_high'];
-        const pairTargets = ['pair_load_low', 'pair_load', 'pair_load_high'];
         for (let k = 0; k < 3; k++) {
-            const shift = shifts[k];
-            const tgt = acc[targets[k]];
-            const ptgt = acc[pairTargets[k]];
+            const X = velPerturbs[k];   // velocity offset, kt
+            // Time-shift factor: at point P with t_to_P, shift = -t_to_P × X / GS
+            // Negative because +X (faster) means arrives EARLIER.
+            const factor = -X / GS_KT;
+            const tgt = acc[targetKeys[k]];
+            const ptgt = acc[pairTargetKeys[k]];
+
             const sectorBins = {};
             for (const sid of sectorIds) {
                 sectorBins[sid] = new Set();
                 for (const iv of fr.sectors[sid]) {
                     const start = iv[0], end = iv[1];
-                    const startBin = Math.floor((start + shift) / BIN_SEC) * BIN_MIN;
-                    const endBin   = Math.floor((end   + shift) / BIN_SEC) * BIN_MIN;
+                    const tToStart = start - ctotSec;
+                    const tToEnd   = end   - ctotSec;
+                    const newStart = start + tToStart * factor;
+                    const newEnd   = end   + tToEnd   * factor;
+                    const startBin = Math.floor(newStart / BIN_SEC) * BIN_MIN;
+                    const endBin   = Math.floor(newEnd   / BIN_SEC) * BIN_MIN;
                     for (let b = startBin; b <= endBin; b += BIN_MIN) {
                         sectorBins[sid].add(b);
                     }
@@ -114,7 +129,7 @@ PRELOAD_BLOCK = r"""
         window._mc[which] = {};
         for (const pid in acc[which]) window._mc[which][pid] = toRows(acc[which][pid]);
     }
-    window._mc.meanSigmaMin = totalFlights > 0 ? totalSigmaMin / totalFlights : 0;
+    window._mc.meanShiftMin = totalFlights > 0 ? totalShiftAtFirstEntry / totalFlights : 0;
     window._mc.totalFlights = totalFlights;
 """
 
@@ -175,11 +190,17 @@ for f in ['26e-1.html', '26e-2.html', '26e-3.html']:
     if old_call in text:
         text = text.replace(old_call, new_call, 1)
 
-    # 4. Update meta line text
-    old_meta = 'lens applies ±${SIGMA_MIN} min ETA-shift envelope'
-    new_meta = ('per-flight MC at sigma_grid=' + str(sigma_grid) +
-                ' kt -> mean ±${(window._mc?.meanSigmaMin ?? 0).toFixed(1)} min ETA shift')
-    text = text.replace(old_meta, new_meta)
+    # 4. Update meta line text — handle both old format and current MC format
+    candidates = [
+        'lens applies ±${SIGMA_MIN} min ETA-shift envelope',
+        'per-flight MC at sigma_grid=' + str(sigma_grid) + ' kt -> mean ±${(window._mc?.meanSigmaMin ?? 0).toFixed(1)} min ETA shift',
+    ]
+    new_meta = ('velocity perturbation ±' + str(sigma_grid) +
+                ' kt → mean ±${(window._mc?.meanShiftMin ?? 0).toFixed(1)} min shift at sector entry')
+    for c in candidates:
+        if c in text:
+            text = text.replace(c, new_meta)
+            break
 
     # 5. Pair card label
     old_label = 'D-${LEAD_DAYS} lens · ±${(window._sectorSigma?.[p.id] ?? SIGMA_MIN).toFixed(1)}m'
