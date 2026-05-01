@@ -166,20 +166,30 @@ function smoothPath(pts) {
     return d;
 }
 
-// Envelope band: at any time t, the actual curve could be the
-// prediction shifted by ±σ in time. Upper(t) = max possible count =
-// max(C(t-σ), C(t), C(t+σ)). Lower(t) = min possible count =
-// min(C(t-σ), C(t), C(t+σ)). Linear-interpolated lookup so σ doesn't
-// snap to bin boundaries; counts at t outside the curve's domain
-// return 0, which makes the bands EXTEND PAST the predicted leading
-// and trailing edges by σ minutes — capturing 'curve could have
-// started σ earlier' and 'curve could still be running σ later'.
+// Per-flight independent jitter model.  Each booked flight has its own
+// ±σ ETA error from wind forecast uncertainty (largely uncorrelated
+// because each flight takes its own trajectory through different
+// parts of the grid).  The aggregate effect is a GAUSSIAN CONVOLUTION
+// of the predicted curve:
+//
+//   E[count(t)] = (C_predicted ∗ G(σ))(t)
+//
+// Visually:
+//   - Peak reduced (some flights spread out of the peak bin)
+//   - Tails extended by ~σ on each side
+//   - Trough/valley filled in slightly
+//
+// The ±band is the per-bin count-noise from the binomial-like trial
+// (each flight has probability p of being in this bin given its ETA
+// jitter); approximated as √(N) Poisson-ish.
 function bandsFor(rows, sigmaMin) {
+    if (rows.length === 0) return [];
+    const bin = DATA.meta.bin_minutes;
     const sorted = [...rows].sort((a, b) => a.bin_minute - b.bin_minute);
-    if (sorted.length === 0) return [];
     const tFirst = sorted[0].bin_minute;
     const tLast  = sorted[sorted.length - 1].bin_minute;
-    function countAt(t) {
+
+    function predictedAt(t) {
         if (t < tFirst || t > tLast) return 0;
         for (let i = 0; i < sorted.length - 1; i++) {
             const t1 = sorted[i].bin_minute, t2 = sorted[i+1].bin_minute;
@@ -190,20 +200,39 @@ function bandsFor(rows, sigmaMin) {
         }
         return 0;
     }
-    // Sample densely across the full chart range so tail extension is
-    // visible past the actual rows.  Step = bin_minutes for parity with
-    // the original chart resolution.
-    const bin = DATA.meta.bin_minutes;
-    const xLo = Math.max(0, tFirst - Math.ceil(sigmaMin / bin) * bin - bin);
-    const xHi = tLast + Math.ceil(sigmaMin / bin) * bin + bin;
+
+    function smoothed(t) {
+        // Gaussian convolution at t with σ = sigmaMin minutes.
+        // ±3σ window, sub-bin sampling for accuracy.
+        const window = Math.ceil(3 * sigmaMin);
+        const step = Math.max(1, bin / 4);
+        let total = 0, wsum = 0;
+        for (let dt = -window; dt <= window; dt += step) {
+            const w = Math.exp(-(dt * dt) / (2 * sigmaMin * sigmaMin));
+            total += predictedAt(t + dt) * w;
+            wsum += w;
+        }
+        return wsum > 0 ? total / wsum : 0;
+    }
+
+    // Sample beyond the predicted range so tail extension is visible.
+    const tail = Math.ceil(3 * sigmaMin / bin) * bin;
+    const xLo = tFirst - tail;
+    const xHi = tLast + tail;
+
     const samples = [];
     for (let t = xLo; t <= xHi; t += bin) {
-        const c = countAt(t);
-        const cMinus = countAt(t - sigmaMin);
-        const cPlus  = countAt(t + sigmaMin);
-        const lo = Math.min(cMinus, c, cPlus);
-        const hi = Math.max(cMinus, c, cPlus);
-        samples.push({ bin_minute: t, count: c, lo, hi });
+        const cSmooth = smoothed(t);
+        // Per-bin count uncertainty: √N Poisson-ish floor + scaling
+        // factor to keep the band visible without overstating it.
+        const radius = Math.sqrt(Math.max(0.5, cSmooth)) * 0.6;
+        samples.push({
+            bin_minute: t,
+            count: cSmooth,
+            lo: Math.max(0, cSmooth - radius),
+            hi: cSmooth + radius,
+            predicted: predictedAt(t),  // for the dashed reference line
+        });
     }
     return samples;
 }
