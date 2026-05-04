@@ -100,8 +100,9 @@ h2 {
     font-size: 0.88rem;
     color: var(--text-mid);
 }
-.findings ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
-.findings li { margin-bottom: 0.4rem; }
+.findings ul, .findings ol { margin: 0.3rem 0 0; padding-left: 1.5rem; }
+.findings li { margin-bottom: 0.6rem; padding-left: 0.2rem; }
+.findings li::marker { color: var(--accent); font-family: var(--mono); font-weight: 600; }
 .findings code {
     font-family: var(--mono); font-size: 0.82rem;
     background: var(--bg); border: 1px solid var(--border);
@@ -219,9 +220,20 @@ footer a { color: var(--accent); text-decoration: none; }
     </a>
 </div>
 
-<h2>Key findings</h2>
+<h2>Findings</h2>
 <div class="findings">
-    <ul>
+    <ol>
+        <li>
+            CTOT compliance is the most significant influence factor in the
+            demand/capacity equation, from origin through to destination.
+            The compliance error must be corrected.
+        </li>
+        <li>
+            Use of Mach Number (TAS) and T-72 (and decreasing) GRIB winds
+            in modelling demand evolution through the system provides enough
+            benefits to vACC planners to be used as early as 3 days prior to
+            the event.
+        </li>
         <li>
             <strong>Wind error is small relative to launch-pattern variance.</strong>
             Pilot launch slip + filing variance dominates total ETA uncertainty (~89%);
@@ -254,7 +266,7 @@ footer a { color: var(--accent); text-decoration: none; }
             static-TAS to T-72 GRIB integration is roughly a 5× improvement in hourly
             demand-forecast error, from "track-decision-relevant" to "noise."
         </li>
-    </ul>
+    </ol>
 </div>
 
 <footer>
