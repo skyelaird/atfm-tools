@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>26E CTP — Post-Performance Analyses</title>
+<style>
+:root {
+    --bg: #0a0e1a;
+    --bg-elev: #121826;
+    --bg-elev-hi: #1a2133;
+    --text: #e8ecf4;
+    --text-dim: #7a8499;
+    --text-mid: #b0b8cc;
+    --border: #2a3142;
+    --accent: #5ee0ba;
+    --accent-dim: rgba(94, 224, 186, 0.18);
+    --warn: #f5a05b;
+    --alert: #ef6464;
+    --predicted: #7aa8ff;
+    --mono: "SF Mono","JetBrains Mono",Consolas,monospace;
+}
+* { box-sizing: border-box; }
+body {
+    background: var(--bg); color: var(--text);
+    margin: 0; padding: 1.5rem 1rem 3rem;
+    font-family: -apple-system, system-ui, sans-serif; font-size: 14px;
+    line-height: 1.5;
+}
+.wrap { max-width: 64rem; margin: 0 auto; }
+
+h1 { font-size: 1.4rem; font-weight: 500; margin: 0 0 0.3rem; }
+h1 .lead { color: var(--warn); font-family: var(--mono); }
+h2 {
+    font-size: 0.85rem; font-weight: 500; font-family: var(--mono);
+    color: var(--text-dim); letter-spacing: 0.06em; text-transform: uppercase;
+    margin: 1.8rem 0 0.6rem;
+    padding-bottom: 0.3rem;
+    border-bottom: 1px solid var(--border);
+}
+.sub {
+    font-family: var(--mono); color: var(--text-dim);
+    font-size: 0.8rem; margin: 0 0 1rem;
+}
+.intro {
+    background: var(--bg-elev);
+    border-left: 3px solid var(--accent);
+    padding: 0.7rem 1rem;
+    margin: 0.6rem 0 1.4rem;
+    color: var(--text-mid);
+    font-size: 0.9rem;
+}
+.intro strong { color: var(--text); font-weight: 600; }
+
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 0.7rem;
+}
+.card {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.7rem 0.9rem;
+    text-decoration: none;
+    color: var(--text);
+    display: block;
+    transition: border-color 0.12s, background 0.12s;
+}
+.card:hover {
+    border-color: var(--accent);
+    background: var(--bg-elev-hi);
+}
+.card .name {
+    font-family: var(--mono); font-weight: 600; color: var(--accent);
+    font-size: 0.92rem; margin-bottom: 0.2rem;
+}
+.card.warn .name  { color: var(--warn); }
+.card.live .name  { color: var(--alert); }
+.card.post .name  { color: var(--predicted); }
+.card .desc {
+    color: var(--text-mid);
+    font-size: 0.82rem;
+    line-height: 1.45;
+}
+.card .tag {
+    display: inline-block;
+    font-family: var(--mono); font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-right: 0.5rem;
+}
+.card .tag.lead { color: var(--warn); }
+
+.findings {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.7rem 1rem;
+    margin: 0.4rem 0 0;
+    font-size: 0.88rem;
+    color: var(--text-mid);
+}
+.findings ul { margin: 0.3rem 0 0; padding-left: 1.2rem; }
+.findings li { margin-bottom: 0.4rem; }
+.findings code {
+    font-family: var(--mono); font-size: 0.82rem;
+    background: var(--bg); border: 1px solid var(--border);
+    padding: 0.05rem 0.3rem; border-radius: 2px;
+    color: var(--accent);
+}
+.findings strong { color: var(--text); }
+
+footer {
+    margin-top: 2rem;
+    font-family: var(--mono); font-size: 0.72rem; color: var(--text-dim);
+    border-top: 1px solid var(--border);
+    padding-top: 0.7rem;
+}
+footer a { color: var(--accent); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>26E CTP — <span class="lead">Post-Performance Analyses</span></h1>
+<div class="sub">VATCAN eastbound 2026-04-25 · 1163 booked flights · CZQM/CZQX entries</div>
+
+<div class="intro">
+    A working set of analyses built around the <strong>26E NAT-eastbound CTP event</strong>. Starts
+    with the predicted sector-load model (the input the CTP team works from), layers a per-flight
+    wind-uncertainty lens at three forecast lead times, extends the same model to airport-level
+    arrival demand at LFPG, captures live observation during the event, and closes with a post-event
+    actual-vs-predicted comparison. Together they're a proof-of-concept for the demand-modelling
+    pipeline we'd want for <strong>Westbound CTP 2027</strong>.
+</div>
+
+<h2>Pre-event · sector-load prediction</h2>
+<div class="cards">
+    <a class="card" href="/26e.html">
+        <div class="name">Predicted sector load</div>
+        <div class="desc">
+            <span class="tag">baseline</span>
+            CZQM/CZQX sector occupancy from booked CTOTs + filed routes.
+            5-min bins, instantaneous-occupancy-peak metric. The model
+            the CTP team built the event against.
+        </div>
+    </a>
+</div>
+
+<h2>Pre-event · wind-uncertainty lenses</h2>
+<div class="cards">
+    <a class="card warn" href="/26e-1.html">
+        <div class="name">D-1 lens (±8 kt)</div>
+        <div class="desc">
+            <span class="tag lead">T-24h</span>
+            Same predicted demand replayed at three velocity perturbations (-8, 0, +8 kt) to
+            visualise per-flight wind-error spread one day before the event. <code>σ_ETA ≈ 4.4 min</code>.
+        </div>
+    </a>
+    <a class="card warn" href="/26e-2.html">
+        <div class="name">D-2 lens (±12 kt)</div>
+        <div class="desc">
+            <span class="tag lead">T-48h</span>
+            Two-day lead. <code>σ_ETA ≈ 6.5 min</code>. Mid-range envelope between D-1 and D-3.
+        </div>
+    </a>
+    <a class="card warn" href="/26e-3.html">
+        <div class="name">D-3 lens (±17 kt)</div>
+        <div class="desc">
+            <span class="tag lead">T-72h</span>
+            Three-day lead. <code>σ_ETA ≈ 9.1 min</code>. The widest envelope and the most
+            informative one for early CTP planning.
+        </div>
+    </a>
+</div>
+
+<h2>Pre-event · arrival demand</h2>
+<div class="cards">
+    <a class="card" href="/26e-arrival.html">
+        <div class="name">LFPG arrival demand</div>
+        <div class="desc">
+            <span class="tag">airport-level</span>
+            Same per-flight wind-perturbation model rolled up to a single demand curve at the
+            destination airport. Three colour-coded lines (faster / nominal / slower fleet) per
+            lens. Cruise-only trace from CTOT, no descent / no taxi.
+        </div>
+    </a>
+</div>
+
+<h2>Live · event day</h2>
+<div class="cards">
+    <a class="card live" href="/26e-live.html">
+        <div class="name">Live sector demand</div>
+        <div class="desc">
+            <span class="tag">timeline</span>
+            CZQM/CZQX observed occupancy in real time during the event.
+            Drives the replay JSON used by the post-event analysis.
+        </div>
+    </a>
+    <a class="card live" href="/26e-map.html">
+        <div class="name">Live sector map</div>
+        <div class="desc">
+            <span class="tag">geospatial</span>
+            Geographic view of live traffic over the NAT corridor with sector polygons
+            overlaid. Companion to the live timeline.
+        </div>
+    </a>
+</div>
+
+<h2>Post-event · actual vs predicted</h2>
+<div class="cards">
+    <a class="card post" href="/26e-analysis.html">
+        <div class="name">Actual vs predicted</div>
+        <div class="desc">
+            <span class="tag">verification</span>
+            Side-by-side overlay of observed (replay) vs CTP-predicted demand per sector and
+            sector-pair. Headline metrics + per-sector curves. The "did the model work" page.
+        </div>
+    </a>
+</div>
+
+<h2>Key findings</h2>
+<div class="findings">
+    <ul>
+        <li>
+            <strong>Wind error is small relative to launch-pattern variance.</strong>
+            Pilot launch slip + filing variance dominates total ETA uncertainty (~89%);
+            wind contributes ~11% of T-72 variance. Even perfect wind forecasting reduces
+            total uncertainty by only ~6%.
+        </li>
+        <li>
+            <strong>Per-flight wind uncertainty scales with flight time</strong>
+            (<code>shift = t_to_point × X / GS</code>). At T-72 (X=17 kt), a sector crossed
+            at 30 min shifts ±1 min; at 4 hours, ±10 min. The same booked traffic appears
+            tighter at near-origin sectors and wider at OXP / arrival.
+        </li>
+        <li>
+            <strong>At the fleet-aggregate scale, wind uncertainty cancels by √N.</strong>
+            Per-flight residual of 4 min RMSE × ~16 flights/hr/track →
+            ±1 aircraft/hr at 60-min bins, ±1.5 at 15-min. Sub-15-min bins cross into
+            PBCS-margin territory (5-min spacing absorbs ±4 min residuals by design).
+        </li>
+        <li>
+            <strong>Capacity, not arrival demand, sets the operational stage.</strong>
+            LFPG can absorb 60-70/hr — destination AAR almost never binds. Track count × PBCS
+            spacing (12-20/hr/track), origin departure throughput, and downstream-sector limits
+            are what CTOT allocation must respect. Wind-uncertainty bands at the demand-curve
+            level are a sanity check, not a planning driver.
+        </li>
+        <li>
+            <strong>Mach + GRIB at T-72 is operationally trustworthy</strong> for
+            track-throughput planning. It absorbs ~85-90% of the day's wind bias and
+            leaves residual <1-2 aircraft/hr at OXP-distance hourly bins. Switching from
+            static-TAS to T-72 GRIB integration is roughly a 5× improvement in hourly
+            demand-forecast error, from "track-decision-relevant" to "noise."
+        </li>
+    </ul>
+</div>
+
+<footer>
+    Generated for VATSIM CTP team review. Tools: <a href="https://github.com/skyelaird/atfm-tools">atfm-tools</a>.
+    Wind-skill corpus collection in progress 2026-04-25 → 2026-05-25; results inform Westbound CTP 2027 planning.
+</footer>
+
+</div>
+</body>
+</html>
