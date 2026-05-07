@@ -385,8 +385,36 @@ verifiable via `/api/v1/status`. Scheme: `MAJOR.MINOR.PATCH`.
   `active_arr_rate ?? base_arrival_rate`. Never store rates in
   localStorage or in-memory JS variables.
 
+## Session logging
+
+`docs/sessions/` holds durable narrative for substantive debugging
+sessions — root-cause stories that won't fit in commit messages,
+validation datapoints measured live, operational findings that
+contradict configured values, negative results, decisions with
+abandoned alternatives.
+
+**Discipline:** most sessions need no log entry. Mid-session, ask once:
+*"Anything we've learned that won't survive in code, commits, or memory?"*
+If yes, three lines into a `YYYY-MM-DD_topic.md` file in `docs/sessions/`
+and move on. If no, nothing. Aim for ≤5 entries per session — more than
+that means the value belongs in commits or `docs/`. Don't transcribe;
+log derived value, not narration.
+
+**Failure-mitigation reminders:**
+- Session-bound cron (CronCreate) does **not** persist past the chat;
+  use server-side scheduled tasks (`bin/deploy.sh` pattern) for anything
+  unattended.
+- Before any session that will use `screenshot` on a 4K monitor, drop
+  the captured display to 1920×1080 — the 2000px many-image API limit
+  kills sessions that exceed it.
+- Commit untracked working-tree work before risky sessions; untracked
+  files are the most fragile state.
+
+See [docs/sessions/README.md](docs/sessions/README.md) for full convention.
+
 ## When in doubt
 
 - Read `docs/ARCHITECTURE.md` first
 - Then `docs/GLOSSARY.md` for terminology
 - Then `git log --oneline` to see recent direction
+- Then `docs/sessions/` for session-specific narrative not in commits
