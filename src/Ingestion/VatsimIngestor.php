@@ -638,8 +638,13 @@ final class VatsimIngestor
         if ($adesAirport !== null && ($atCruise || $inApproach)) {
             $airportRow = $this->airportModelsByIcao[$adesAirport['icao']] ?? null;
             if ($airportRow !== null) {
+                // Force the airborne cascade for descending/arriving flights.
+                // Without this an ARRIVING flight at, say, 2000ft fails the
+                // "near filed altitude" gate and falls through to the FILED
+                // ground tier, producing ATOT + filed enroute_time — wildly
+                // wrong once the aircraft is on final.
                 $est = \Atfm\Allocator\EtaEstimator::estimate($flight, $airportRow, $now, [
-                    'force_observed' => $levelFlight && !$nearFiledAlt,
+                    'force_observed' => $inApproach || ($levelFlight && !$nearFiledAlt),
                 ]);
                 $flight->eta_source     = $est['source'];
                 $flight->eta_confidence = $est['confidence'];
