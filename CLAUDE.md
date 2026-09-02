@@ -145,7 +145,7 @@ calculated (regulation), `A*` actual.
 | **AOBT** | Actual Off-Block — *"pushes back / vacates parking position"* | first ingest cycle with GS > 0 at ADEP geofence (pushback detection), only if previousPhase ∈ {null, PREFILE, FILED, TAXI_OUT} |
 | ATOT | Actual Take-Off | first ingest cycle in DEPARTED or later |
 | ELDT | Estimated Landing | from EtaEstimator (5-tier cascade) |
-| ALDT | Actual Landing | first ingest cycle in ON_RUNWAY/VACATED/TAXI_IN/ARRIVED |
+| ALDT | Actual Landing | projected to the nearest threshold from the last airborne observation, clamped inside the observation bracket (v0.7.42). Falls back to the first on-ground cycle when that sample wasn't short final; `aldt_source` = INTERP \| CYCLE. ON_RUNWAY/VACATED are never produced — they were the retired ROT tracker's |
 | AIBT | Actual In-Block | second consecutive ARRIVED cycle (delayed one cycle so AXIT can be non-zero on a 5-min cadence) |
 
 **EXOT vs AXOT (don't conflate)** — the manual is explicit:
@@ -329,18 +329,31 @@ Derived from FIR adjacency in `src/Allocator/FirMap.php`.
 
 ```
 src/
-  Allocator/      CtotAllocator, EtaEstimator, AircraftTas, TaxiZones,
-                  FirMap, Geo, Phase, FlightKey, WindEta
-  Api/            Kernel.php (Slim routes — single file, all endpoints)
-  Ingestion/      VatsimIngestor.php (2-min cron)
-  Imports/        EventBookings, ImportedCtots
+  Allocator/      CtotAllocator, NoneventCtotAllocator, EtaEstimator, WindEta,
+                  AircraftTas, TaxiZones, MeteringFix, FirMap, Geo,
+                  AirportCoords, Phase, FlightKey
+  Api/            Kernel.php (Slim routes — single file, all endpoints),
+                  FlowClient
+  Auth/           Gate (permissive until AUTH_STRICT=true), VatsimOAuth
+  Ingestion/      VatsimIngestor (2-min cron), VatcanEventIngestor,
+                  FileImportIngestor, ViffRestrictionIngestor, EcfmpClient
   Models/         Flight, Airport, AirportRestriction, ImportedCtot,
-                  EventSource, AllocationRun, RunwayThreshold, PositionScratch
+                  NoneventSlot, EventSource, AllocationRun, RunwayThreshold,
+                  PositionScratch, AuthSession, Fir, FlowMeasure
+  Bootstrap.php   env + DB boot
   Version.php     Single source of truth for running version
 public/
   dashboard.html  FMP view + airport detail right-docked drawer
   reports.html    per-airport KPIs + ELDT/TLDT accuracy + aircraft mix
+  aar.html        wind-aware runway config + AAR calculator + MIT planner
+  eldt-qa.html    ELDT QA (was perti.html; perti.html is now a redirect stub)
+  fsm.html        flow situation monitor
   guide.html      FMP training manual / reference guide
+  cdm-atc.html    CDM plugin walkthrough for aerodrome controllers
+  portal.html     pilot self-serve: look up callsign, read CTOT, set TOBT
+  nonevent.html   non-event CTOT portal (+ nonevent-guide.html)
+  ctot.html       CDM plugin test page
+  26e-*.html      Westbound 2026E analyses (see 26e-index.html)
   map.html        live map (disabled — no operational use yet, shows FIR boundaries only)
 data/
   taxizones.txt   apron polygons x runway -> taxi time (from vIFF CDM config)
@@ -369,9 +382,21 @@ bin/
   experiments/        wind-shadow.py (GRIB wind-corrected ELDT prototype)
 docs/
   ARCHITECTURE.md     full design document
+  DESIGN.md           rationale + CTOT scope by OpLevel (§6b)
   GLOSSARY.md         cross-system term reference
   API.md              endpoint reference + integration guide
+  CDM-PLUGIN.md       wire contract, verified against plugin source
+  VIFF-INTEGRATION.md vIFF's model vs ours, and the live test that settled it
+  DESIGN-NONEVENT-CTOT.md / USAGE-NONEVENT-CTOT.md   non-event portal
   AMAN-DMAN.md        aman-dman plugin operational guide for CZQM/CZQX
+  ECFMP.md            European flow-measure publisher notes
+  RATES-VALIDATION.md rate derivation evidence
+  FMP-TRAINING-PRIMER.md
+  VATSIM-OAUTH-SETUP.md
+  nat-fl-allocation.md      NAT FL stack + capacity model
+  wind-skill-2026-spring.md GFS forecast skill vs lead time
+  w27-uncertainty-model.md  Westbound 2027 per-flight MC design
+  sessions/           narrative that won't survive in commits
 ```
 
 ## Deferred / known TODO

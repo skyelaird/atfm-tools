@@ -351,6 +351,17 @@ Delete a restriction by its restriction_id.
 
 ## 5. Reports
 
+> **Error sign convention, everywhere in this API:** `error = actual − predicted`.
+> **Positive means the aircraft landed *after* our estimate — we predicted early.**
+> Applies to `/api/v1/accuracy`, `/api/v1/reports/summary` and
+> `/api/v1/reports/tldt-accuracy`. These three disagreed before v0.7.45, when
+> `tldt-accuracy` was inverted and the same measurement read `+9.4` on one panel
+> and `−8.4` on another.
+>
+> Note also that **ELDT error and TLDT error are the same number unless a
+> regulation is in force** — TLDT is the frozen ELDT, so the two diverge only
+> when the allocator moved a flight off its frozen time to fit a slot.
+
 ### `GET /api/v1/reports/summary`
 
 Per-airport KPI rollup for the reports page.
@@ -432,6 +443,8 @@ For development and troubleshooting. Not intended for external consumers.
 | `/api/v1/debug/allocation` | Last 20 allocation runs |
 | `/api/v1/debug/imported-ctots` | Active imported CTOTs |
 | `/api/v1/debug/runway-thresholds` | All runway threshold geometry |
+| `/api/v1/debug/landing-lag?hours=N` | How late the ALDT stamp is vs a touchdown projected from the last airborne sample. **Partly circular since v0.7.42** — INTERP-stamped rows use the same projection, so it reads ~0 for them by construction. Meaningful only for `aldt_source=CYCLE`. |
+| `/api/v1/debug/terminal-time?hours=N` | Observed minutes from the 100 nm and 40 nm rings to the ALDT stamp, per airport. Built from `position_scratch`; this is what attributed the ELDT bias to the last 40 nm. |
 
 ---
 

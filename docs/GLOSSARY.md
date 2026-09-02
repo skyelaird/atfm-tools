@@ -177,11 +177,25 @@ capacity-constrained airport.
   wind and descent buffer)
 
 ### ALDT — Actual Landing Time
-Observed: when the aircraft touched down. Detected when the flight crosses the
-arrival runway threshold while descending through ~50 ft AGL.
+Observed: when the aircraft touched down.
 
-- **Observed from**: ROT state machine
-- **In atfm-tools**: `flights.aldt`
+Touchdown is *bracketed* by two observations — the last sample still airborne
+by our 50 kt definition, and the first cycle on the ground inside the 5 nm
+geofence. We place ALDT inside that bracket by projecting the airborne sample
+forward to the nearest runway threshold at its own observed groundspeed. On
+short final the speed is settled, so the projection is tight. This is an
+interpolation between two things we saw, not an extrapolation past the last one.
+
+Before v0.7.42 we simply stamped the first on-ground cycle, which ran a median
+**1.1 min late** — it included the rollout below 50 kt plus up to one 2-minute
+ingest quantum, and biased every ELDT/TLDT accuracy figure in one direction.
+
+- **Observed from**: the ingestor's position samples. *Not* the ROT state
+  machine — that was retired in v0.4.7, and nothing has produced ON_RUNWAY or
+  VACATED since.
+- **In atfm-tools**: `flights.aldt`, with `flights.aldt_source` recording
+  `INTERP` (projected) or `CYCLE` (legacy fallback, when the last airborne
+  sample was too high, too fast or too far out to be short final)
 - **Used for**: computing delta vs ELDT (ETA accuracy analysis) and
   `actual_exit_min` (once AIBT is observed)
 

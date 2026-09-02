@@ -224,6 +224,8 @@ an `airport_restrictions` row overrides `airports.observed_arrival_rate` and
 airport_restrictions
 ├── id                           bigint PK
 ├── restriction_id               varchar(16) unique, auto-generated e.g. 'CYHZ11VP'
+├── source                       varchar(12) default 'local'  -- local | viff (see §6.6)
+├── source_ref                   varchar(64) null  -- upstream identity for mirrored rows
 ├── airport_id                   bigint FK → airports.id
 ├── runway_config                varchar(16) null  -- e.g. '05' or '05+14'; null = any
 ├── capacity                     int       -- reduced rate (mvts/hr)
@@ -311,7 +313,8 @@ flights
 ├── eldt_perti                 datetime null     -- PERTI eta_utc snapshot at freeze (§8.5)
 ├── tldt                       datetime null     -- target landing time (allocator slot, see §8.4)
 ├── tldt_assigned_at           datetime null     -- when allocator set TLDT
-├── aldt                       datetime null     -- actual landing (threshold crossing)
+├── aldt                       datetime null     -- actual landing, projected to the threshold from the last airborne sample (v0.7.42)
+├── aldt_source                varchar(12) null  -- INTERP | CYCLE — how aldt was derived
 ├── aibt                       datetime null     -- actual in-block (stationary at gate)
 │
 ├── -- Planned vs actual (derived, populated on state transitions)
@@ -562,7 +565,7 @@ our 7 configured airports.
    - `eobt`: from `flight_plan.deptime` (once on first FILED observation)
    - `aobt`: first ingest cycle with GS > 0 at ADEP geofence (pushback detection), **only if** previous phase was PREFILE/FILED/TAXI_OUT (never backfilled from mid-cruise sightings, which would produce garbage EXOT). `asat` is never stamped from VATSIM ingest — no signal for it.
    - `atot`: first time altitude > 200ft AGL near ADEP
-   - `aldt`: first time altitude descends through 200ft AGL near ADES
+   - `aldt`: touchdown, interpolated inside the observation bracket — the last airborne sample projected forward to the nearest threshold at its own groundspeed. Falls back to the first on-ground cycle (`aldt_source=CYCLE`) when that sample wasn't short final. The old first-cycle stamp ran a median 1.1 min late.
    - `aibt`: first stationary observation near ADES
 4. Update `last_*` position fields.
 5. Compute `phase` from position / groundspeed / altitude / proximity.
@@ -650,6 +653,39 @@ What remains of it in the codebase:
 - The PERTI-shaped field names on `/api/v1/flights` (`ctd_utc`, `cta_utc`,
   `deptime`, …) — that is the CDM plugin wire contract, unrelated to the
   upstream system's health. Unchanged.
+
+### 6.6 vIFF constraint mirror — `bin/ingest-viff-restrictions.php`
+
+Reads vIFF's published arrival constraints and mirrors them into
+`airport_restrictions` so our allocator can issue CTOTs against a regulation a
+human authored in vIFF. **Disabled unless `VIFF_RESTRICTIONS_ENABLED=true`.**
+
+```
+GET https://viff-system.network/etfms/restrictions?type=ARR   (public, no auth)
+[{"airspace":"CYHZ","type":"ARR","capacity":20,"runway":""}, ...]
+```
+
+The division of labour, and why it is this way round: vIFF's A-CDM only runs at
+airports where a controller has claimed master in the CDM plugin, so it
+sequences nothing in Canada most of the time. We ingest every in-scope flight
+regardless of who is online. **vIFF holds the constraint; we allocate.** See
+`docs/VIFF-INTEGRATION.md` for the live test that established this.
+
+The feed carries no id, window or reason — it states what is active *now*, the
+same authoritative-list semantics as the CTOT list we serve the plugin. So
+presence means active and absence means lifted, encoded as rows with an
+always-open HHMM window that are deleted when they stop being published.
+
+Deliberate properties:
+
+- **Most restrictive capacity wins** when an airport appears more than once
+  (vIFF publishes one row per overlapping window). Under-delivering slots is
+  recoverable; over-delivering is not.
+- **A failed fetch releases nothing.** An unreadable feed is not an instruction
+  to lift a regulation.
+- **Only touches rows it authored** (`source='viff'`). An FMP regulation
+  created in our dashboard is never modified or deleted by the mirror.
+- **ARR only, in-scope airports only.**
 
 ## 7. Flight lifecycle state machine
 
@@ -1218,6 +1254,9 @@ SSH key auth via `~/.ssh/atfm_whc` (set up in v0.2 setup). No password prompts.
 */2 * * * *   cd ~/atfm-tools && php bin/ingest-vatsim.php >> logs/ingest.log 2>&1
 */2 * * * *   cd ~/atfm-tools && php bin/ingest-events.php >> logs/events.log 2>&1
 */2 * * * *   cd ~/atfm-tools && php bin/ingest-imports.php >> logs/imports.log 2>&1
+
+# Mirror vIFF's published ARR constraints (no-op unless VIFF_RESTRICTIONS_ENABLED=true)
+*/2 * * * *   cd ~/atfm-tools && php bin/ingest-viff-restrictions.php >> logs/viff.log 2>&1
 
 # Computation — runs after each ingest cycle
 */2 * * * *   cd ~/atfm-tools && php bin/compute-ctots.php >> logs/ctots.log 2>&1
