@@ -1460,9 +1460,18 @@ final class Kernel
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
             $airportCount     = Airport::count();
-            $activeFlights    = Flight::whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])->count();
+            // DISCONNECTED is excluded: those rows are no longer tracked and
+            // must never surface on live views (see CLAUDE.md hard rules).
+            // Without the filter the dashboard "flights" pill counted every
+            // stale row still in the table (1713 vs 24 actually tracked).
+            $liveExcludePhases = [
+                Flight::PHASE_ARRIVED,
+                Flight::PHASE_WITHDRAWN,
+                Flight::PHASE_DISCONNECTED,
+            ];
+            $activeFlights    = Flight::whereNotIn('phase', $liveExcludePhases)->count();
             $activeCtots      = Flight::whereNotNull('ctot')
-                ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+                ->whereNotIn('phase', $liveExcludePhases)
                 ->where('ctot', '>=', $now->format('Y-m-d H:i:s'))
                 ->count();
             // Return timestamps as proper ISO8601 with offset so browsers parse
