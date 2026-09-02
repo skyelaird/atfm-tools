@@ -302,10 +302,27 @@ Two halves, and only one of them works today:
 | Progressive regulation | airport config | auto-trigger at 80% of capacity |
 | ATIS-driven config | airport config | reads the ATIS for the runway in use |
 
-**The binding constraint: vIFF's A-CDM runs only where a controller has claimed
-the airport as master in the plugin.** Its Online ACDM list on 2026-09-02 was
-ten airports, every one bound to a live controller, none Canadian. A CYHZ ARR
-restriction authored that day regulated nobody.
+**The binding constraint — corrected 2026-09-02 20:05Z.** An earlier version of
+this document said vIFF tracks nothing without a master. That is wrong.
+Observed with masters `LBSF_DEL` and `EGPH_TWR` only — none Canadian — two
+Canadian flights were present in `/etfms/relevant` and on the dashboard:
+
+```
+ACA421 CYUL→CYYZ eobt 2005 taxi 12 tobt '' ctot '' eta 2056 cdmSts FLS-NRA
+ACA460 CYYZ→CYOW eobt 2005 taxi 15 tobt '' ctot '' eta 2053 cdmSts FLS-NRA
+```
+
+So vIFF **does track** in-scope flights and compute a planning ETA without a
+master. What it does not do without one is **sequence** them: no TOBT, no TSAT
+— which is what the VDGS means by *A-CDM DISCONNECTED*. A CTOT additionally
+requires a regulation; the CYHZ ARR/20 restriction authored that day produced
+none, because nothing was being sequenced against it.
+
+The inclusion rule for `/etfms/relevant` is **not determined**. Earlier the same
+day a live CYHZ departure was absent from it while present in
+`/ifps/depAirport`, so it is neither "all flights" nor "master airports only".
+Candidates: proximity to EOBT, CDM-enabled airports, regulation-affected
+flights. Worth establishing before relying on it.
 
 ## What the CDM plugin has
 

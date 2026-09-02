@@ -49,6 +49,15 @@ GDP-relative language.
 
 ## The genuinely additive part
 
+> **Correction, 2026-09-02 20:05Z.** An earlier draft said vIFF is blind to
+> Canadian traffic without a master. That is false — Canadian flights appear in
+> `/etfms/relevant` with only European masters online, and vIFF computes a
+> planning ETA for them. What is still true, and what the argument actually
+> rests on: vIFF does not **sequence** them without a master (no TOBT, no TSAT
+> — the VDGS says *A-CDM DISCONNECTED*), and its ETA is a static planning
+> figure (TOBT + taxi + filed ETE) that does not respond to winds in flight.
+> **Do not tell Roger his system cannot see Canadian traffic.**
+
 In an all-pop-up system there is exactly **one long-lead demand signal: traffic
 already airborne.** A long-haul arrival is known six to eight hours out, its
 arrival time is wind-dominated, and it consumes capacity a reactive allocator
