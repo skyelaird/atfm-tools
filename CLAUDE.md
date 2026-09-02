@@ -37,8 +37,20 @@ anything touching `src/` is shadow mode or a QA side-column, not a branch.
 **Open / next:**
 - CDM plugin round-trip still untested against a live EuroScope session —
   the last real gate on 0.7 → 1.0
-- ELDT bias: median error ~+6 min (we predict early), TLDT median −5 min.
-  Documented, sample still building, no correction applied
+- **ELDT bias attributed (2026-09-02, n=1475 over 14 d).** Median TLDT error
+  −5.6 min decomposes as: **1.1 min** ALDT stamped late (rollout below 50 kt
+  plus the 2-min ingest quantum — measurement, not model) and **~4.5 min**
+  in the terminal segment. Cruise, wind and descent above FL100 are
+  exonerated: filed ETE median error is 0.0 and the bias is flat across
+  distance and flight time. Observed 40 nm → wheels is 13.0–16.7 min per
+  airport against ~10.9 min implied by the descent model; the 100→40 nm
+  segment matches. Aircraft cross the 40 nm ring at a median 360 kt GS and
+  average ~155 kt over the last 40 nm; the model assumes ~220 kt and models
+  no track-mile allowance for STAR/downwind/base/vectors.
+  Measured terminal excess, which is the correction table:
+  CYUL +5.8, CYYZ +5.0, CYVR +4.7, CYHZ +3.6, CYOW +3.3, CYWG +2.7, CYYC +2.1.
+  Diagnostics: `/api/v1/debug/landing-lag`, `/api/v1/debug/terminal-time`.
+  **Correction not yet applied — approach undecided (see below).**
 - Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
 - Departures landing at an out-of-scope ADES revert to phase FILED
   (display-only; outbound query filters on `atot`)

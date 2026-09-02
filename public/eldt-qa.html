@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>atfm-tools — ELDT QA</title>
+    <style>
+        :root {
+            --bg: #0f1419; --bg-elev: #1a2028; --bg-elev-hi: #242c38;
+            --border: #2a3340;
+            --text: #d7dee8; --text-dim: #8a94a3; --text-bright: #f0f4fa;
+            --accent: #5eead4; --accent-dim: #2a6b5f;
+            --warn: #facc15; --warn-dim: #5e4a0f;
+            --alert: #f87171; --alert-dim: #5e1f1f;
+            --ok: #4ade80; --ok-dim: #1e4a2e;
+            --info: #60a5fa; --info-dim: #1e3a5f;
+            --mono: "SF Mono", Consolas, Monaco, monospace;
+        }
+        * { box-sizing: border-box; }
+        html, body {
+            margin: 0; padding: 0;
+            background: var(--bg); color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+            font-size: 14px; line-height: 1.45;
+        }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+        header {
+            position: sticky; top: 0; z-index: 100;
+            background: var(--bg-elev);
+            border-bottom: 1px solid var(--border);
+            padding: 0.65rem 1rem;
+            display: flex; align-items: center; gap: 1rem;
+            flex-wrap: wrap;
+        }
+        header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+        .utc-clock { font-size: 0.95rem; color: var(--accent); font-variant-numeric: tabular-nums; padding: 0 0.6rem; border-left: 1px solid var(--border); }
+        header .nav-pills { display: flex; gap: 0.5rem; margin-left: auto; align-items: center; }
+        .pill {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.2rem 0.6rem; border-radius: 999px;
+            background: var(--bg-elev-hi); border: 1px solid var(--border);
+            font-size: 0.75rem; color: var(--text-dim);
+        }
+
+        main { max-width: 1200px; margin: 0 auto; padding: 1.5rem; }
+
+        .summary-bar {
+            display: flex; gap: 1.5rem; flex-wrap: wrap;
+            margin-bottom: 1.5rem; padding: 1rem;
+            background: var(--bg-elev); border-radius: 6px;
+            border: 1px solid var(--border);
+        }
+        .summary-stat .lbl { font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; }
+        .summary-stat .val { font-size: 1.2rem; font-weight: 600; color: var(--text-bright); font-family: var(--mono); }
+
+        section { margin-bottom: 2rem; }
+        section h2 { font-size: 0.95rem; color: var(--text-bright); margin: 0 0 0.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+
+        .table-wrap { overflow-x: auto; }
+        table { border-collapse: collapse; width: 100%; font-size: 0.8rem; }
+        th { text-align: left; padding: 0.4rem 0.6rem; color: var(--text-dim); font-weight: 500; border-bottom: 1px solid var(--border); white-space: nowrap; }
+        td { padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
+        tr:hover td { background: var(--bg-elev); }
+
+        .delta-good { color: var(--ok); }
+        .delta-warn { color: var(--warn); }
+        .delta-bad { color: var(--alert); }
+        .muted { color: var(--text-dim); }
+        .tag { font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 3px; }
+        .tag-simbrief { background: #3a3018; color: #e8a020; }
+        .tag-frozen { background: #183a3a; color: var(--accent); }
+        .tag-edct { background: var(--warn-dim); color: var(--warn); }
+        .tag-keymatch { background: var(--ok-dim); color: var(--ok); }
+        .tag-csmatch { background: var(--warn-dim); color: var(--warn); }
+
+        .loading { color: var(--text-dim); padding: 2rem; text-align: center; }
+        .error { color: var(--alert); padding: 2rem; text-align: center; }
+
+        .pill-btn {
+            display: inline-flex; align-items: center; gap: 0.3rem;
+            padding: 0.2rem 0.6rem; border-radius: 999px;
+            background: var(--bg-elev-hi); border: 1px solid var(--border);
+            font-size: 0.75rem; color: var(--text-dim);
+            cursor: pointer; transition: background 0.15s, color 0.15s;
+        }
+        .pill-btn:hover { color: var(--text); border-color: var(--accent-dim); }
+        .pill-btn.active { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+
+        th.sortable { cursor: pointer; user-select: none; }
+        th.sortable:hover { color: var(--text-bright); }
+        th.sortable::after { content: ' \u25B4\u25BE'; font-size: 0.6rem; opacity: 0.4; }
+        th.sort-asc::after { content: ' \u25B4'; opacity: 1; }
+        th.sort-desc::after { content: ' \u25BE'; opacity: 1; }
+
+        .tmi-none { color: var(--ok); }
+        .tmi-active { color: var(--alert); }
+    </style>
+</head>
+<body>
+<header>
+    <h1>atfm-tools <span class="muted">ELDT QA</span></h1>
+    <span class="utc-clock mono" id="utc-clock">––:––:––Z</span>
+    <div class="nav-pills">
+        <a href="/dashboard.html" class="pill">dashboard</a>
+        <a href="/fsm.html" class="pill">FSM</a>
+        <a href="/reports.html" class="pill">reports</a>
+        <a href="/guide.html" class="pill" title="FMP training manual / reference guide">guide</a>
+        <span class="pill" id="status-pill">loading...</span>
+    </div>
+</header>
+
+<main>
+    <div id="content"><div class="loading">Fetching inbound ELDT...</div></div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function hhmmz(iso) {
+    if (!iso) return '—';
+    return iso.substring(11, 16);
+}
+
+function windReasonHist(code) {
+    const map = {
+        no_route:      '<span class="muted" title="Flight had no filed route to integrate wind along">— no route</span>',
+        no_takeoff:    '<span class="muted" title="No ATOT recorded — flight never tracked as airborne">— no takeoff</span>',
+        unknown_ades:  '<span class="muted" title="Destination outside our scope">— off scope</span>',
+        short_haul:    '<span class="muted" title="Flight too short (&lt;45 min) for meaningful cruise-wind integration">— short haul</span>',
+        grib_missed:   '<span class="muted" title="GRIB cron missed this flight\'s cruise window (fetch failed or off-schedule)">— grib missed</span>',
+    };
+    return map[code] || '<span class="muted">—</span>';
+}
+
+function windReasonLabel(code) {
+    const map = {
+        ground:           '<span class="muted" title="Flight is on the ground — GRIB applies to airborne cruise only">— ground</span>',
+        no_position:      '<span class="muted" title="No position data yet">— no pos</span>',
+        outside_grid:     '<span class="muted" title="Position outside GRIB grid (LAT 15-70, LON -170 to +30)">— outside grid</span>',
+        climbing:         '<span class="muted" title="Still climbing &gt;5000ft below filed altitude">— climbing</span>',
+        too_close:        '<span class="muted" title="Under 20 nm from destination — descent model applies">— too close</span>',
+        too_far:          '<span class="muted" title="Over 4000 nm from destination — typically means route didn\'t resolve or wrong ADES">— too far</span>',
+        grib_unavailable: '<span class="muted" title="GRIB data not loaded this cycle (NOAA fetch failed or cache miss, or flight just came into grid — usually resolves in 1–2 cycles)">— grib n/a</span>',
+    };
+    return map[code] || '<span class="muted">—</span>';
+}
+
+function deltaClass(d) {
+    if (d === null) return 'muted';
+    const abs = Math.abs(d);
+    if (abs <= 5) return 'delta-good';
+    if (abs <= 15) return 'delta-warn';
+    return 'delta-bad';
+}
+
+async function load() {
+    try {
+        const res = await fetch('/api/v1/perti/compare');
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const d = await res.json();
+        render(d);
+    } catch (err) {
+        $('content').innerHTML = `<div class="error">Failed: ${err.message}</div>`;
+    }
+}
+
+function render(d) {
+    $('status-pill').textContent = `${hhmmz(d.timestamp)}Z`;
+
+    // Defensive defaults — the payload has occasionally come back missing
+    // these keys, which crashed the renderer on .length access.
+    d.comparisons = d.comparisons || [];
+
+    let html = '';
+
+    // Summary bar. PERTI was retired by its owner, so there is no external
+    // ADL to compare against — the numbers here are our own coverage.
+    const withEldt = d.comparisons.filter(c => c.our_eldt);
+    const withGrib = d.comparisons.filter(c => c.eldt_wind);
+    html += `<div class="summary-bar">
+        <div class="summary-stat"><div class="lbl">Inbound tracked</div><div class="val">${d.our_active ?? '—'}</div></div>
+        <div class="summary-stat"><div class="lbl">With ELDT</div><div class="val">${withEldt.length}</div></div>
+        <div class="summary-stat"><div class="lbl">With GRIB</div><div class="val">${withGrib.length}</div></div>
+        <div class="summary-stat"><div class="lbl">Frozen (TLDT)</div><div class="val">${d.comparisons.filter(c => c.our_frozen).length}</div></div>
+    </div>`;
+
+    // Live inbound. Split into flights that have an ELDT and those that
+    // don't yet — with PERTI gone, the useful QA question is "do we have a
+    // number, and does GRIB back it up", not "how far off is upstream".
+    const haveEldt = d.comparisons.filter(c => c.our_eldt);
+    const noEldt   = d.comparisons.filter(c => !c.our_eldt);
+
+    if (haveEldt.length > 0) {
+        haveEldt.sort((a, b) => (a.our_eldt || '').localeCompare(b.our_eldt || ''));
+        html += `<section><h2>Inbound ELDT — ${haveEldt.length} flights</h2>
+            <div class="table-wrap"><table>
+            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>Our ELDT</th><th>GRIB ELDT</th><th>Delta</th><th>Tags</th><th>Phase</th></tr></thead><tbody>`;
+        for (const c of haveEldt) {
+            const tags = [];
+            if (c.our_simbrief) tags.push('<span class="tag tag-simbrief">SB</span>');
+            if (c.our_frozen) tags.push('<span class="tag tag-frozen">FRZ</span>');
+
+            // Delta = our ELDT minus the GRIB value. Zero when WIND_GRIB is
+            // the winning tier (it usually is) — a non-zero delta means a
+            // lower tier won and is worth a look.
+            let delta = null;
+            if (c.our_eldt && c.eldt_wind) {
+                delta = Math.round((Date.parse(c.our_eldt) - Date.parse(c.eldt_wind)) / 60000);
+            }
+
+            html += `<tr>
+                <td class="mono">${c.callsign}</td>
+                <td class="mono muted">${c.aircraft_type || '?'}</td>
+                <td class="mono">${c.adep || '?'} → ${c.ades}</td>
+                <td class="mono">${hhmmz(c.our_eldt)}</td>
+                <td class="mono" style="${c.our_frozen ? 'color:var(--accent);' : ''}" title="${c.our_frozen ? 'TLDT — frozen at T-90m' : 'ELDT — live estimate, not yet frozen'}">${c.eldt_wind ? hhmmz(c.eldt_wind) : windReasonLabel(c.wind_reason)}</td>
+                <td class="mono ${delta === null ? 'muted' : deltaClass(delta)}">${delta === null ? '—' : (delta > 0 ? '+' : '') + delta + 'm'}</td>
+                <td>${tags.join(' ')}</td>
+                <td class="muted">${c.display_phase || c.our_phase}</td>
+            </tr>`;
+        }
+        html += '</tbody></table></div></section>';
+    }
+
+    if (noEldt.length > 0) {
+        html += `<section><h2>No ELDT Yet (${noEldt.length})</h2>
+            <div class="table-wrap"><table>
+            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>Phase</th><th>Why no ELDT</th><th>Tags</th></tr></thead><tbody>`;
+        for (const c of noEldt) {
+            const tags = [];
+            if (c.our_simbrief) tags.push('<span class="tag tag-simbrief">SB</span>');
+            if (c.our_frozen) tags.push('<span class="tag tag-frozen">FRZ</span>');
+            html += `<tr>
+                <td class="mono">${c.callsign}</td>
+                <td class="mono muted">${c.aircraft_type || '?'}</td>
+                <td class="mono">${c.adep || '?'} → ${c.ades}</td>
+                <td class="muted">${c.display_phase || c.our_phase}</td>
+                <td class="muted">${c.no_eldt_reason || '—'}</td>
+                <td>${tags.join(' ')}</td>
+            </tr>`;
+        }
+        html += '</tbody></table></div></section>';
+    }
+
+    // Tags legend
+    // Post-landing accuracy: three-way comparison
+    const landings = (d.recent_landings || []).filter(l => !l.synthetic);
+    if (landings.length > 0) {
+        function median(arr) { if (!arr.length) return null; const s = arr.slice().sort((a,b) => a-b); const m = Math.floor(s.length/2); return s.length % 2 ? s[m] : (s[m-1]+s[m])/2; }
+        const ourMed = median(landings.map(l => Math.abs(l.our_err_min))).toFixed(1);
+
+        const windLandings = landings.filter(l => l.wind_err_min !== null && Math.abs(l.wind_err_min) <= 120);
+        const windMed = windLandings.length > 0
+            ? median(windLandings.map(l => Math.abs(l.wind_err_min))).toFixed(1)
+            : '—';
+
+        html += `<section><h2>Post-Landing Accuracy (last 2h) — ${landings.length} flights, median |err|: us=${ourMed}m, GRIB=${windMed}m</h2>
+            <div class="table-wrap"><table>
+            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>ALDT</th><th>Our ELDT</th><th>Us err</th><th>GRIB ELDT</th><th>GRIB err</th></tr></thead><tbody>`;
+        for (const l of landings) {
+            html += `<tr>
+                <td class="mono">${l.callsign}</td>
+                <td class="mono muted">${l.aircraft_type || '?'}</td>
+                <td class="mono">${l.adep || '?'} &rarr; ${l.ades}</td>
+                <td class="mono">${hhmmz(l.aldt)}</td>
+                <td class="mono">${hhmmz(l.eldt_locked)}</td>
+                <td class="mono ${deltaClass(l.our_err_min)}">${l.our_err_min > 0 ? '+' : ''}${l.our_err_min}m</td>
+                <td class="mono">${l.eldt_wind ? hhmmz(l.eldt_wind) : windReasonHist(l.wind_reason)}</td>
+                <td class="mono ${l.wind_err_min !== null ? deltaClass(l.wind_err_min) : 'muted'}">${l.wind_err_min !== null ? (l.wind_err_min > 0 ? '+' : '') + l.wind_err_min + 'm' : '—'}</td>
+            </tr>`;
+        }
+        html += '</tbody></table></div></section>';
+    } else {
+        html += `<section><h2>Post-Landing Accuracy (last 2h)</h2><div class="muted" style="padding:0.5rem 0;">No flights with frozen ELDT have landed in the last 2 hours.</div></section>`;
+    }
+
+    // Historical accuracy placeholder — populated independently
+    html += `<section id="hist-section">
+        <h2>Historical ELDT Accuracy</h2>
+        <div style="display:flex;gap:0.4rem;margin-bottom:1rem;" id="hist-pills">
+            <span class="pill-btn${histDays===1?' active':''}" data-days="1">1d</span>
+            <span class="pill-btn${histDays===3?' active':''}" data-days="3">3d</span>
+            <span class="pill-btn${histDays===7?' active':''}" data-days="7">7d</span>
+            <span class="pill-btn${histDays===14?' active':''}" data-days="14">14d</span>
+            <span class="pill-btn${histDays===30?' active':''}" data-days="30">30d</span>
+        </div>
+        <div id="hist-content"><div class="loading">Loading historical accuracy...</div></div>
+    </section>`;
+
+    html += `<section><h2>Legend</h2>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.8rem;">
+            <span><span class="tag tag-simbrief">SB</span> SimBrief flight plan</span>
+            <span><span class="tag tag-frozen">FRZ</span> ELDT frozen (T-90m)</span>
+            <span class="${deltaClass(3)}">green</span> |delta| &le; 5 min
+            <span class="${deltaClass(8)}">yellow</span> |delta| &le; 15 min
+            <span class="${deltaClass(20)}">red</span> |delta| &gt; 15 min
+        </div>
+    </section>`;
+
+    $('content').innerHTML = html;
+}
+
+load();
+setInterval(load, 120000); // refresh every 2 min
+
+// UTC clock in header
+function updateUtcClock() {
+    const n = new Date();
+    const p = v => String(v).padStart(2, '0');
+    const el = document.getElementById('utc-clock');
+    if (el) el.textContent = `${p(n.getUTCHours())}:${p(n.getUTCMinutes())}:${p(n.getUTCSeconds())}Z`;
+}
+updateUtcClock();
+setInterval(updateUtcClock, 1000);
+
+// --- Historical ELDT Accuracy (independent fetch) ---
+
+let histDays = parseInt(localStorage.getItem('eldtqa_hist_days') || '7');
+if (![1,3,7,14,30].includes(histDays)) histDays = 7;
+let histData = [];
+let histSortCol = null;
+let histSortAsc = true;
+
+function fmtPct(n, total) {
+    if (!total) return '—';
+    return (100 * n / total).toFixed(1) + '%';
+}
+
+function fmtSigned(v) {
+    if (v === null || v === undefined) return '—';
+    const r = Number(v).toFixed(1);
+    return (v > 0 ? '+' : '') + r;
+}
+
+async function loadAccuracy() {
+    const el = document.getElementById('hist-content');
+    if (!el) return; // section not yet rendered
+    el.innerHTML = '<div class="loading">Loading historical accuracy...</div>';
+    try {
+        const res = await fetch('/api/v1/accuracy?days=' + histDays);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const raw = await res.json();
+        // API may return { flights: [...] } or just [...]
+        const flights = Array.isArray(raw) ? raw : (raw.flights || []);
+        histData = flights.filter(f => !f.synthetic && (f.our_err_min === null || Math.abs(f.our_err_min) <= 120));
+        // Cap obviously garbage GRIB/SimBrief errors. Stale values survive
+        // on recycled flight_keys (seen: an eldt_wind 4 months old giving a
+        // 185683m error), and SimBrief OFPs are filed hours before pushback.
+        histData.forEach(f => {
+            if (f.wind_err_min !== null && Math.abs(f.wind_err_min) > 120) f.wind_err_min = null;
+            if (f.sb_err_min !== null && Math.abs(f.sb_err_min) > 120) f.sb_err_min = null;
+        });
+        renderAccuracy();
+    } catch (err) {
+        el.innerHTML = '<div class="error">Failed to load accuracy: ' + err.message + '</div>';
+    }
+}
+
+function renderAccuracy() {
+    const el = document.getElementById('hist-content');
+    if (!el) return;
+    const rows = histData;
+    if (rows.length === 0) {
+        el.innerHTML = '<div class="muted" style="padding:0.5rem 0;">No accuracy data for this window.</div>';
+        return;
+    }
+
+    let html = '';
+
+    // --- Summary: ours vs GRIB vs SimBrief ---
+    // PERTI was retired by its owner; SimBrief (the dispatch OFP ETA) is
+    // the only external comparator left, and it is advisory only.
+    const ourErrs = rows.filter(r => r.our_err_min !== null);
+    const sbErrs = rows.filter(r => r.sb_err_min !== null);
+
+    function medianOf(arr) { if (!arr.length) return null; const s = arr.slice().sort((a,b) => a-b); const m = Math.floor(s.length/2); return s.length % 2 ? s[m] : (s[m-1]+s[m])/2; }
+    function stats(arr, key) {
+        if (!arr.length) return { n: 0, median: null, absMedian: null, mean: null, absMean: null, w3: null, w5: null };
+        const vals = arr.map(r => r[key]);
+        const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
+        const absMean = vals.reduce((a, b) => a + Math.abs(b), 0) / vals.length;
+        const med = medianOf(vals);
+        const absMed = medianOf(vals.map(v => Math.abs(v)));
+        const w3 = vals.filter(v => Math.abs(v) <= 3).length;
+        const w5 = vals.filter(v => Math.abs(v) <= 5).length;
+        return { n: vals.length, median: med, absMedian: absMed, mean, absMean, w3: 100 * w3 / vals.length, w5: 100 * w5 / vals.length };
+    }
+
+    const ourS = stats(ourErrs, 'our_err_min');
+    const sbS = stats(sbErrs, 'sb_err_min');
+
+    const windErrs = rows.filter(r => r.wind_err_min !== null);
+    const windS = stats(windErrs, 'wind_err_min');
+
+    html += '<div class="summary-bar" style="display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:0.5rem 1.5rem;align-items:center;">';
+    html += '<div></div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">Our Model</div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">GRIB Wind</div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">SimBrief</div>';
+    const metricRows = [
+        ['n', ourS.n, windS.n, sbS.n],
+        ['Median error', ourS.median !== null ? fmtSigned(ourS.median) + 'm' : '—', windS.median !== null ? fmtSigned(windS.median) + 'm' : '—', sbS.median !== null ? fmtSigned(sbS.median) + 'm' : '—'],
+        ['|Median|', ourS.absMedian !== null ? ourS.absMedian.toFixed(1) + 'm' : '—', windS.absMedian !== null ? windS.absMedian.toFixed(1) + 'm' : '—', sbS.absMedian !== null ? sbS.absMedian.toFixed(1) + 'm' : '—'],
+        ['\u00b13 min', ourS.w3 !== null ? ourS.w3.toFixed(1) + '%' : '—', windS.w3 !== null ? windS.w3.toFixed(1) + '%' : '—', sbS.w3 !== null ? sbS.w3.toFixed(1) + '%' : '—'],
+        ['\u00b15 min', ourS.w5 !== null ? ourS.w5.toFixed(1) + '%' : '—', windS.w5 !== null ? windS.w5.toFixed(1) + '%' : '—', sbS.w5 !== null ? sbS.w5.toFixed(1) + '%' : '—'],
+    ];
+    for (const [lbl, ours, wind, sb] of metricRows) {
+        html += `<div style="font-size:0.75rem;color:var(--text-dim);">${lbl}</div>`;
+        html += `<div class="mono" style="text-align:center;color:var(--text-bright);">${ours}</div>`;
+        html += `<div class="mono" style="text-align:center;color:var(--accent);">${wind}</div>`;
+        html += `<div class="mono" style="text-align:center;color:var(--text-bright);">${sb}</div>`;
+    }
+    html += '</div>';
+
+    // --- By ETA source tier ---
+    const tiers = {};
+    for (const r of rows) {
+        const src = r.locked_source || 'UNKNOWN';
+        if (!tiers[src]) tiers[src] = [];
+        tiers[src].push(r);
+    }
+    const tierOrder = ['FILED', 'FIR_EET', 'OBSERVED_POS', 'CALC_FILED_TAS', 'CALC_TYPE_TAS', 'CALC_DEFAULT', 'UNKNOWN'];
+    const tierKeys = tierOrder.filter(k => tiers[k]).concat(Object.keys(tiers).filter(k => !tierOrder.includes(k)));
+
+    html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">Accuracy by ETA Source Tier</h3>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Source</th><th>n</th><th>Median err</th><th>|Median|</th><th>\u00b13 min</th></tr></thead><tbody>';
+    for (const src of tierKeys) {
+        const s = stats(tiers[src].filter(r => r.our_err_min !== null), 'our_err_min');
+        if (!s.n) continue;
+        html += `<tr>
+            <td class="mono">${src}</td>
+            <td class="mono">${s.n}</td>
+            <td class="mono ${deltaClass(s.median)}">${fmtSigned(s.median)}m</td>
+            <td class="mono">${s.absMedian.toFixed(1)}m</td>
+            <td class="mono">${s.w3.toFixed(1)}%</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div></div>';
+
+    // --- By airport ---
+    const airports = {};
+    for (const r of rows) {
+        const apt = r.ades || '?';
+        if (!airports[apt]) airports[apt] = [];
+        airports[apt].push(r);
+    }
+    const WE = {CYVR:0, CYYC:1, CYWG:2, CYYZ:3, CYOW:4, CYUL:5, CYHZ:6};
+    const aptKeys = Object.keys(airports).sort((a,b) => (WE[a] ?? 99) - (WE[b] ?? 99));
+
+    html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">Accuracy by Airport</h3>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Airport</th><th>n (ours)</th><th>Our median</th><th>Our \u00b13%</th><th>n (SB)</th><th>SB median</th><th>SB \u00b13%</th></tr></thead><tbody>';
+    for (const apt of aptKeys) {
+        const arr = airports[apt];
+        const ourA = stats(arr.filter(r => r.our_err_min !== null), 'our_err_min');
+        const pA = stats(arr.filter(r => r.sb_err_min !== null), 'sb_err_min');
+        html += `<tr>
+            <td class="mono">${apt}</td>
+            <td class="mono">${ourA.n}</td>
+            <td class="mono ${deltaClass(ourA.median)}">${ourA.median !== null ? fmtSigned(ourA.median) + 'm' : '—'}</td>
+            <td class="mono">${ourA.w3 !== null ? ourA.w3.toFixed(1) + '%' : '—'}</td>
+            <td class="mono">${pA.n || '—'}</td>
+            <td class="mono ${deltaClass(pA.median)}">${pA.median !== null ? fmtSigned(pA.median) + 'm' : '—'}</td>
+            <td class="mono">${pA.w3 !== null ? pA.w3.toFixed(1) + '%' : '—'}</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div></div>';
+
+    // --- Full flight table (sortable) ---
+    // Show one row per flight, but group by "what prediction(s) landed".
+    // A flight with only a SimBrief ETA (no Our ELDT) still shows — the SB
+    // cell is populated, the Our cell is a dim em-dash. This keeps the table
+    // aligned with the broader sample used for per-source stats.
+    let sorted = [...rows];
+    if (histSortCol !== null) {
+        sorted.sort((a, b) => {
+            let va = a[histSortCol], vb = b[histSortCol];
+            if (va === null || va === undefined) va = histSortAsc ? Infinity : -Infinity;
+            if (vb === null || vb === undefined) vb = histSortAsc ? Infinity : -Infinity;
+            if (typeof va === 'string') return histSortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+            return histSortAsc ? va - vb : vb - va;
+        });
+    }
+
+    const nOur = rows.filter(r => r.our_err_min !== null).length;
+    const nWind = rows.filter(r => r.wind_err_min !== null).length;
+    const nSb = rows.filter(r => r.sb_err_min !== null).length;
+    html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">All Flights (' + sorted.length + ') <span class="muted" style="font-weight:400;font-size:0.75rem;"> — sample coverage: ours ' + nOur + ' / GRIB ' + nWind + ' / SimBrief ' + nSb + '</span></h3>';
+    html += '<div class="table-wrap"><table id="hist-table"><thead><tr>';
+    const cols = [
+        { key: 'callsign', label: 'Callsign' },
+        { key: 'aircraft_type', label: 'Type' },
+        { key: 'route', label: 'Route', nosort: true },
+        { key: 'aldt', label: 'ALDT' },
+        { key: 'eldt_locked', label: 'Our ELDT' },
+        { key: 'our_err_min', label: 'Us err' },
+        { key: 'eldt_wind', label: 'GRIB ELDT' },
+        { key: 'wind_err_min', label: 'GRIB err' },
+        { key: 'locked_source', label: 'Source' },
+    ];
+    for (const c of cols) {
+        const sortCls = c.nosort ? '' : 'sortable' + (histSortCol === c.key ? (histSortAsc ? ' sort-asc' : ' sort-desc') : '');
+        html += `<th class="${sortCls}" ${c.nosort ? '' : 'data-sort="' + c.key + '"'}>${c.label}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    for (const r of sorted) {
+        html += `<tr>
+            <td class="mono">${r.callsign}</td>
+            <td class="mono muted">${r.aircraft_type || '?'}</td>
+            <td class="mono">${r.adep || '?'} &rarr; ${r.ades || '?'}</td>
+            <td class="mono">${hhmmz(r.aldt)}</td>
+            <td class="mono">${hhmmz(r.eldt_locked)}</td>
+            <td class="mono ${deltaClass(r.our_err_min)}">${r.our_err_min !== null ? (r.our_err_min > 0 ? '+' : '') + r.our_err_min + 'm' : '—'}</td>
+            <td class="mono">${r.eldt_wind ? hhmmz(r.eldt_wind) : windReasonHist(r.wind_reason)}</td>
+            <td class="mono ${r.wind_err_min !== null ? deltaClass(r.wind_err_min) : 'muted'}">${r.wind_err_min !== null ? (r.wind_err_min > 0 ? '+' : '') + r.wind_err_min + 'm' : '—'}</td>
+            <td class="mono muted">${r.locked_source || '—'}</td>
+        </tr>`;
+    }
+    html += '</tbody></table></div></div>';
+
+    el.innerHTML = html;
+
+    // Bind sort handlers
+    el.querySelectorAll('th.sortable[data-sort]').forEach(th => {
+        th.addEventListener('click', () => {
+            const key = th.getAttribute('data-sort');
+            if (histSortCol === key) histSortAsc = !histSortAsc;
+            else { histSortCol = key; histSortAsc = true; }
+            renderAccuracy();
+        });
+    });
+}
+
+// Bind pill clicks after each render cycle
+function bindHistPills() {
+    const pills = document.getElementById('hist-pills');
+    if (!pills) return;
+    pills.querySelectorAll('.pill-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            pills.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            histDays = parseInt(btn.getAttribute('data-days'));
+            localStorage.setItem('eldtqa_hist_days', String(histDays));
+            histSortCol = null; histSortAsc = true;
+            loadAccuracy();
+        });
+    });
+    loadAccuracy();
+}
+
+// Hook into the existing render to bind pills after DOM update
+const _origRender = render;
+render = function(d) {
+    _origRender(d);
+    bindHistPills();
+};
+</script>
+</body>
+</html>
