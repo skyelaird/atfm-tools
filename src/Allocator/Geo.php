@@ -244,6 +244,38 @@ final class Geo
     }
 
     /**
+     * Match a filed procedure name against the loaded procedures, tolerating
+     * AIRAC revision drift.
+     *
+     * Procedure names carry a revision digit that increments with each cycle:
+     * SOUND6 becomes SOUND7, GRIZZ9 becomes GRIZZ1. Pilots file whatever their
+     * own sim navdata carries, which is frequently not our cycle — on
+     * 2026-09-02 live flights were filing SOUND6 while the current source had
+     * SOUND7. An exact-match lookup silently fails to expand the STAR for those
+     * flights, which costs the whole arrival path.
+     *
+     * Exact match wins; otherwise fall back to the alpha stem.
+     *
+     * @param array<string,array<string>> $procedures
+     */
+    private static function matchProcedureName(string $token, array $procedures): ?string
+    {
+        if (isset($procedures[$token])) {
+            return $token;
+        }
+        if (! preg_match('/^([A-Z]{3,5})\d{1,2}$/', $token, $m)) {
+            return null;
+        }
+        $stem = $m[1];
+        foreach ($procedures as $name => $_) {
+            if (preg_match('/^' . preg_quote($stem, '/') . '\d{1,2}$/', $name)) {
+                return $name;
+            }
+        }
+        return null;
+    }
+
+    /**
      * Expand an airway segment between two fixes into intermediate waypoints.
      *
      * Walks the airway's linked list (next/prev pointers) from $fromFix to
@@ -404,8 +436,9 @@ final class Geo
             // Pattern: 3-5 alpha + 1-2 digits (matches standard procedure naming)
             if (preg_match('/^[A-Z]{3,5}\d{1,2}$/', $token)) {
                 $procedures = self::loadProcedures();
-                if (isset($procedures[$token])) {
-                    foreach ($procedures[$token] as $fixName) {
+                $key = self::matchProcedureName($token, $procedures);
+                if ($key !== null) {
+                    foreach ($procedures[$key] as $fixName) {
                         if (isset($waypoints[$fixName])) {
                             $coords[] = [$waypoints[$fixName][0], $waypoints[$fixName][1]];
                             $lastFixName = $fixName;
