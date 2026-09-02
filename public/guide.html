@@ -156,9 +156,14 @@
 
 <h3>Header Pills</h3>
 <ul>
-    <li><strong>Departures / Arrivals / Overflights</strong> &mdash; live counts across scope</li>
-    <li><strong>Ingest age</strong> &mdash; time since last successful data feed poll. Should always be &lt; 3 min</li>
-    <li><strong>Version</strong> &mdash; running software version</li>
+    <li><strong>OpLevel</strong> &mdash; system-wide flow-management intensity, 1 Steady State to 4 NAS-Wide. Derived from how far the active restrictions reach across FIRs</li>
+    <li><strong>ingest</strong> &mdash; time since the last successful VATSIM feed poll. Should always be &lt; 3 min; the dot turns amber past 7 min</li>
+    <li><strong>alloc</strong> &mdash; time since the last allocator run. Same thresholds</li>
+    <li><strong>flights</strong> &mdash; flights currently tracked in scope. Excludes DISCONNECTED, so it should track the second half of the <strong>feed</strong> pill closely</li>
+    <li><strong>ctots</strong> &mdash; CTOTs in force right now. Amber whenever non-zero &mdash; it means aircraft are being held</li>
+    <li><strong>restrictions</strong> &mdash; active regulations. Red whenever non-zero</li>
+    <li><strong>feed</strong> &mdash; raw VATSIM pilots / how many matched our 7-airport scope</li>
+    <li><strong>version</strong> &mdash; running software version, next to the title. This is read from the server, so it is the honest answer to "did my change deploy"</li>
 </ul>
 
 <h3>Airport Cards</h3>
@@ -309,7 +314,7 @@ ILS_bonus      = 3 (only in IFR/LIFR conditions, for ILS-equipped runways)</pre>
 
 <ul>
     <li><strong>Candidate</strong> &mdash; flight identified as needing a slot</li>
-    <li><strong>Issued</strong> &mdash; CTOT assigned and communicated to CDM plugin</li>
+    <li><strong>Issued</strong> &mdash; CTOT assigned and published on <code>/cdm/etfms/restricted</code> for the CDM plugin</li>
     <li><strong>Frozen</strong> &mdash; CTOT locked at T-90 min, not subject to revision</li>
     <li><strong>Released</strong> &mdash; restriction lifted, CTOT cleared</li>
     <li><strong>Reissued</strong> &mdash; CTOT revised due to updated ELDT or rate change</li>
@@ -319,13 +324,31 @@ ILS_bonus      = 3 (only in IFR/LIFR conditions, for ILS-equipped runways)</pre>
 <strong>Stale CTOT protection:</strong> CTOTs are never persisted across restriction lifetimes. At the start of every allocator run, any CTOT from a no-longer-active restriction is automatically released.
 </div>
 
+<h3>How a CTOT Reaches the Pilot</h3>
+<p>We do not talk to pilots. The CDM EuroScope plugin does, and it polls us roughly every 15 seconds per active master airport.</p>
+<ol>
+    <li>The plugin fetches our list and <strong>wipes every CTOT it holds</strong>, then applies what we sent. Our response is a complete statement of the world: a callsign we omit is a callsign whose CTOT is released.</li>
+    <li>For each flight it accepts, it stops running its own departure sequencing and takes our time as given.</li>
+    <li>It derives the pilot-facing <strong>TSAT as CTOT &minus; taxi time</strong>. If its own computed take-off time slips past the CTOT but stays within <strong>CTOT + 7 min</strong>, it adjusts rather than re-sequencing. Past that, the slot is treated as missed.</li>
+</ol>
+
+<p>Two things outrank us, and both are correct:</p>
+<ul>
+    <li><strong>An ECFMP restriction</strong> on the same flight &mdash; the plugin skips our CTOT entirely.</li>
+    <li><strong>A controller's per-flight "Disable CDM-Network"</strong> &mdash; a local override that we neither see nor should fight.</li>
+</ul>
+
+<div class="callout warn">
+<strong>Failing loudly is safer than failing quietly.</strong> If our endpoint errors, the plugin logs it and keeps the CTOTs it already had. If it answers 200 with a body that does not parse, the plugin clears every CTOT on that controller's screen. An outage is survivable; a malformed success is not.
+</div>
+
 <h3>Shadow Mode</h3>
 <p>The allocator can run in shadow (dry-run) mode via <code>bin/compute-ctots.php --shadow</code>. In this mode, the full allocation logic executes but no database writes occur. The output shows what WOULD have happened &mdash; useful for validating restriction parameters before going live.</p>
 
 <!-- ================================================================== -->
 <h2 id="milestones">8. A-CDM Milestones</h2>
 
-<p>The system uses ICAO A-CDM milestone vocabulary internally, translating at display edges for PERTI compatibility.</p>
+<p>The system uses ICAO A-CDM milestone vocabulary internally, translating at display edges for the CDM plugin's wire format (which uses vIFF / PERTI field names such as <code>ctd_utc</code> and <code>cta_utc</code>).</p>
 
 <h3>Naming Convention</h3>
 <p><code>S*</code> = Scheduled, <code>E*</code> = Estimated, <code>T*</code> = Target, <code>C*</code> = Calculated (regulation), <code>A*</code> = Actual.</p>
@@ -339,7 +362,7 @@ ILS_bonus      = 3 (only in IFR/LIFR conditions, for ILS-equipped runways)</pre>
     <tr><td><code>ATOT</code></td><td>Actual Take-Off Time</td><td>First cycle in DEPARTED phase</td></tr>
     <tr><td><code>ELDT</code></td><td>Estimated Landing Time</td><td>ETA cascade (multi-tier)</td></tr>
     <tr><td><code>TLDT</code></td><td>Target Landing (frozen ELDT)</td><td>Frozen at T-90 min</td></tr>
-    <tr><td><code>ALDT</code></td><td>Actual Landing Time</td><td>First cycle in ON_RUNWAY / TAXI_IN / ARRIVED</td></tr>
+    <tr><td><code>ALDT</code></td><td>Actual Landing Time</td><td>Projected to the threshold from the last airborne observation, clamped inside the observation bracket. Falls back to the first on-ground cycle when the aircraft was not on short final when last seen &mdash; <code>aldt_source</code> records which</td></tr>
     <tr><td><code>AIBT</code></td><td>Actual In-Block Time</td><td>Second consecutive ARRIVED cycle</td></tr>
     <tr><td><code>CTOT</code></td><td>Calculated Take-Off Time</td><td>Allocator output (departure slot)</td></tr>
 </table>
@@ -359,31 +382,45 @@ ILS_bonus      = 3 (only in IFR/LIFR conditions, for ILS-equipped runways)</pre>
 <h2 id="phases">9. Flight Lifecycle</h2>
 
 <h3>Phase Taxonomy</h3>
-<div class="diagram"><span class="dim">Departure:</span>  <span class="b-phase">PREFILE</span> &rarr; <span class="b-phase">FILED</span> &rarr; <span class="b-phase">TAXI_OUT</span> &rarr; <span class="b-phase">CLIMBOUT</span>
-<span class="dim">Enroute:</span>    <span class="b-phase">DEPARTED</span> &rarr; <span class="b-phase">CRUISE</span>
-<span class="dim">Arrival:</span>    <span class="b-phase">DESCENT</span> &rarr; <span class="b-phase">ARRIVING</span>
-<span class="dim">Terminal:</span>   <span class="b-phase">ON_RUNWAY</span> &rarr; <span class="b-phase">VACATED</span> &rarr; <span class="b-phase">TAXI_IN</span> &rarr; <span class="b-phase">ARRIVED</span></div>
+<p>Two vocabularies, deliberately. The <strong>stored</strong> phase is what the ingestor computes from position alone; the <strong>displayed</strong> phase is what you see on the dashboard, translated at the API edge so the label matches what an FMP would say out loud.</p>
 
-<h3>Geofence Thresholds</h3>
+<div class="diagram"><span class="dim">stored:</span>   <span class="b-phase">FILED</span> &rarr; <span class="b-phase">TAXI_OUT</span> &rarr; <span class="b-phase">DEPARTED</span> &rarr; <span class="b-phase">ENROUTE</span> &rarr; <span class="b-phase">DESCENT</span> &rarr; <span class="b-phase">ARRIVING</span> &rarr; <span class="b-phase">TAXI_IN</span> &rarr; <span class="b-phase">ARRIVED</span>
+<span class="dim">shown:</span>    <span class="b-phase">FILED</span> &rarr; <span class="b-phase">TAXI_OUT</span> &rarr; <span class="b-phase">CLIMBOUT</span> &rarr; <span class="b-phase">CRUISE</span>   &rarr; <span class="b-phase">DESCENT</span> &rarr; <span class="b-phase">ARRIVING</span> &rarr; <span class="b-phase">TAXI_IN</span> &rarr; <span class="b-phase">IN_BLOCKS</span></div>
+
+<p>The translation is not one-to-one: a stored <code>ENROUTE</code> flight shows as <strong>CLIMBOUT</strong> while it is more than 2000 ft below filed altitude with no ELDT yet, as <strong>DESCENT</strong> once it is descending toward destination, and as <strong>CRUISE</strong> otherwise. <code>PREFILE</code> shows as FILED.</p>
+
+<div class="callout">
+<strong>ON_RUNWAY and VACATED exist in the schema but are never produced.</strong> They belonged to the ROT tracker, retired in v0.4.7. Nothing computes them from position today, which is why a landing aircraft goes straight from ARRIVING to TAXI_IN.
+</div>
+
+<h3>What Actually Triggers Each Transition</h3>
+<p>Airborne means groundspeed &gt; 50 kt. Everything below is evaluated in this order, first match wins:</p>
 <table>
-    <tr><th>Transition</th><th>Trigger</th></tr>
-    <tr><td>FILED &rarr; TAXI_OUT</td><td>GS &gt; 0 within departure geofence</td></tr>
-    <tr><td>TAXI_OUT &rarr; CLIMBOUT</td><td>Altitude &gt; field + 500 ft</td></tr>
-    <tr><td>CLIMBOUT &rarr; DEPARTED</td><td>Distance from ADEP &gt; 40 nm</td></tr>
-    <tr><td>DEPARTED &rarr; CRUISE</td><td>Within 2000 ft of filed altitude</td></tr>
-    <tr><td>CRUISE &rarr; DESCENT</td><td>Descending, altitude drops &gt; 2000 ft below filed</td></tr>
-    <tr><td>DESCENT &rarr; ARRIVING</td><td>Within 40 nm of destination</td></tr>
-    <tr><td>ARRIVING &rarr; ON_RUNWAY</td><td>Below field + 200 ft, within 5 nm</td></tr>
-    <tr><td>ARRIVED</td><td>GS &lt; 5 kt within airport geofence</td></tr>
+    <tr><th>Stored phase</th><th>Trigger</th></tr>
+    <tr><td><code>ARRIVING</code></td><td>Airborne, within 40 nm of destination, less than 15 000 ft above field</td></tr>
+    <tr><td><code>DEPARTED</code></td><td>Airborne, within 30 nm of departure, less than 5000 ft above field</td></tr>
+    <tr><td><code>DESCENT</code></td><td>Airborne, more than 3000 ft below filed altitude, 40&ndash;200 nm from destination</td></tr>
+    <tr><td><code>ENROUTE</code></td><td>Airborne, none of the above</td></tr>
+    <tr><td><code>ARRIVED</code> / <code>TAXI_IN</code></td><td>On the ground inside the destination geofence (5 nm): GS &lt; 5 kt is ARRIVED, otherwise TAXI_IN</td></tr>
+    <tr><td><code>FILED</code> / <code>TAXI_OUT</code></td><td>On the ground inside the departure geofence: GS &lt; 5 kt is FILED, otherwise TAXI_OUT</td></tr>
 </table>
+<p>A flight on the ground at neither airport &mdash; a diversion, or a destination outside our 7 &mdash; falls back to <code>FILED</code>. That is why a departure that has already landed somewhere out of scope can still read FILED; it has an ATOT, so nothing downstream treats it as pending.</p>
 
 <h3>ELDT Eligibility</h3>
-<p>ELDT is only computed for flights at cruise altitude (within 2000 ft of filed altitude) or in ARRIVING phase. Flights in FILED, CLIMBOUT, or early DEPARTED phases show no ELDT &mdash; ground-tier estimates from filed ETE are used instead.</p>
+<p>ELDT is only computed for flights at cruise (within 2000 ft of filed altitude, or level above FL100) or in DESCENT / ARRIVING. Flights in FILED, TAXI_OUT or CLIMBOUT show <strong>no ELDT at all</strong> &mdash; a dash, not a guess. A pre-departure estimate from filed ETE would look like knowledge we do not have.</p>
 
 <!-- ================================================================== -->
 <h2 id="eta">10. ETA Cascade</h2>
 
 <p>The ETA cascade determines the best available arrival estimate for each flight. Higher-priority tiers are tried first; the first one that fires produces the ELDT.</p>
+
+<h3>How Accurate Is It?</h3>
+<p>Measured over 14 days, n=1475, excluding time-accelerated flights: the frozen TLDT lands a median of <strong>5.6 min before</strong> the aircraft actually does. Two causes, in different categories:</p>
+<ul>
+    <li><strong>1.1 min is measurement, not prediction.</strong> ALDT used to be stamped on the first cycle that saw the aircraft slow inside the geofence &mdash; after rollout, plus up to one 2-minute poll. Since v0.7.42 touchdown is projected from the last airborne observation instead, which removes most of this.</li>
+    <li><strong>~4.5 min is the last 40 nm.</strong> Aircraft cross the 40 nm ring at a median 360 kt and take about 15 min to reach the runway; the descent model flies that segment at an average of roughly 220 kt on a direct track, with no allowance for the STAR, downwind or vectors. Cruise and wind are not the problem &mdash; the error is flat across flight length, and filed ETE over the same population is dead on.</li>
+</ul>
+<p>Practically: treat a TLDT as good to about &plusmn;5 min, biased slightly early, and expect the simpler airports (CYYC, CYHZ, CYOW) to be tighter than CYVR and CYYZ. Slot spacing well under that is false precision.</p>
 
 <h3>Airborne Tiers (at cruise)</h3>
 <table>
