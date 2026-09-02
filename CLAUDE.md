@@ -40,6 +40,15 @@ anything touching `src/` is shadow mode or a QA side-column, not a branch.
   any plugin built after 2026-05-01 was discarding every CTOT we published,
   so no earlier informal test could have worked.
 
+**Pilot TOBT is readable from vIFF (proven live 2026-09-02).**
+`GET /ifps/depAirport?airport=XXXX` is public and per-airport, and carries
+`tobt`/`obt`/`reqTobt` plus `cdmData.reqTobtType` = PILOT | ATC. A TOBT the
+pilot sets on `vats.im/vdgs` shows up there within a cycle. Shipped as
+`bin/ingest-viff-tobt.php` (v0.7.56), **disabled** until
+`VIFF_PILOT_TOBT_ENABLED=true`. Without it the two systems silently disagree:
+the VDGS told a pilot his start-up window was open while we still had him 13
+minutes out, because he had declared 1750 and we were using our 1735 proxy.
+
 **CTOT delivery to pilots — two channels, by design:**
 - **Staffed airports: via ATC.** The CDM plugin puts the CTOT in the
   controller's tag (TSAT = CTOT − taxi) and the controller issues start-up.
@@ -366,6 +375,8 @@ bin/
   compute-ctots.php   cron: CtotAllocator (every 2 min). --shadow for dry-run
   ingest-events.php   cron: VATCAN event bookings (every 2 min)
   ingest-imports.php  cron: imported CTOTs (every 2 min)
+  ingest-viff-tobt.php  cron: adopt pilot-declared TOBT from the VDGS
+                      (every 2 min). No-op unless VIFF_PILOT_TOBT_ENABLED=true
   ingest-viff-restrictions.php  cron: mirror vIFF's public ARR restrictions
                       into our restriction table (every 2 min). No-op unless
                       VIFF_RESTRICTIONS_ENABLED=true

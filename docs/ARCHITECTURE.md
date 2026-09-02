@@ -687,6 +687,32 @@ Deliberate properties:
   created in our dashboard is never modified or deleted by the mirror.
 - **ARR only, in-scope airports only.**
 
+### 6.7 Pilot TOBT from the VDGS — `bin/ingest-viff-tobt.php`
+
+The CDM plugin's default private message sends every pilot to `vats.im/vdgs`,
+where they can declare a TOBT. That value is stored in vIFF. If we never read
+it, a pilot who correctly declares "ready at 1750" gets a slot computed from
+our proxy's 1735 — and neither system surfaces the disagreement. Observed live
+on 2026-09-02: the VDGS said the start-up window was open, we said 13 minutes
+to go, for the same aircraft.
+
+```
+GET https://viff-system.network/ifps/depAirport?airport=CYHZ   (public, per airport)
+  "tobt":"1750","obt":"1750","reqTobt":"1750",
+  "cdmData":{"reqTobt":"1750","reqTobtType":"PILOT","confirmed":true}
+```
+
+`cdmData.reqTobtType` gives attribution — PILOT or ATC — so we adopt only human
+declarations. A vIFF-derived value is their proxy competing with ours, and ours
+is calibrated on our own traffic (see the TOBT proxy in §7).
+
+Stored as `tobt_source='cdm'`, which the ingestor already treats as sticky
+against EOBT jitter, with TSAT/TTOT recascaded immediately rather than waiting
+a cycle. Skipped once `atot` is set — a TOBT after takeoff is meaningless.
+
+**Disabled unless `VIFF_PILOT_TOBT_ENABLED=true`**: it moves TTOT and therefore
+any CTOT.
+
 ## 7. Flight lifecycle state machine
 
 ```
@@ -1257,6 +1283,7 @@ SSH key auth via `~/.ssh/atfm_whc` (set up in v0.2 setup). No password prompts.
 
 # Mirror vIFF's published ARR constraints (no-op unless VIFF_RESTRICTIONS_ENABLED=true)
 */2 * * * *   cd ~/atfm-tools && php bin/ingest-viff-restrictions.php >> logs/viff.log 2>&1
+*/2 * * * *   cd ~/atfm-tools && php bin/ingest-viff-tobt.php >> logs/viff-tobt.log 2>&1
 
 # Computation — runs after each ingest cycle
 */2 * * * *   cd ~/atfm-tools && php bin/compute-ctots.php >> logs/ctots.log 2>&1
