@@ -92,6 +92,8 @@ from the VATSIM data feed. Serves the CDM EuroScope plugin via its
   and what it means for CTP staffing decisions
 - `docs/nat-fl-allocation.md` — NAT FL stack + capacity model
 - `docs/w27-uncertainty-model.md` — Westbound 2027 per-flight MC design
+- `docs/VIFF-INTEGRATION.md` — vIFF's restriction model vs ours, their write
+  path, and what to ask Roger for
 
 ## Stack
 
@@ -392,6 +394,15 @@ docs/
   (deploy.sh now runs seed-airports.php after migrate on every deploy)
 - Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
 - ctot.html live testing with CDM plugin — needs a real session
+- **Write regulations into vIFF instead of allocating ourselves** — their
+  airport restriction model is field-for-field ours (see
+  `docs/VIFF-INTEGRATION.md`). Most seamless delivery available: every
+  controller already points at vIFF by default and it drives the VDGS pilots
+  are told to watch. Cost: their allocator would compute the CTOTs from their
+  ETA, so we hand over the thing we measure best. Decidable by measurement —
+  write the regulation there, keep ours in `--shadow`, compare both against
+  ALDT. Blocked on Roger exposing an authenticated restriction endpoint;
+  their dashboard write path is a session-authenticated form POST.
 - **Publish our slots to VATSIM Spain's VDGS (`vats.im/vdgs`)** — needs
   coordination with Roger Puig (rpuig2001). The CDM plugin's default pilot
   PM already points every pilot there, and their panel is per-pilot
