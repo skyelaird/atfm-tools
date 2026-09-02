@@ -353,6 +353,9 @@ bin/
   compute-ctots.php   cron: CtotAllocator (every 2 min). --shadow for dry-run
   ingest-events.php   cron: VATCAN event bookings (every 2 min)
   ingest-imports.php  cron: imported CTOTs (every 2 min)
+  ingest-viff-restrictions.php  cron: mirror vIFF's public ARR restrictions
+                      into our restriction table (every 2 min). No-op unless
+                      VIFF_RESTRICTIONS_ENABLED=true
   compute-wind-eldt.php  cron: GRIB wind-corrected ELDT (every 5 min)
   compute-demand-history.php  cron: daily metering-fix demand rollup to data/cache/demand-history.json (trailing 30d)
   cleanup.php         cron: daily position_scratch purge + WITHDRAWN timeout
@@ -394,15 +397,15 @@ docs/
   (deploy.sh now runs seed-airports.php after migrate on every deploy)
 - Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
 - ctot.html live testing with CDM plugin — needs a real session
-- **Write regulations into vIFF instead of allocating ourselves** — their
-  airport restriction model is field-for-field ours (see
-  `docs/VIFF-INTEGRATION.md`). Most seamless delivery available: every
-  controller already points at vIFF by default and it drives the VDGS pilots
-  are told to watch. Cost: their allocator would compute the CTOTs from their
-  ETA, so we hand over the thing we measure best. Decidable by measurement —
-  write the regulation there, keep ours in `--shadow`, compare both against
-  ALDT. Blocked on Roger exposing an authenticated restriction endpoint;
-  their dashboard write path is a session-authenticated form POST.
+- **Read vIFF constraints, keep our allocation** — SHIPPED v0.7.49, but
+  **disabled by default**. `bin/ingest-viff-restrictions.php` mirrors vIFF's
+  public `/etfms/restrictions?type=ARR` feed into our restriction table so a
+  human authors the constraint once in vIFF and our allocator issues CTOTs
+  against it with our ELDT. Set `VIFF_RESTRICTIONS_ENABLED=true` to turn on.
+  Note a live CYHZ ARR/20 TEST row was in that feed on 2026-09-02, so
+  enabling it will start regulating CYHZ immediately. Presence = active,
+  absence = lifted; only touches rows it authored (`source='viff'`), never an
+  FMP's own. See `docs/VIFF-INTEGRATION.md`.
 - **Publish our slots to VATSIM Spain's VDGS (`vats.im/vdgs`)** — needs
   coordination with Roger Puig (rpuig2001). The CDM plugin's default pilot
   PM already points every pilot there, and their panel is per-pilot

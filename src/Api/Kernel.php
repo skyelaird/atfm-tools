@@ -1373,6 +1373,7 @@ final class Kernel
                     'restriction_id' => $restriction->restriction_id,
                     'airport'        => $restriction->airport?->icao,
                     'capacity'       => (int) $restriction->capacity,
+                    'source'         => $restriction->source ?? 'local',
                     'reason'         => $restriction->reason,
                     'op_level'       => (int) $restriction->op_level,
                 ] : null,
@@ -1583,6 +1584,7 @@ final class Kernel
                 ->filter(fn (AirportRestriction $r) => $r->isActiveAt($now))
                 ->map(fn (AirportRestriction $r) => [
                     'restriction_id'              => $r->restriction_id,
+                    'source'                      => $r->source ?? 'local',
                     'airport_icao'                => $r->airport?->icao,
                     'airport_name'                => $r->airport?->name,
                     'capacity'                    => (int) $r->capacity,
@@ -1957,6 +1959,7 @@ final class Kernel
                 ],
                 'restrictions'      => $airport->restrictions->map(fn (AirportRestriction $r) => [
                     'restriction_id'              => $r->restriction_id,
+                    'source'                      => $r->source ?? 'local',
                     'capacity'                    => (int) $r->capacity,
                     'reason'                      => $r->reason,
                     'op_level'                    => (int) ($r->op_level ?? 2),

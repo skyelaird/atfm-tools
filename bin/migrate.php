@@ -615,4 +615,19 @@ if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'aldt_source
     echo "✓ added flights.aldt_source (v0.7.42)\n";
 }
 
+// v0.7.49 - provenance for restrictions. 'local' rows are authored by the FMP
+// in our own dashboard; 'viff' rows are mirrored from vIFF's public
+// /etfms/restrictions feed by bin/ingest-viff-restrictions.php. The ingestor
+// only ever touches its own rows, so a mirrored feed can never delete an
+// FMP's regulation.
+if ($schema->hasTable('airport_restrictions') && ! $schema->hasColumn('airport_restrictions', 'source')) {
+    $schema->table('airport_restrictions', function ($t) {
+        $t->string('source', 12)->default('local')->after('restriction_id')
+          ->comment('local | viff - who authored this restriction');
+        $t->string('source_ref', 64)->nullable()->after('source')
+          ->comment('upstream identity for mirrored rows');
+    });
+    echo "✓ added airport_restrictions.source + source_ref (v0.7.49)\n";
+}
+
 echo "done.\n";

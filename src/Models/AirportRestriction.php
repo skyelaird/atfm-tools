@@ -36,6 +36,8 @@ final class AirportRestriction extends Model
 
     protected $fillable = [
         'restriction_id',
+        'source',
+        'source_ref',
         'airport_id',
         'runway_config',
         'capacity',

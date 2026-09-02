@@ -106,3 +106,40 @@ pointed at our `customRestricted` sees our CTOTs and never sees a vIFF
 regulation for the same airport. Two allocators, one runway. Whatever
 integration shape wins, exactly one system has to own the slot for a given
 airport at a given time, and the FMP has to be able to see which.
+
+## Update, same day: the constraint feed is already public
+
+`GET https://viff-system.network/etfms/restrictions?type=ARR` returns active
+arrival restrictions with no authentication at all:
+
+```json
+[{"airspace":"LSZH","type":"ARR","capacity":30,"runway":""},
+ {"airspace":"CYHZ","type":"ARR","capacity":20,"runway":""}, ...]
+```
+
+CYHZ was in it on 2026-09-02 at capacity 20 — the TEST restriction authored in
+the vIFF dashboard minutes earlier. So the architecture worth building is
+neither of the two above: **a human authors the constraint in vIFF, we read it,
+and our allocator issues the CTOTs.** vIFF owns the constraint, we own the
+slot, and the ELDT work we have measured stays in the loop.
+
+Shipped as `bin/ingest-viff-restrictions.php` (v0.7.49), **disabled unless
+`VIFF_RESTRICTIONS_ENABLED=true`**.
+
+What the feed does not carry: no id, no start/end window, no reason. It states
+what is active *now* — the same authoritative-list semantics as the CTOT list
+we serve the plugin. So we mirror presence as active and absence as lifted,
+with these deliberate properties:
+
+- **Most restrictive wins.** An airport can appear several times (overlapping
+  vIFF windows); we take the lowest capacity. Under-delivering slots is
+  recoverable, over-delivering is not.
+- **A failed fetch releases nothing.** An unreadable feed is not an
+  instruction to lift a regulation.
+- **It only touches its own rows** (`source='viff'`). An FMP regulation
+  authored in our dashboard is never modified or deleted by the mirror.
+- **ARR only, in-scope airports only.**
+
+Still worth asking Roger for: whether a slot *we* issued can be represented in
+the VDGS panel, since the plugin's default private message already sends every
+pilot there. Reading constraints does not solve pilot-side delivery.

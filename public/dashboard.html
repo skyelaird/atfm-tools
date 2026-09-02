@@ -935,7 +935,7 @@ function renderRegulationSection(airport, activeRestrictions) {
             }, 'Lift');
             tbody.appendChild(el('tr', {},
                 el('td', { class: 'mono' }, r.restriction_id),
-                el('td', { class: 'mono' }, `${r.capacity}/hr`),
+                el('td', { class: 'mono' }, `${r.capacity}/hr${r.source === 'viff' ? ' · vIFF' : ''}`),
                 el('td', {}, r.reason),
                 el('td', { class: 'mono' }, `L${r.op_level}`),
                 el('td', { class: 'mono' }, `${r.start_utc}–${r.end_utc}`),
@@ -1509,7 +1509,7 @@ function renderRestrictions(rows) {
         tbody.appendChild(el('tr', {},
             el('td', { class: 'mono' }, r.restriction_id),
             el('td', { class: 'mono' }, r.airport_icao),
-            el('td', { class: 'mono' }, `${r.capacity}/hr`),
+            el('td', { class: 'mono' }, `${r.capacity}/hr${r.source === 'viff' ? ' · vIFF' : ''}`),
             el('td', {}, r.reason),
             el('td', { class: 'mono' }, `L${r.op_level || 2}`),
             el('td', {}, r.type),
