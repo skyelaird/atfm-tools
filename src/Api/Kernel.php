@@ -505,14 +505,28 @@ final class Kernel
         // full contract. Plugin polls every ~15 s per active master (fixed
         // gate in CDMSingle.cpp::main loop, NOT the RefreshTime XML setting).
         //
-        // Contract (as of rpuig2001/CDM v2.28, 2026-04-18):
-        //   [{ callsign, ctot, atfcmData: { mostPenalisingRegulation }, mostPenalizingAirspace }]
+        // Verified against rpuig2001/CDM HEAD cc5a2bc (2026-08-28).
+        //
+        // The penalising-regulation key has moved TWICE. getCdmServerRestricted()
+        // drops any row whose required keys are absent, so getting this wrong
+        // means every CTOT we publish is silently ignored:
+        //
+        //   <= 2026-04-15  flat  "mostPenalizingAirspace"        (American -zing-)
+        //      2026-04-18  nested "atfcmData.mostPenalisingRegulation"  (ab58b3d)
+        //   >= 2026-05-01  flat  "mostPenalisingRegulation"      (British -sing-)
+        //
+        // The 2026-04-18 commit message says "from atfcmData", which is where
+        // vIFF sources the value internally — on this endpoint's wire it is
+        // flat again. Read the parser, not the commit message.
+        //
+        // We emit all three. JsonCpp ignores unknown keys, so every plugin
+        // generation finds the one it looks for. Drop the two legacy forms only
+        // once the fleet is known to be past them.
         //
         //   - `ctot` MUST be EXACTLY 4 chars (HHMM, zero-padded) or plugin silently drops it.
-        //   - `atfcmData.mostPenalisingRegulation` — British spelling — is the field v2.28+ reads.
-        //   - `mostPenalizingAirspace` (American spelling, flat) is preserved for <v2.28 plugins
-        //      during the transition window. New plugins ignore unknown top-level keys.
         //   - Omitting a callsign is authoritative — plugin clears that flight's CTOT.
+        //   - Flights with an ECFMP restriction in the plugin are skipped entirely:
+        //     ECFMP outranks us. So does a controller's per-flight "Disable CDM-Network".
         $app->get('/cdm/etfms/restricted', function ($req, $res) {
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
@@ -525,14 +539,16 @@ final class Kernel
             $out = $flights->map(function (Flight $f) {
                 $regulation = ($f->ctl_element ?? '') . '-ARR';
                 return [
-                    'callsign'               => (string) $f->callsign,
-                    'ctot'                   => $f->ctot?->format('Hi') ?? '',
-                    // v2.28+ — British spelling, nested
-                    'atfcmData'              => [
+                    'callsign'                   => (string) $f->callsign,
+                    'ctot'                       => $f->ctot?->format('Hi') ?? '',
+                    // current (>= 2026-05-01): flat, British spelling
+                    'mostPenalisingRegulation'   => $regulation,
+                    // 2026-04-18 builds only: nested
+                    'atfcmData'                  => [
                         'mostPenalisingRegulation' => $regulation,
                     ],
-                    // legacy — pre-v2.28 — kept for transition, safe to drop later
-                    'mostPenalizingAirspace' => $regulation,
+                    // <= 2026-04-15 builds: flat, American spelling
+                    'mostPenalizingAirspace'     => $regulation,
                 ];
             })->values()->all();
 

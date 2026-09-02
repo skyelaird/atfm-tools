@@ -3,9 +3,9 @@
 **Audience**: engineers working on `src/Api/Kernel.php` `/cdm/*` routes.
 
 **Source of truth for this document**: `rpuig2001/CDM` (upstream), fork
-at `skyelaird/CDM`. Everything below is extracted from `CDMSingle.cpp`
-at HEAD `083cd56` (2026-04-15) unless otherwise noted. When in doubt,
-re-read the source — the README is incomplete and sometimes stale.
+at `skyelaird/CDM`. Verified against `CDMSingle.cpp` at HEAD `cc5a2bc`
+(2026-08-28). When in doubt, re-read the source — the README is
+incomplete and sometimes stale, and so are the commit messages (§4.1).
 
 ---
 
@@ -109,14 +109,37 @@ omitting a callsign means "release any CTOT".**
 }
 ```
 
-**Contract change in rpuig2001/CDM v2.28 (2026-04-18)**: the plugin
-now reads the penalising-regulation string from the **nested**
-`atfcmData.mostPenalisingRegulation` key (British spelling — `-sing-`
-not `-zing-`). Pre-v2.28 plugins read the flat top-level
-`mostPenalizingAirspace` (American spelling). We emit **both** during
-the transition: new plugins ignore unknown top-level keys, old plugins
-ignore unknown nested keys. Drop the legacy field once the fleet is on
-≥v2.28.
+**The penalising-regulation key has moved twice — verified in the parser,
+not the changelog:**
+
+| Plugin builds | Required key |
+|---|---|
+| ≤ 2026-04-15 (`083cd56`) | flat `mostPenalizingAirspace` (American `-zing-`) |
+| 2026-04-18 (`ab58b3d`) | nested `atfcmData.mostPenalisingRegulation` |
+| ≥ 2026-05-01 (`4402bcb` … HEAD `cc5a2bc`) | flat `mostPenalisingRegulation` (British `-sing-`) |
+
+`ab58b3d`'s message reads *"Use mostPenalisingRegulation from atfcmData
+instead of the old mostPenalizingAirspace"*, and an earlier revision of
+this document took that to mean the wire field is permanently nested.
+It was nested for about two weeks. On today's HEAD the parser reads it
+**flat**:
+
+```cpp
+if (restricted[i].isMember("callsign") && restricted[i].isMember("ctot") &&
+    restricted[i].isMember("mostPenalisingRegulation")) {
+```
+
+`atfcmData` nesting *is* correct on `/etfms/relevant` (~line 10730) and
+on the `/ifps/dpi` response (~line 9843) — which is probably where the
+confusion came from. Those are different endpoints served by
+`viffSystem`, not by our `customRestricted` override.
+
+**Because the check is an AND of `isMember` calls, a missing key is not
+a degraded row — it is a dropped row, silently.** We therefore emit all
+three forms; JsonCpp ignores keys it doesn't look for. Between
+2026-04-18 and 2026-09-02 we emitted only the nested form plus the
+American flat one, so **any plugin built after 2026-05-01 discarded
+every CTOT we published**. Fixed in v0.7.43.
 
 Fields the plugin ignores (but vIFF sends anyway): `delayMin`,
 `airspaceList`, `regulationReason`. Safe to send, safe to omit.
