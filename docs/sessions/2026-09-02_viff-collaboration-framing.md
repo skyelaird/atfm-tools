@@ -88,11 +88,25 @@ finer field.
 
 ## Where it helps him rather than only us
 
-**Oceanic arrivals into European airports.** Six to eight hours out,
-wind-dominated, and invisible to vIFF until they are close — the same structural
-blind spot, on his own turf. Backed by a measured number rather than a claim:
-from the 30-day GFS corpus (`docs/wind-skill-2026-spring.md`), the 250 mb wind
-error gives roughly **±3.7 flights at a sector peak at D-3** and **±1.7 at D-1**.
+**Oceanic arrivals into European airports — but not the version first drafted.**
+
+> **Second correction, 2026-09-02 20:20Z.** "Invisible to vIFF until they are
+> close" is also false. `/etfms/airports` counts arrival demand per airport per
+> hour across 841 airports, transatlantic included; EGLL's hourly lists held
+> `BAW8DS KLAX→EGLL`, `BAW40F KJFK→EGLL`, `CX251 VHHX→EGLL`. He would have
+> refuted it from his own dashboard.
+
+The gap is not visibility, it is the **arrival times underneath the demand
+count**. vIFF's ETA is TOBT + taxi + filed ETE and does not move with wind. On
+FAL57 that evening it held **1939** from pushback through touchdown against an
+actual of **1952**, while our wind-corrected figure tracked 19:37 → 19:48 as the
+headwind built 55 → 84 kt. Thirteen minutes is enough to put the demand in the
+wrong hourly bucket, and a NAT crossing is worse.
+
+So the offer is: **wind-corrected arrival times feeding the demand count he
+already keeps.** Backed by the 30-day GFS corpus
+(`docs/wind-skill-2026-spring.md`): the 250 mb wind error gives roughly
+**±3.7 flights at a sector peak at D-3** and **±1.7 at D-1**.
 
 Framed as: we run it and publish a feed, nothing for him to build or maintain.
 That answers the objection underneath both refusals, which is scope and burden.

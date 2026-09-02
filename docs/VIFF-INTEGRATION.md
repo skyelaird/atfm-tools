@@ -292,7 +292,7 @@ Two halves, and only one of them works today:
 | capability | endpoint / surface | notes |
 |---|---|---|
 | Airport restrictions | `/etfms/restrictions?type=ARR`, dashboard | public; ARR/DEP, capacity, HHMM window, runway, 5 h max |
-| Hourly capacity per airport | `/etfms/airports` | public; 777 airports, **45 Canadian**; already reflects active restrictions |
+| Hourly capacity **and arrival demand** | `/etfms/airports` | public; 841 airports, 45 Canadian; `entriesCapacity` vs `entriesCount` per hour, with the flights listed. **Counts arrivals, transatlantic included** — EGLL's list held KLAX/KLAS/KJFK/VHHX inbounds. Reflects active restrictions |
 | Per-flight CDM state | `/ifps/depAirport?airport=X` | public, per airport; tobt/obt/**reqTobt** + `cdmData.reqTobtType` = PILOT\|ATC |
 | Network flight list | `/etfms/relevant` | only flights vIFF is sequencing |
 | CTOT list | `/etfms/restricted` | what the plugin consumes |
@@ -335,6 +335,36 @@ flights. Worth establishing before relying on it.
 - URL hooks for `Rates`, `Taxizones`, `Slots` (a `vatcan,callsign,dep,dest,ctot`
   text file landing as EV-SLOT) and `sidInterval`.
 - Sends pilots to `vats.im/vdgs` by default, via configurable PM text.
+
+## Two claims I got wrong, and what survives them
+
+Recorded because both were load-bearing in the argument prepared for Roger, and
+both were inferred from a single endpoint's silence rather than tested.
+
+**Wrong: "vIFF tracks nothing without a master."** Canadian flights appear in
+`/etfms/relevant` with only European masters online, carrying taxi times and
+computed ETAs.
+
+**Wrong: "oceanic arrivals are invisible to vIFF until they're close."**
+`/etfms/airports` counts arrival demand per airport per hour across 841
+airports, transatlantic included — EGLL's hourly lists held `BAW8DS KLAX→EGLL`,
+`BAW40F KJFK→EGLL`, `CX251 VHHX→EGLL`.
+
+**What survives, and it is the whole of the real gap:** vIFF counts those
+arrivals *at a statically computed time*. Its ETA is TOBT + taxi + filed ETE and
+does not respond to wind. Measured on FAL57 the same evening: vIFF held **1939**
+from pushback through touchdown while the actual was **1952**, and our
+wind-corrected estimate tracked 19:37 → 19:48 as the headwind built 55 → 84 kt.
+A 13-minute error puts the demand in the wrong hourly bucket; on a NAT crossing
+it is routinely worse.
+
+So the contribution is not visibility. **It is better arrival times underneath a
+demand picture he already keeps.** That is a smaller claim, it credits what he
+built, and unlike the first two versions it is verifiable.
+
+**Method note for next time:** absence from one endpoint is not absence from the
+system. Every claim of the form "vIFF cannot X" needs a positive test before it
+goes in a message to its author.
 
 ## What we have that vIFF does not
 
