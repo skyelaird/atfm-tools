@@ -143,3 +143,52 @@ with these deliberate properties:
 Still worth asking Roger for: whether a slot *we* issued can be represented in
 the VDGS panel, since the plugin's default private message already sends every
 pilot there. Reading constraints does not solve pilot-side delivery.
+
+## Live test, 2026-09-02: FAL57 CYYZ→CYHZ
+
+Joel filed and connected a real flight into CYHZ while a CYHZ ARR/20
+restriction was active in vIFF. What each leg of the loop actually did:
+
+| Leg | Result |
+|---|---|
+| Constraint authored in vIFF → readable by us | **Works.** Public, unauthenticated. |
+| vIFF tracks the flight | **No.** Never appeared in `/etfms/relevant`. |
+| vIFF issues its own CTOT against its own restriction | **No.** None issued. |
+| VDGS identifies the pilot | **Works.** CID → callsign, EOBT off the flight plan. |
+| Pilot sets TOBT on the VDGS | **Works.** 1645 accepted, window recomputed to 16:40. |
+| That TOBT reaching us | **No.** Not in any public feed. |
+
+The VDGS badge explains most of it: **A-CDM DISCONNECTED**. vIFF was not
+running the CDM process for CYYZ, so it held no TOBT/TSAT/CTOT and its
+allocator never considered the flight — which means **a vIFF restriction is
+inert unless vIFF is also tracking the flight.**
+
+Two consequences.
+
+**Good: the two-allocators conflict does not materialise in Canadian ops.**
+vIFF can hold the constraint without contending for the slot, because it will
+not act on a flight it is not tracking. We track every flight in scope
+regardless of who is online. Constraint there, allocation here, no contention
+to resolve — which is exactly the architecture we want.
+
+**Bad: there are now two TOBT stores and no reconciliation.** The pilot did
+the right thing, the VDGS confirmed it, and our allocator would still have
+issued a slot against the superseded 1635. That divergence is silent on both
+sides. The cheap mitigation is already known: **repoint the CDM plugin's
+`<PrivateMessage text>` at our own portal** for Canadian ops, so pilots set
+TOBT where the system that issues their slot can read it. Otherwise the
+plugin's default message actively sends them to the wrong place.
+
+So the ask to Roger gains a third item, and it is now the most valuable one:
+**expose per-flight TOBT for flights vIFF is not running CDM for**, or include
+them in `/etfms/relevant`. Without it the loop cannot close through vIFF.
+
+### Incidental measurement
+
+Their taxi time for CYYZ is **15 min flat** (the airport's single `TAXITIME`
+config value). Ours was **8 min**, from the gate polygon the aircraft was
+actually parked on (`taxizones.txt`). That difference propagates straight into
+TTOT and therefore into any CTOT.
+
+Both systems independently computed the same start-up window opening — 16:30
+from EOBT 1635, and 16:40 after TOBT moved to 1645. No shared code.
