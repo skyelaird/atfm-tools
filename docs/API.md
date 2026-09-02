@@ -437,7 +437,12 @@ For development and troubleshooting. Not intended for external consumers.
 
 ## 9. Integration Guide
 
-### For PERTI / Jeremy (vATCSCC)
+### For PERTI / Jeremy (vATCSCC) — dormant
+
+PERTI was parked by its owner in 2026-09 (hosting cost), so this section
+describes an integration nobody is currently running. The wire format below
+is unchanged and stays the contract for any SWIM-shaped consumer, PERTI or
+otherwise.
 
 Use `/api/v1/flights` as the primary data source. The top-level fields
 (`callsign`, `cid`, `departure`, `arrival`, `aircraft_short`, `deptime`,
@@ -447,9 +452,9 @@ that PERTI doesn't compute.
 
 **Recommended polling cadence:** every 2-5 minutes.
 
-**Cross-validation:** compare our `cta_utc` (TLDT) with PERTI's CTA for
-the same flight. Our `eldt` is the live prediction; theirs may differ
-because we use descent-aware estimation with type-specific speed schedules.
+**Cross-validation:** was to compare our `cta_utc` (TLDT) against PERTI's CTA
+for the same flight. Not possible while PERTI is offline — `eldt_perti` on
+`/api/v1/perti/compare` and `/api/v1/accuracy` is historical data only.
 
 ### For CDM EuroScope Plugin operators
 

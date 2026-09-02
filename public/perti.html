@@ -3,7 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>atfm-tools — PERTI Comparison</title>
+    <title>atfm-tools — ELDT QA</title>
     <style>
         :root {
             --bg: #0f1419; --bg-elev: #1a2028; --bg-elev-hi: #242c38;
@@ -101,7 +101,7 @@
 </head>
 <body>
 <header>
-    <h1>atfm-tools <span class="muted">PERTI Comparison</span></h1>
+    <h1>atfm-tools <span class="muted">ELDT QA</span></h1>
     <span class="utc-clock mono" id="utc-clock">––:––:––Z</span>
     <div class="nav-pills">
         <a href="/dashboard.html" class="pill">dashboard</a>
@@ -113,7 +113,7 @@
 </header>
 
 <main>
-    <div id="content"><div class="loading">Fetching PERTI comparison...</div></div>
+    <div id="content"><div class="loading">Fetching inbound ELDT...</div></div>
 </main>
 
 <script>
@@ -168,60 +168,48 @@ async function load() {
 }
 
 function render(d) {
-    $('status-pill').textContent = `PERTI ${hhmmz(d.perti_snapshot)}Z`;
+    $('status-pill').textContent = `${hhmmz(d.timestamp)}Z`;
 
-    // Defensive defaults — payloads have occasionally come back missing
-    // these keys (e.g. when upstream PERTI 502s partway through the
-    // handler), which crashed the renderer on .length access.
-    d.active_tmis = d.active_tmis || [];
+    // Defensive defaults — the payload has occasionally come back missing
+    // these keys, which crashed the renderer on .length access.
     d.comparisons = d.comparisons || [];
 
     let html = '';
 
-    // Summary bar
+    // Summary bar. PERTI was retired by its owner, so there is no external
+    // ADL to compare against — the numbers here are our own coverage.
+    const withEldt = d.comparisons.filter(c => c.our_eldt);
+    const withGrib = d.comparisons.filter(c => c.eldt_wind);
     html += `<div class="summary-bar">
-        <div class="summary-stat"><div class="lbl">PERTI flights</div><div class="val">${d.perti_total ?? '—'}</div></div>
-        <div class="summary-stat"><div class="lbl">Our active</div><div class="val">${d.our_active ?? '—'}</div></div>
-        <div class="summary-stat"><div class="lbl">Matched</div><div class="val">${d.matched ?? '—'}</div></div>
-        <div class="summary-stat"><div class="lbl">Unmatched</div><div class="val">${d.unmatched ?? '—'}</div></div>
-        <div class="summary-stat"><div class="lbl">TMIs</div><div class="val ${d.active_tmis.length ? 'tmi-active' : 'tmi-none'}">${d.active_tmis.length || 'None'}</div></div>
+        <div class="summary-stat"><div class="lbl">Inbound tracked</div><div class="val">${d.our_active ?? '—'}</div></div>
+        <div class="summary-stat"><div class="lbl">With ELDT</div><div class="val">${withEldt.length}</div></div>
+        <div class="summary-stat"><div class="lbl">With GRIB</div><div class="val">${withGrib.length}</div></div>
+        <div class="summary-stat"><div class="lbl">Frozen (TLDT)</div><div class="val">${d.comparisons.filter(c => c.our_frozen).length}</div></div>
     </div>`;
 
-    // TMI section
-    if (d.active_tmis.length > 0) {
-        html += `<section><h2>Active TMIs (EDCT / CTD / CTA)</h2><div class="table-wrap"><table>
-            <thead><tr><th>Callsign</th><th>From</th><th>To</th><th>EDCT</th><th>CTD</th><th>CTA</th></tr></thead><tbody>`;
-        for (const t of d.active_tmis) {
-            html += `<tr>
-                <td class="mono">${t.callsign}</td>
-                <td class="mono">${t.adep}</td>
-                <td class="mono">${t.ades}</td>
-                <td class="mono">${t.edct ? hhmmz(t.edct) : '—'}</td>
-                <td class="mono">${t.ctd ? hhmmz(t.ctd) : '—'}</td>
-                <td class="mono">${t.cta ? hhmmz(t.cta) : '—'}</td>
-            </tr>`;
-        }
-        html += '</tbody></table></div></section>';
-    }
+    // Live inbound. Split into flights that have an ELDT and those that
+    // don't yet — with PERTI gone, the useful QA question is "do we have a
+    // number, and does GRIB back it up", not "how far off is upstream".
+    const haveEldt = d.comparisons.filter(c => c.our_eldt);
+    const noEldt   = d.comparisons.filter(c => !c.our_eldt);
 
-    // Flight comparisons
-    // Split into: with ETA delta (sortable) and without
-    const withEta = d.comparisons.filter(c => c.eta_delta_min !== null);
-    const withoutEta = d.comparisons.filter(c => c.eta_delta_min === null);
-
-    if (withEta.length > 0) {
-        withEta.sort((a, b) => Math.abs(b.eta_delta_min) - Math.abs(a.eta_delta_min));
-        const avgDelta = withEta.reduce((s, c) => s + Math.abs(c.eta_delta_min), 0) / withEta.length;
-
-        html += `<section><h2>ETA Comparison — ${withEta.length} flights, avg |delta| = ${avgDelta.toFixed(0)} min</h2>
+    if (haveEldt.length > 0) {
+        haveEldt.sort((a, b) => (a.our_eldt || '').localeCompare(b.our_eldt || ''));
+        html += `<section><h2>Inbound ELDT — ${haveEldt.length} flights</h2>
             <div class="table-wrap"><table>
-            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>Our ELDT</th><th>GRIB ELDT</th><th>PERTI ETA</th><th>Delta</th><th>Tags</th><th>Phase</th></tr></thead><tbody>`;
-        for (const c of withEta) {
+            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>Our ELDT</th><th>GRIB ELDT</th><th>Delta</th><th>Tags</th><th>Phase</th></tr></thead><tbody>`;
+        for (const c of haveEldt) {
             const tags = [];
             if (c.our_simbrief) tags.push('<span class="tag tag-simbrief">SB</span>');
             if (c.our_frozen) tags.push('<span class="tag tag-frozen">FRZ</span>');
-            if (c.match_method === 'flight_key') tags.push('<span class="tag tag-keymatch">key</span>');
-            else tags.push('<span class="tag tag-csmatch">cs</span>');
+
+            // Delta = our ELDT minus the GRIB value. Zero when WIND_GRIB is
+            // the winning tier (it usually is) — a non-zero delta means a
+            // lower tier won and is worth a look.
+            let delta = null;
+            if (c.our_eldt && c.eldt_wind) {
+                delta = Math.round((Date.parse(c.our_eldt) - Date.parse(c.eldt_wind)) / 60000);
+            }
 
             html += `<tr>
                 <td class="mono">${c.callsign}</td>
@@ -229,32 +217,28 @@ function render(d) {
                 <td class="mono">${c.adep || '?'} → ${c.ades}</td>
                 <td class="mono">${hhmmz(c.our_eldt)}</td>
                 <td class="mono" style="${c.our_frozen ? 'color:var(--accent);' : ''}" title="${c.our_frozen ? 'TLDT — frozen at T-90m' : 'ELDT — live estimate, not yet frozen'}">${c.eldt_wind ? hhmmz(c.eldt_wind) : windReasonLabel(c.wind_reason)}</td>
-                <td class="mono">${hhmmz(c.perti_eta)}</td>
-                <td class="mono ${deltaClass(c.eta_delta_min)}">${c.eta_delta_min > 0 ? '+' : ''}${c.eta_delta_min}m</td>
+                <td class="mono ${delta === null ? 'muted' : deltaClass(delta)}">${delta === null ? '—' : (delta > 0 ? '+' : '') + delta + 'm'}</td>
                 <td>${tags.join(' ')}</td>
-                <td class="muted">${c.display_phase || c.our_phase} / ${c.perti_phase || '?'}</td>
+                <td class="muted">${c.display_phase || c.our_phase}</td>
             </tr>`;
         }
         html += '</tbody></table></div></section>';
     }
 
-    // Flights matched but no ETA comparison possible
-    if (withoutEta.length > 0) {
-        html += `<section><h2>Matched — No ETA Comparison (${withoutEta.length})</h2>
+    if (noEldt.length > 0) {
+        html += `<section><h2>No ELDT Yet (${noEldt.length})</h2>
             <div class="table-wrap"><table>
-            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>Phase</th><th>Why no ELDT</th><th>PERTI ETA</th><th>Tags</th></tr></thead><tbody>`;
-        for (const c of withoutEta) {
+            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>Phase</th><th>Why no ELDT</th><th>Tags</th></tr></thead><tbody>`;
+        for (const c of noEldt) {
             const tags = [];
             if (c.our_simbrief) tags.push('<span class="tag tag-simbrief">SB</span>');
             if (c.our_frozen) tags.push('<span class="tag tag-frozen">FRZ</span>');
-            if (c.perti_edct) tags.push('<span class="tag tag-edct">EDCT</span>');
             html += `<tr>
                 <td class="mono">${c.callsign}</td>
                 <td class="mono muted">${c.aircraft_type || '?'}</td>
                 <td class="mono">${c.adep || '?'} → ${c.ades}</td>
                 <td class="muted">${c.display_phase || c.our_phase}</td>
                 <td class="muted">${c.no_eldt_reason || '—'}</td>
-                <td class="mono muted">${hhmmz(c.perti_eta)}</td>
                 <td>${tags.join(' ')}</td>
             </tr>`;
         }
@@ -267,19 +251,15 @@ function render(d) {
     if (landings.length > 0) {
         function median(arr) { if (!arr.length) return null; const s = arr.slice().sort((a,b) => a-b); const m = Math.floor(s.length/2); return s.length % 2 ? s[m] : (s[m-1]+s[m])/2; }
         const ourMed = median(landings.map(l => Math.abs(l.our_err_min))).toFixed(1);
-        const pertiLandings = landings.filter(l => l.perti_err_min !== null && Math.abs(l.perti_err_min) <= 120);
-        const pertiMed = pertiLandings.length > 0
-            ? median(pertiLandings.map(l => Math.abs(l.perti_err_min))).toFixed(1)
-            : '—';
 
         const windLandings = landings.filter(l => l.wind_err_min !== null && Math.abs(l.wind_err_min) <= 120);
         const windMed = windLandings.length > 0
             ? median(windLandings.map(l => Math.abs(l.wind_err_min))).toFixed(1)
             : '—';
 
-        html += `<section><h2>Post-Landing Accuracy (last 2h) — ${landings.length} flights, median |err|: us=${ourMed}m, GRIB=${windMed}m, PERTI=${pertiMed}m</h2>
+        html += `<section><h2>Post-Landing Accuracy (last 2h) — ${landings.length} flights, median |err|: us=${ourMed}m, GRIB=${windMed}m</h2>
             <div class="table-wrap"><table>
-            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>ALDT</th><th>Our ELDT</th><th>Us err</th><th>GRIB ELDT</th><th>GRIB err</th><th>PERTI ETA</th><th>PERTI err</th></tr></thead><tbody>`;
+            <thead><tr><th>Callsign</th><th>Type</th><th>Route</th><th>ALDT</th><th>Our ELDT</th><th>Us err</th><th>GRIB ELDT</th><th>GRIB err</th></tr></thead><tbody>`;
         for (const l of landings) {
             html += `<tr>
                 <td class="mono">${l.callsign}</td>
@@ -290,8 +270,6 @@ function render(d) {
                 <td class="mono ${deltaClass(l.our_err_min)}">${l.our_err_min > 0 ? '+' : ''}${l.our_err_min}m</td>
                 <td class="mono">${l.eldt_wind ? hhmmz(l.eldt_wind) : windReasonHist(l.wind_reason)}</td>
                 <td class="mono ${l.wind_err_min !== null ? deltaClass(l.wind_err_min) : 'muted'}">${l.wind_err_min !== null ? (l.wind_err_min > 0 ? '+' : '') + l.wind_err_min + 'm' : '—'}</td>
-                <td class="mono">${hhmmz(l.eldt_perti)}</td>
-                <td class="mono ${l.perti_err_min !== null ? deltaClass(l.perti_err_min) : 'muted'}">${l.perti_err_min !== null ? (l.perti_err_min > 0 ? '+' : '') + l.perti_err_min + 'm' : '—'}</td>
             </tr>`;
         }
         html += '</tbody></table></div></section>';
@@ -316,9 +294,6 @@ function render(d) {
         <div style="display:flex;gap:1rem;flex-wrap:wrap;font-size:0.8rem;">
             <span><span class="tag tag-simbrief">SB</span> SimBrief flight plan</span>
             <span><span class="tag tag-frozen">FRZ</span> ELDT frozen (T-90m)</span>
-            <span><span class="tag tag-keymatch">key</span> Matched by flight_key</span>
-            <span><span class="tag tag-csmatch">cs</span> Matched by callsign fallback</span>
-            <span><span class="tag tag-edct">EDCT</span> PERTI departure clearance time</span>
             <span class="${deltaClass(3)}">green</span> |delta| &le; 5 min
             <span class="${deltaClass(8)}">yellow</span> |delta| &le; 15 min
             <span class="${deltaClass(20)}">red</span> |delta| &gt; 15 min
@@ -371,10 +346,12 @@ async function loadAccuracy() {
         // API may return { flights: [...] } or just [...]
         const flights = Array.isArray(raw) ? raw : (raw.flights || []);
         histData = flights.filter(f => !f.synthetic && (f.our_err_min === null || Math.abs(f.our_err_min) <= 120));
-        // Cap obviously garbage PERTI/GRIB errors (e.g. stale day-old PERTI ETA → -825m)
+        // Cap obviously garbage GRIB/SimBrief errors. Stale values survive
+        // on recycled flight_keys (seen: an eldt_wind 4 months old giving a
+        // 185683m error), and SimBrief OFPs are filed hours before pushback.
         histData.forEach(f => {
-            if (f.perti_err_min !== null && Math.abs(f.perti_err_min) > 120) f.perti_err_min = null;
             if (f.wind_err_min !== null && Math.abs(f.wind_err_min) > 120) f.wind_err_min = null;
+            if (f.sb_err_min !== null && Math.abs(f.sb_err_min) > 120) f.sb_err_min = null;
         });
         renderAccuracy();
     } catch (err) {
@@ -393,9 +370,11 @@ function renderAccuracy() {
 
     let html = '';
 
-    // --- Summary: ours vs PERTI ---
+    // --- Summary: ours vs GRIB vs SimBrief ---
+    // PERTI was retired by its owner; SimBrief (the dispatch OFP ETA) is
+    // the only external comparator left, and it is advisory only.
     const ourErrs = rows.filter(r => r.our_err_min !== null);
-    const pertiErrs = rows.filter(r => r.perti_err_min !== null);
+    const sbErrs = rows.filter(r => r.sb_err_min !== null);
 
     function medianOf(arr) { if (!arr.length) return null; const s = arr.slice().sort((a,b) => a-b); const m = Math.floor(s.length/2); return s.length % 2 ? s[m] : (s[m-1]+s[m])/2; }
     function stats(arr, key) {
@@ -411,25 +390,25 @@ function renderAccuracy() {
     }
 
     const ourS = stats(ourErrs, 'our_err_min');
-    const pertiS = stats(pertiErrs, 'perti_err_min');
+    const sbS = stats(sbErrs, 'sb_err_min');
 
     const windErrs = rows.filter(r => r.wind_err_min !== null);
     const windS = stats(windErrs, 'wind_err_min');
 
     html += '<div class="summary-bar" style="display:grid;grid-template-columns:auto 1fr 1fr 1fr;gap:0.5rem 1.5rem;align-items:center;">';
-    html += '<div></div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">Our Model</div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">GRIB Wind</div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">PERTI</div>';
+    html += '<div></div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">Our Model</div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">GRIB Wind</div><div style="font-size:0.7rem;color:var(--text-dim);text-transform:uppercase;text-align:center;">SimBrief</div>';
     const metricRows = [
-        ['n', ourS.n, windS.n, pertiS.n],
-        ['Median error', ourS.median !== null ? fmtSigned(ourS.median) + 'm' : '—', windS.median !== null ? fmtSigned(windS.median) + 'm' : '—', pertiS.median !== null ? fmtSigned(pertiS.median) + 'm' : '—'],
-        ['|Median|', ourS.absMedian !== null ? ourS.absMedian.toFixed(1) + 'm' : '—', windS.absMedian !== null ? windS.absMedian.toFixed(1) + 'm' : '—', pertiS.absMedian !== null ? pertiS.absMedian.toFixed(1) + 'm' : '—'],
-        ['\u00b13 min', ourS.w3 !== null ? ourS.w3.toFixed(1) + '%' : '—', windS.w3 !== null ? windS.w3.toFixed(1) + '%' : '—', pertiS.w3 !== null ? pertiS.w3.toFixed(1) + '%' : '—'],
-        ['\u00b15 min', ourS.w5 !== null ? ourS.w5.toFixed(1) + '%' : '—', windS.w5 !== null ? windS.w5.toFixed(1) + '%' : '—', pertiS.w5 !== null ? pertiS.w5.toFixed(1) + '%' : '—'],
+        ['n', ourS.n, windS.n, sbS.n],
+        ['Median error', ourS.median !== null ? fmtSigned(ourS.median) + 'm' : '—', windS.median !== null ? fmtSigned(windS.median) + 'm' : '—', sbS.median !== null ? fmtSigned(sbS.median) + 'm' : '—'],
+        ['|Median|', ourS.absMedian !== null ? ourS.absMedian.toFixed(1) + 'm' : '—', windS.absMedian !== null ? windS.absMedian.toFixed(1) + 'm' : '—', sbS.absMedian !== null ? sbS.absMedian.toFixed(1) + 'm' : '—'],
+        ['\u00b13 min', ourS.w3 !== null ? ourS.w3.toFixed(1) + '%' : '—', windS.w3 !== null ? windS.w3.toFixed(1) + '%' : '—', sbS.w3 !== null ? sbS.w3.toFixed(1) + '%' : '—'],
+        ['\u00b15 min', ourS.w5 !== null ? ourS.w5.toFixed(1) + '%' : '—', windS.w5 !== null ? windS.w5.toFixed(1) + '%' : '—', sbS.w5 !== null ? sbS.w5.toFixed(1) + '%' : '—'],
     ];
-    for (const [lbl, ours, wind, perti] of metricRows) {
+    for (const [lbl, ours, wind, sb] of metricRows) {
         html += `<div style="font-size:0.75rem;color:var(--text-dim);">${lbl}</div>`;
         html += `<div class="mono" style="text-align:center;color:var(--text-bright);">${ours}</div>`;
         html += `<div class="mono" style="text-align:center;color:var(--accent);">${wind}</div>`;
-        html += `<div class="mono" style="text-align:center;color:var(--text-bright);">${perti}</div>`;
+        html += `<div class="mono" style="text-align:center;color:var(--text-bright);">${sb}</div>`;
     }
     html += '</div>';
 
@@ -469,11 +448,11 @@ function renderAccuracy() {
     const aptKeys = Object.keys(airports).sort((a,b) => (WE[a] ?? 99) - (WE[b] ?? 99));
 
     html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">Accuracy by Airport</h3>';
-    html += '<div class="table-wrap"><table><thead><tr><th>Airport</th><th>n (ours)</th><th>Our median</th><th>Our \u00b13%</th><th>n (PERTI)</th><th>PERTI median</th><th>PERTI \u00b13%</th></tr></thead><tbody>';
+    html += '<div class="table-wrap"><table><thead><tr><th>Airport</th><th>n (ours)</th><th>Our median</th><th>Our \u00b13%</th><th>n (SB)</th><th>SB median</th><th>SB \u00b13%</th></tr></thead><tbody>';
     for (const apt of aptKeys) {
         const arr = airports[apt];
         const ourA = stats(arr.filter(r => r.our_err_min !== null), 'our_err_min');
-        const pA = stats(arr.filter(r => r.perti_err_min !== null), 'perti_err_min');
+        const pA = stats(arr.filter(r => r.sb_err_min !== null), 'sb_err_min');
         html += `<tr>
             <td class="mono">${apt}</td>
             <td class="mono">${ourA.n}</td>
@@ -488,8 +467,8 @@ function renderAccuracy() {
 
     // --- Full flight table (sortable) ---
     // Show one row per flight, but group by "what prediction(s) landed".
-    // A flight with only PERTI (no Our ELDT) still shows — the PERTI cell
-    // is populated, the Our cell is a dim em-dash. This keeps the table
+    // A flight with only a SimBrief ETA (no Our ELDT) still shows — the SB
+    // cell is populated, the Our cell is a dim em-dash. This keeps the table
     // aligned with the broader sample used for per-source stats.
     let sorted = [...rows];
     if (histSortCol !== null) {
@@ -504,8 +483,8 @@ function renderAccuracy() {
 
     const nOur = rows.filter(r => r.our_err_min !== null).length;
     const nWind = rows.filter(r => r.wind_err_min !== null).length;
-    const nPerti = rows.filter(r => r.perti_err_min !== null).length;
-    html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">All Flights (' + sorted.length + ') <span class="muted" style="font-weight:400;font-size:0.75rem;"> — sample coverage: ours ' + nOur + ' / GRIB ' + nWind + ' / PERTI ' + nPerti + '</span></h3>';
+    const nSb = rows.filter(r => r.sb_err_min !== null).length;
+    html += '<div style="margin-top:1rem;"><h3 style="font-size:0.85rem;color:var(--text-bright);margin:0 0 0.4rem;">All Flights (' + sorted.length + ') <span class="muted" style="font-weight:400;font-size:0.75rem;"> — sample coverage: ours ' + nOur + ' / GRIB ' + nWind + ' / SimBrief ' + nSb + '</span></h3>';
     html += '<div class="table-wrap"><table id="hist-table"><thead><tr>';
     const cols = [
         { key: 'callsign', label: 'Callsign' },
@@ -516,8 +495,8 @@ function renderAccuracy() {
         { key: 'our_err_min', label: 'Us err' },
         { key: 'eldt_wind', label: 'GRIB ELDT' },
         { key: 'wind_err_min', label: 'GRIB err' },
-        { key: 'eldt_perti', label: 'PERTI ETA' },
-        { key: 'perti_err_min', label: 'PERTI err' },
+        { key: 'eldt_simbrief', label: 'SB ETA' },
+        { key: 'sb_err_min', label: 'SB err' },
         { key: 'locked_source', label: 'Source' },
     ];
     for (const c of cols) {
@@ -535,8 +514,8 @@ function renderAccuracy() {
             <td class="mono ${deltaClass(r.our_err_min)}">${r.our_err_min !== null ? (r.our_err_min > 0 ? '+' : '') + r.our_err_min + 'm' : '—'}</td>
             <td class="mono">${r.eldt_wind ? hhmmz(r.eldt_wind) : windReasonHist(r.wind_reason)}</td>
             <td class="mono ${r.wind_err_min !== null ? deltaClass(r.wind_err_min) : 'muted'}">${r.wind_err_min !== null ? (r.wind_err_min > 0 ? '+' : '') + r.wind_err_min + 'm' : '—'}</td>
-            <td class="mono">${hhmmz(r.eldt_perti)}</td>
-            <td class="mono ${r.perti_err_min !== null ? deltaClass(r.perti_err_min) : 'muted'}">${r.perti_err_min !== null ? (r.perti_err_min > 0 ? '+' : '') + r.perti_err_min + 'm' : '—'}</td>
+            <td class="mono">${hhmmz(r.eldt_simbrief)}</td>
+            <td class="mono ${r.sb_err_min !== null ? deltaClass(r.sb_err_min) : 'muted'}">${r.sb_err_min !== null ? (r.sb_err_min > 0 ? '+' : '') + r.sb_err_min + 'm' : '—'}</td>
             <td class="mono muted">${r.locked_source || '—'}</td>
         </tr>`;
     }

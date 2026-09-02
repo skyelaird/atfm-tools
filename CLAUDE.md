@@ -36,7 +36,7 @@ Not multi-region. Not a generalised flow management platform.
 - GRIB 250mb wind is **authoritative** in the ETA cascade (v0.5.64+).
   `WindEta::computeForFlight()` runs inline during ingest — top-priority
   airborne tier (WIND_GRIB, conf 92). `eldt_wind` column retained for
-  QA comparison on the PERTI page. `bin/compute-wind-eldt.php` also
+  QA comparison on the ELDT QA page. `bin/compute-wind-eldt.php` also
   available as standalone cron for batch updates. Pure PHP, no Python.
 - Never invent A-CDM milestones we can't observe (e.g. **never stamp ASAT**
   from the ingestor — it's a controller event, not a position event)
@@ -180,7 +180,7 @@ airborne tier (conf 92). Computed inline during ingest by
 ATOT + filed ETE (conf 90), then geometric OBSERVED_POS (conf 85).
 
 `eldt_wind` column also written for three-way QA comparison on the
-PERTI page (our ELDT / GRIB wind / PERTI). `bin/compute-wind-eldt.php`
+ELDT QA page (our ELDT / GRIB wind / ALDT). `bin/compute-wind-eldt.php`
 available as standalone cron for batch updates.
 
 Legacy: `bin/compute-wind-eldt.py` (Python) and `bin/experiments/wind-shadow.py`
@@ -300,9 +300,8 @@ docs/
 - ~~CYWG runway threshold data~~ ✅ shipped v0.4.0 (operator-supplied)
 - ~~`bin/rot-tracker.php` + `bin/compute-aar.php`~~ shipped v0.4.0,
   **retired v0.4.7** — see "Retired ideas" below
-- Jeremy Peterson coordination for PERTI SWIM partner key — **strictly
-  optional**, not blocking. PERTI runs a public SWIM v1 API; we ingest
-  VATSIM directly so we don't need it.
+- ~~Jeremy Peterson coordination for PERTI SWIM partner key~~ **moot** —
+  PERTI is dead (see "Retired ideas" below).
 - ~~Persist `eta_source` on flights table~~ ✅ shipped v0.5.24
 - ~~Add ETA accuracy breakdown by source tier to reports page~~ ✅ shipped v0.5.24
 - ~~TOBT proxy from spawn-to-movement stats~~ ✅ shipped v0.5.24
@@ -328,6 +327,18 @@ docs/
   API: GET /api/v1/reports/tldt-accuracy)
 
 ## Retired ideas (don't re-propose without checking)
+
+- **PERTI as an upstream / comparator.** Parked by its owner (Jeremy
+  Peterson) in 2026-09 over hosting cost; `perti.vatcscc.org` answers
+  `503 {"error":"Service suspended","mode":"freeze"}`. Removed the live
+  fetch, the SWIM key, the dashboard match-rate pill, and the PERTI
+  columns on the QA page (v0.7.37). `eldt_perti` stays as a historical
+  column — nothing writes it any more. **Schema compatibility is a
+  separate thing and still stands**: the PERTI-shaped field names on
+  `/api/v1/flights` (`ctd_utc`, `cta_utc`, `deptime`) are the CDM plugin
+  wire contract, not a dependency on PERTI being alive. `public/perti.html`
+  keeps its path but is now our own ELDT QA page (ours vs GRIB vs ALDT,
+  with SimBrief as the one remaining external comparator, advisory only).
 
 - **ROT measurement / data-driven AAR**. v0.4.0 built `rot-tracker` and
   `compute-aar` to derive ROT and AAR from `position_scratch` history.

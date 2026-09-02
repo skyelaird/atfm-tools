@@ -1524,35 +1524,6 @@ final class Kernel
                 if (is_array($decoded)) $ingestStats = $decoded;
             }
 
-            // PERTI match rate — read the cached ADL if fresh (< 2 min),
-            // compare by flight_key. Skip the network fetch entirely if
-            // cache is stale, to keep /status latency predictable.
-            $pertiStats = null;
-            $pertiCache = sys_get_temp_dir() . '/atfm_perti_adl_cache.json';
-            if (file_exists($pertiCache) && (time() - filemtime($pertiCache)) < 120) {
-                $raw = @file_get_contents($pertiCache);
-                $adl = $raw ? json_decode($raw, true) : null;
-                if (is_array($adl) && isset($adl['flights'])) {
-                    $scope = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
-                    $pertiScopeKeys = [];
-                    foreach ($adl['flights'] as $pf) {
-                        $dest = $pf['fp_dest_icao'] ?? '';
-                        if (in_array($dest, $scope, true) && !empty($pf['flight_key'])) {
-                            $pertiScopeKeys[$pf['flight_key']] = true;
-                        }
-                    }
-                    $pertiScopeN = count($pertiScopeKeys);
-                    $oursHave = Flight::whereIn('flight_key', array_keys($pertiScopeKeys))
-                        ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
-                        ->count();
-                    $pertiStats = [
-                        'perti_scope'  => $pertiScopeN,
-                        'our_matched'  => $oursHave,
-                        'match_pct'    => $pertiScopeN > 0 ? round(100 * $oursHave / $pertiScopeN) : null,
-                    ];
-                }
-            }
-
             return self::json($res, [
                 'time_utc'             => $now->format('c'),
                 'airport_count'        => $airportCount,
@@ -1566,7 +1537,6 @@ final class Kernel
                 'op_level_label'       => AirportRestriction::OP_LEVEL_LABELS[$systemOpLevel] ?? '',
                 'last_ingest_at'       => $lastFlightUpdate,
                 'last_ingest_stats'    => $ingestStats,
-                'perti_completeness'   => $pertiStats,
                 'last_allocation_at'   => $lastRun?->started_at?->format('c'),
                 'last_allocation_stats' => $lastRun ? [
                     'airports_considered' => (int) $lastRun->airports_considered,
@@ -2949,49 +2919,24 @@ final class Kernel
         });
 
         // ------------------------------------------------------------------
-        //  PERTI cross-validation endpoint
+        //  Inbound ELDT QA endpoint (formerly PERTI cross-validation)
+        // ------------------------------------------------------------------
+        //  PERTI was retired by its owner (hosting cost) - its SWIM ADL is
+        //  permanently offline, so there is no upstream left to compare
+        //  against. The endpoint keeps its path and payload shape but now
+        //  serves only our own numbers: live inbound ELDT vs GRIB, and
+        //  post-landing accuracy vs ALDT. perti_* fields stay in the payload
+        //  as null so stored eldt_perti history still renders.
         // ------------------------------------------------------------------
         $app->get('/api/v1/perti/compare', function ($req, $res) {
-            $swimKey = 'swim_pub_7783b37a28c167af41788599954e3e39';
             $airports = ['CYHZ', 'CYOW', 'CYUL', 'CYVR', 'CYWG', 'CYYC', 'CYYZ'];
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
 
-            // Fetch PERTI ADL — cached for 2 min to avoid hammering their server.
-            // Multiple page loads and the ingestor all share the same cache file.
-            $cacheFile = sys_get_temp_dir() . '/atfm_perti_adl_cache.json';
-            $cacheTtl  = 120; // seconds
-            $raw = null;
-            if (file_exists($cacheFile) && (time() - filemtime($cacheFile)) < $cacheTtl) {
-                $raw = file_get_contents($cacheFile);
-            }
-            if (!$raw) {
-                $ctx = stream_context_create([
-                    'http' => [
-                        'header' => "Authorization: Bearer {$swimKey}\r\n",
-                        'timeout' => 10,
-                    ],
-                    'ssl' => ['verify_peer' => false, 'verify_peer_name' => false],
-                ]);
-                $raw = @file_get_contents('https://perti.vatcscc.org/api/adl/current', false, $ctx);
-                if ($raw === false) {
-                    return self::json($res, ['error' => 'Failed to fetch PERTI ADL'], 502);
-                }
-                @file_put_contents($cacheFile, $raw);
-            }
-            $adl = json_decode($raw, true);
-            if (!$adl || !isset($adl['flights'])) {
-                return self::json($res, ['error' => 'Invalid PERTI response'], 502);
-            }
-
-            // Index PERTI by flight_key and callsign|ades
+            // No upstream ADL. Kept as empty structures so the matching code
+            // below degrades to "everything unmatched" without branching.
+            $adl = ['flights' => []];
             $pertiByKey = [];
             $pertiByCsAdes = [];
-            foreach ($adl['flights'] as $pf) {
-                if (isset($pf['flight_key'])) $pertiByKey[$pf['flight_key']] = $pf;
-                $cs = $pf['callsign'] ?? '';
-                $dest = $pf['fp_dest_icao'] ?? '';
-                if ($cs && $dest) $pertiByCsAdes[$cs . '|' . $dest] = $pf;
-            }
 
             // Load our active inbound flights — exclude post-landing phases
             $ours = Flight::whereIn('ades', $airports)
@@ -3017,8 +2962,7 @@ final class Kernel
 
             foreach ($ours as $f) {
                 $pf = $pertiByKey[$f->flight_key] ?? $pertiByCsAdes[$f->callsign . '|' . $f->ades] ?? null;
-                if (!$pf) { $unmatched++; continue; }
-                $matched++;
+                if ($pf) { $matched++; } else { $unmatched++; }
 
                 $ourEldt = $f->eldt ? $f->eldt->getTimestamp() : null;
                 $pertiEta = isset($pf['eta_utc']) && $pf['eta_utc'] ? strtotime($pf['eta_utc']) : null;
@@ -3074,7 +3018,9 @@ final class Kernel
                     'fp_alt'        => $f->fp_altitude_ft,
                     'perti_dist_nm' => $pf['dist_to_dest_nm'] ?? null,
                     'perti_edct'    => $pf['edct_utc'] ?? null,
-                    'match_method'  => isset($pertiByKey[$f->flight_key]) ? 'flight_key' : 'callsign',
+                    'match_method'  => $pf === null
+                        ? null
+                        : (isset($pertiByKey[$f->flight_key]) ? 'flight_key' : 'callsign'),
                 ];
             }
 

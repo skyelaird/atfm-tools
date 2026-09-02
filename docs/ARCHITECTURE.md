@@ -53,7 +53,9 @@ These are explicitly out of scope for v1 (and in some cases permanently):
 - **Authoring UI for restrictions.** vIFF or PERTI owns the flow-manager web
   form. atfm-tools consumes the resulting state, it doesn't compete for the
   authoring role.
-- **Replacing PERTI for vATCSCC.** atfm-tools is schema-compatible with PERTI
+- **Replacing PERTI for vATCSCC.** (PERTI itself was parked by its owner in
+  2026-09 — see §6.5. This non-goal stands regardless.) atfm-tools is
+  schema-compatible with PERTI
   but never a drop-in replacement. We target a much narrower scope.
 - **VFR flight regulation.** VFR flights are filtered out of CTOT allocation.
 - **ROT measurement for non-VATSIM traffic.** Everything is derived from what
@@ -635,16 +637,19 @@ adaptive sub-minute polling) remains the right way to measure ROT
 precisely, and is the recommended path if a future need for real ROT
 data emerges.
 
-### 6.5 Future: PERTI SWIM live feed
+### 6.5 PERTI SWIM live feed — dead (2026-09)
 
-Deferred until after coordination with Jeremy Peterson (PERTI operator). When
-enabled:
-- Base URL: `https://perti.vatcscc.org/api/swim/v1/`
-- Auth: Bearer token (partner-tier API key issued by vATCSCC)
-- Replaces / supplements `ingest-vatsim.php` with PERTI-enriched flight records
-  (PERTI already computes phase, ctd, cta, delay_status for us)
-- Our internal schema is already compatible — swap the ingest source, nothing
-  else changes.
+PERTI was parked by its owner over hosting cost. `perti.vatcscc.org` returns
+`503 {"error":"Service suspended","mode":"freeze"}` and there is no ADL to
+consume. Nothing was ever built on it beyond the QA comparison, so nothing
+breaks: we always ingested the VATSIM feed directly.
+
+What remains of it in the codebase:
+- `eldt_perti` — historical snapshots only, never written again. Kept so old
+  accuracy rows still render.
+- The PERTI-shaped field names on `/api/v1/flights` (`ctd_utc`, `cta_utc`,
+  `deptime`, …) — that is the CDM plugin wire contract, unrelated to the
+  upstream system's health. Unchanged.
 
 ## 7. Flight lifecycle state machine
 
@@ -814,8 +819,8 @@ AND at least 5 min in ENROUTE phase for GS stabilisation). Stored as
 is observed, `ALDT - eldt_locked` is the prediction-quality KPI
 surfaced in the reports page as ELDT bias / ELDT ±3%.
 
-At freeze time, if a PERTI ETA is available, it is also snapshotted to
-`eldt_perti` for three-way comparison (ours vs PERTI vs ALDT) — see §8.5.
+At freeze time `eldt_perti` used to be snapshotted alongside for a three-way
+comparison; PERTI is dead (§6.5) so that column is historical only — see §8.6.
 
 TLDT (the allocator's slot decision) is frozen at assignment and never
 revised. `ALDT - TLDT` measures slot fidelity.
@@ -859,9 +864,9 @@ bias on the WIND_GRIB tier and ~−7 min on OBSERVED_POS, consistent with
 Short-haul flights (<90m, dominated by climb+descent) barely benefited
 from GRIB before this change.
 
-`eldt_wind` is also written as a column on the flights table so the
-PERTI page can show a three-way QA comparison (our ELDT / GRIB wind /
-PERTI). `bin/compute-wind-eldt.php` runs the same logic as a standalone
+`eldt_wind` is also written as a column on the flights table so the ELDT QA
+page (`public/perti.html`, path kept) can compare our ELDT against GRIB and
+against ALDT. `bin/compute-wind-eldt.php` runs the same logic as a standalone
 batch cron.
 
 ## 8. Allocation algorithm — TLDT-primary (v0.5.0+)
@@ -976,13 +981,14 @@ always exempt from CTOTs regardless of OpLevel. They receive a TLDT (from
 frozen ELDT) but never a CTOT — the flight is already committed and
 departure delay is meaningless.
 
-### 8.6 PERTI ETA comparison
+### 8.6 PERTI ETA comparison — retired (2026-09)
 
-The `eldt_perti` column snapshots PERTI's `eta_utc` at ELDT freeze time
-(§7.1.3) for three-way accuracy comparison: our ELDT vs PERTI vs actual
-ALDT. PERTI API lives at `perti.vatcscc.org`; authentication is via a
-SWIM partner key (Bearer token). This column is informational — the
-allocator never consumes it.
+The `eldt_perti` column snapshotted PERTI's `eta_utc` at ELDT freeze time
+(§7.1.3) for three-way accuracy comparison. PERTI is dead (§6.5), so the
+column is now historical only: nothing writes it, and rows created after
+2026-09 carry null. It was always informational — the allocator never
+consumed it. The surviving external comparator is SimBrief (`eldt_simbrief`),
+which is advisory: dispatch OFPs are filed hours before pushback.
 
 ## 9. Capacity model (AAR derivation)
 

@@ -77,7 +77,7 @@
         <a href="/dashboard.html" class="pill">&larr; dashboard</a>
         <a href="/aar.html" class="pill">AAR</a>
         <a href="/reports.html" class="pill">reports</a>
-        <a href="/perti.html" class="pill">perti</a>
+        <a href="/perti.html" class="pill">eldt qa</a>
     </div>
 </header>
 
@@ -93,7 +93,7 @@
     <li><a href="#dashboard">Dashboard Page</a></li>
     <li><a href="#aar">AAR / Runway Page</a></li>
     <li><a href="#reports">Reports Page</a></li>
-    <li><a href="#perti">PERTI Page</a></li>
+    <li><a href="#perti">ELDT QA Page</a></li>
     <li><a href="#ctot">CTOT Allocation</a></li>
     <li><a href="#milestones">A-CDM Milestones</a></li>
     <li><a href="#phases">Flight Lifecycle</a></li>
@@ -278,17 +278,18 @@ ILS_bonus      = 3 (only in IFR/LIFR conditions, for ILS-equipped runways)</pre>
 <p>Movement counts by aircraft type. Counts completed movements only (arrivals with ALDT, departures with ATOT). Per-airport columns sum ADES + ADEP movements.</p>
 
 <!-- ================================================================== -->
-<h2 id="perti">6. PERTI Page</h2>
+<h2 id="perti">6. ELDT QA Page</h2>
 
-<p>Detailed per-flight view compatible with the PERTI milestone format. Shows the full A-CDM milestone chain for each flight at a selected airport.</p>
+<p>Per-flight view of every inbound estimate: which flights have an ELDT, which don't and why, and how the frozen values compared against actual landing times.</p>
 
-<h3>Three-Way ELDT Comparison</h3>
-<p>For flights with GRIB wind data, the PERTI page shows:</p>
+<h3>ELDT Comparison</h3>
 <ul>
     <li><strong>ELDT</strong> &mdash; the system's primary estimate (from the ETA cascade)</li>
-    <li><strong>ELDT (wind)</strong> &mdash; the GRIB wind-corrected estimate (QA comparison)</li>
-    <li><strong>PERTI</strong> &mdash; the PERTI system's estimate (when available)</li>
+    <li><strong>GRIB ELDT</strong> &mdash; the wind-corrected estimate. Usually identical to ELDT, because WIND_GRIB is the top cascade tier; a non-zero delta means a lower tier won and is worth a look.</li>
+    <li><strong>SimBrief</strong> &mdash; the dispatch OFP ETA, advisory only (filed hours before pushback).</li>
 </ul>
+
+<div class="callout"><strong>PERTI retired.</strong> This page used to carry a third comparison against PERTI. PERTI was parked by its owner in 2026-09, so that column is gone; historical <code>eldt_perti</code> values from before then are still in the database.</div>
 
 <!-- ================================================================== -->
 <h2 id="ctot">7. CTOT Allocation</h2>

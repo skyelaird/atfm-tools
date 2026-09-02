@@ -298,11 +298,13 @@ declared value. Red gap ≥ 8/hr, yellow 4–7, green in tolerance.
 - **vIFF (CDM plugin)** is the consumer. It polls our
   `/cdm/etfms/restricted` endpoint and reads CTOTs as if we were the
   upstream ETFMS. It does not know or care that we're not PERTI.
-- **PERTI** is a parallel system operated by Jeremy Peterson for
-  vATCSCC. We ingest its `/api/v1/flights` endpoint read-only for
-  three-way ELDT comparison (ours vs PERTI vs SimBrief). We do **not**
-  publish to PERTI, and we do **not** depend on it for any production
-  function.
+- **PERTI** was a parallel system operated by Jeremy Peterson for
+  vATCSCC. It was parked by its owner in 2026-09 over hosting cost and
+  its API now answers `503 … "mode":"freeze"`. We only ever read it for
+  a three-way ELDT comparison, never published to it, and never depended
+  on it for a production function — so its death costs us the comparison
+  column and nothing else. SimBrief remains as the one external
+  comparator, advisory only.
 - **The FMP** — you — sees our dashboard, our reports page, and (if you
   choose) imports restrictions from vIFF or creates them locally. The
   allocator doesn't care which.
@@ -365,7 +367,8 @@ marking a flight DISCONNECTED and losing one data point.
   compatibility.
 - **v0.4** — AAR calculator (operator-declared), MATS runway advisor.
 - **v0.5** — TLDT as committed slot, T-2h → T-90m freeze horizon,
-  three-way ELDT comparison (ours/PERTI/SimBrief), descent-aware ETA,
+  three-way ELDT comparison (ours/PERTI/SimBrief — PERTI leg dead since
+  2026-09), descent-aware ETA,
   climb guard, prime-directive enforcement in the ingestor.
 
 The T-90m freeze horizon is the current consensus. If it moves, this
