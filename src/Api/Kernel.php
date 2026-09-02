@@ -2793,6 +2793,133 @@ final class Kernel
             ]);
         });
 
+        // ------------------------------------------------------------------
+        //  Terminal transit time (diagnostic)
+        // ------------------------------------------------------------------
+        //  How long arrivals ACTUALLY take from 100 nm and 40 nm out to the
+        //  ALDT stamp, measured from observed positions. Compare against what
+        //  the descent model implies for the same distance: the gap is track
+        //  miles we do not model (STAR + downwind + base + vectors), which is
+        //  the leading suspect for the flat, distance-independent early bias
+        //  in ELDT/TLDT (median -5.6 min, of which 1.1 min is the ALDT
+        //  stamping lag — see /api/v1/debug/landing-lag).
+        //
+        //  Read-only, built only from observed samples.
+        // ------------------------------------------------------------------
+        $app->get('/api/v1/debug/terminal-time', function ($req, $res) {
+            $hours = max(1, min(48, (int) ($req->getQueryParams()['hours'] ?? 48)));
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            $since = $now->modify("-{$hours} hours");
+
+            $airports = [];
+            foreach (Airport::all() as $a) {
+                $airports[$a->icao] = [
+                    'lat' => (float) $a->latitude,
+                    'lon' => (float) $a->longitude,
+                ];
+            }
+
+            $flights = Flight::whereNotNull('aldt')
+                ->where('aldt', '>=', $since->format('Y-m-d H:i:s'))
+                ->orderBy('aldt', 'desc')
+                ->limit(300)
+                ->get(['id','callsign','aircraft_type','ades','aldt']);
+
+            $rows = [];
+            foreach ($flights as $f) {
+                $apt = $airports[$f->ades] ?? null;
+                if ($apt === null) continue;
+                $aldtTs = $f->aldt->getTimestamp();
+
+                $samples = \Atfm\Models\PositionScratch::where('flight_id', $f->id)
+                    ->where('observed_at', '>=', (new DateTimeImmutable('@' . ($aldtTs - 5400)))->format('Y-m-d H:i:s'))
+                    ->where('observed_at', '<=', $f->aldt->format('Y-m-d H:i:s'))
+                    ->orderBy('observed_at', 'asc')
+                    ->get();
+                if ($samples->count() < 4) continue;
+
+                // Build (t, dist) series.
+                $series = [];
+                foreach ($samples as $sm) {
+                    $series[] = [
+                        't' => $sm->observed_at->getTimestamp(),
+                        'd' => Geo::distanceNm((float) $sm->lat, (float) $sm->lon, $apt['lat'], $apt['lon']),
+                        'gs' => (int) $sm->groundspeed_kts,
+                        'alt' => (int) $sm->altitude_ft,
+                    ];
+                }
+
+                // Last inbound crossing of a distance ring, linearly interpolated.
+                $crossing = function (float $ring) use ($series) {
+                    for ($i = count($series) - 1; $i > 0; $i--) {
+                        $a = $series[$i - 1];
+                        $b = $series[$i];
+                        if ($a['d'] >= $ring && $b['d'] < $ring) {
+                            $span = $a['d'] - $b['d'];
+                            $frac = $span > 0 ? ($a['d'] - $ring) / $span : 0.0;
+                            return [
+                                't'  => $a['t'] + (int) round($frac * ($b['t'] - $a['t'])),
+                                'gs' => $a['gs'],
+                                'alt' => $a['alt'],
+                            ];
+                        }
+                    }
+                    return null;
+                };
+
+                $c40  = $crossing(40.0);
+                $c100 = $crossing(100.0);
+                if ($c40 === null) continue;
+
+                $rows[] = [
+                    'callsign'      => $f->callsign,
+                    'aircraft_type' => $f->aircraft_type,
+                    'ades'          => $f->ades,
+                    'min_from_40nm' => round(($aldtTs - $c40['t']) / 60.0, 1),
+                    'gs_at_40nm'    => $c40['gs'],
+                    'alt_at_40nm'   => $c40['alt'],
+                    'min_from_100nm' => $c100 ? round(($aldtTs - $c100['t']) / 60.0, 1) : null,
+                    'gs_at_100nm'   => $c100['gs'] ?? null,
+                    'alt_at_100nm'  => $c100['alt'] ?? null,
+                ];
+            }
+
+            $agg = function (array $vals) {
+                $vals = array_values(array_filter($vals, fn($v) => $v !== null));
+                sort($vals);
+                $n = count($vals);
+                if ($n === 0) return ['n' => 0, 'median' => null];
+                return [
+                    'n' => $n,
+                    'median' => $n % 2 ? $vals[intdiv($n, 2)] : round(($vals[$n / 2 - 1] + $vals[$n / 2]) / 2, 1),
+                ];
+            };
+
+            $byApt = [];
+            foreach ($rows as $r) { $byApt[$r['ades']][] = $r; }
+            $aptStats = [];
+            foreach ($byApt as $icao => $rs) {
+                $aptStats[$icao] = [
+                    'from_40nm'  => $agg(array_column($rs, 'min_from_40nm')),
+                    'from_100nm' => $agg(array_column($rs, 'min_from_100nm')),
+                    'gs_at_40nm' => $agg(array_column($rs, 'gs_at_40nm')),
+                ];
+            }
+
+            return self::json($res, [
+                'generated_at' => $now->format('c'),
+                'hours'        => $hours,
+                'n'            => count($rows),
+                'overall'      => [
+                    'from_40nm'  => $agg(array_column($rows, 'min_from_40nm')),
+                    'from_100nm' => $agg(array_column($rows, 'min_from_100nm')),
+                ],
+                'note'         => 'Observed minutes from the distance ring to the ALDT stamp. Subtract ~1.1 min of ALDT stamping lag for true wheels-on.',
+                'by_airport'   => $aptStats,
+                'flights'      => array_slice($rows, 0, 100),
+            ]);
+        });
+
         $app->get('/api/v1/debug/runway-thresholds', function ($req, $res) {
             return self::json($res, RunwayThreshold::orderBy('airport_icao')->orderBy('runway_ident')->get()->toArray());
         });
