@@ -156,7 +156,7 @@ restriction was active in vIFF. What each leg of the loop actually did:
 | vIFF issues its own CTOT against its own restriction | **No.** None issued. |
 | VDGS identifies the pilot | **Works.** CID → callsign, EOBT off the flight plan. |
 | Pilot sets TOBT on the VDGS | **Works.** 1645 accepted, window recomputed to 16:40. |
-| That TOBT reaching us | **No.** Not in any public feed. |
+| That TOBT reaching us | **Unproven** — absent from `/etfms/relevant`, but `/ifps/depAirport` was not tested in time. See correction below. |
 
 The VDGS badge explains most of it: **A-CDM DISCONNECTED**. vIFF was not
 running the CDM process for CYYZ, so it held no TOBT/TSAT/CTOT and its
@@ -241,3 +241,30 @@ sequencing Canadian flights buys little. The valuable asks are now:
 
 Until either exists, the mitigation stands and needs nobody: point the CDM
 plugin's `<PrivateMessage text>` at our own portal for Canadian ops.
+
+### Correction: the read-back is unproven, not blocked
+
+The table above originally read "not in any public feed", based only on
+`/etfms/relevant`. That was overstated. A second public endpoint exists and
+carries exactly the fields in question:
+
+```
+GET https://viff-system.network/ifps/depAirport?airport=CYYZ
+fields: callsign cid departure arrival eobt tobt obt reqTobt taxi ctot
+        aobt atot eta mostPenalizingAirspace cdmSts informed
+        latestRevisedCtot atfcmStatus atfcmData cdmData
+```
+
+It is **per airport**, which suits our seven exactly — seven cheap polls, no
+network-wide filtering. It returned 7 live CYYZ departures when tested.
+
+Whether a VDGS-set TOBT populates `tobt` / `reqTobt` there is **untested**: by
+the time this endpoint was found, FAL57 had disconnected and was gone from the
+VATSIM datafeed, so its absence from vIFF proved nothing. The rows that were
+returned had empty `tobt`/`reqTobt`, but they were non-CDM flights that had
+already departed — equally uninformative.
+
+**The test to run**, and it needs nobody's cooperation: connect, set a TOBT on
+the VDGS, then `GET /ifps/depAirport?airport=<ADEP>` and look for the callsign.
+If `tobt` or `reqTobt` carries the pilot's value, the read-back leg closes
+today and the third ask to Roger disappears.
