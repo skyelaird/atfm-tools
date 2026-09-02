@@ -1269,8 +1269,14 @@ final class Kernel
             if (!preg_match('/^[A-Z0-9]{2,10}$/', $callsign)) {
                 return self::json($res->withStatus(400), ['error' => 'invalid callsign']);
             }
+            // A DISCONNECTED record is by definition not the flight the pilot
+            // is sitting in now. Sort those last, so a pilot who refiles under
+            // the same callsign sees their live flight rather than the stale
+            // one — which otherwise wins on last_updated_at until our next
+            // ingest cycle picks the new flight_key up.
             $f = Flight::where('callsign', $callsign)
                 ->whereNotIn('phase', [Flight::PHASE_WITHDRAWN])
+                ->orderByRaw("CASE WHEN phase = '" . Flight::PHASE_DISCONNECTED . "' THEN 1 ELSE 0 END ASC")
                 ->orderBy('last_updated_at', 'desc')
                 ->first();
             if (!$f) {
