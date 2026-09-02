@@ -77,7 +77,10 @@ minutes out, because he had declared 1750 and we were using our 1735 proxy.
   `alt/318` geometry rather than by position in the procedure, so STAR track
   miles get flown at cruise/descent speeds — that one biases the frozen TLDT.
   Fix needs no new data; see `docs/sessions/2026-09-02_star-truncation.md`.
-  **This is the top ETA priority, ahead of observed-TAS.**
+  **This is the top ETA priority, ahead of observed-TAS.** Defect 1
+  (truncation) fixed in v0.7.64/65. Defect 2 (speed bands by geometry) is
+  designed in `docs/TERMINAL-PATH-MODEL.md` and not yet built — the navdata it
+  needs now exists in `data/procedures-v2.json` (v0.7.66).
 - **ELDT bias attributed (2026-09-02, n=1475 over 14 d).** Median TLDT error
   **+5.6 min** — sign convention project-wide is `error = actual − predicted`,
   so positive means the aircraft landed after our estimate, i.e. we predicted
@@ -127,6 +130,8 @@ from the VATSIM data feed. Serves the CDM EuroScope plugin via its
   and what it means for CTP staffing decisions
 - `docs/nat-fl-allocation.md` — NAT FL stack + capacity model
 - `docs/w27-uncertainty-model.md` — Westbound 2027 per-flight MC design
+- `docs/TERMINAL-PATH-MODEL.md` — designed replacement for the geometric
+  terminal model: STAR variant → approach, at published constraints
 - `docs/VIFF-INTEGRATION.md` — vIFF's restriction model vs ours, their write
   path, and what to ask Roger for
 
