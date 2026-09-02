@@ -83,6 +83,13 @@ minutes out, because he had declared 1750 and we were using our 1735 proxy.
   to the modelled last 40 nm): CYUL +5.8, CYYZ +5.0, CYVR +4.7, CYHZ +3.6,
   CYOW +3.3, CYWG +2.7, CYYC +2.1.
   Diagnostics: `/api/v1/debug/landing-lag`, `/api/v1/debug/terminal-time`.
+  **Confirmed live 2026-09-02** by an aircraft FMS on CYHZ→CYYZ: 12 min below
+  FL100 against our 8.7 min budget, speed profiles agreeing within 2 kt — so
+  it is track miles, not speed. Also isolated ~2 min of filed-TAS optimism
+  (we use filed TAS; that flight filed M0.797 and flew M0.76). The fix must
+  be **conditional on ATC presence**, not a flat constant: the same flight
+  needed ~3.3 min uncontrolled and ~11 min after a late runway change. See
+  `docs/sessions/2026-09-02_fal57-live-eta-comparison.md`.
   **Correction not yet applied — approach undecided (see below).**
 - Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
 - Departures landing at an out-of-scope ADES revert to phase FILED

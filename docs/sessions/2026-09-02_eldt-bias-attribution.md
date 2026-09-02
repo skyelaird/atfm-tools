@@ -83,3 +83,16 @@ sample to the threshold — which is exactly how INTERP-stamped ALDTs are now
 computed — so it will report a lag near zero for those rows by construction.
 It remains meaningful only for CYCLE rows. The 1.1 min figure it produced was
 measured before the cutover and stands.
+
+## Confirmed the same day by an independent instrument
+
+A live flight (CYHZ→CYYZ) reached the same conclusion from an aircraft FMS
+rather than from landing statistics: **12 min below FL100 against our 8.7 min
+budget**, with the speed profiles agreeing within 2 kt. The error is track
+miles, not speed. It also produced a decomposition the fleet data could not:
+~3.3 min of procedure geometry plus ~8 min from a late runway change, and a
+separate ~2 min of filed-TAS optimism.
+
+See `2026-09-02_fal57-live-eta-comparison.md`. It matters for the fix design:
+a flat per-airport constant would have been wrong in both directions on that
+one flight.
