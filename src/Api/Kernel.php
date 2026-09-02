@@ -3752,6 +3752,7 @@ final class Kernel
                     'eldt_err_min'  => $eldtErr,
                     'aldt_source'   => $f->aldt_source,
                     'had_atc'       => $f->had_atc_at_arrival,
+                    'arr_rwy'       => $f->arrival_runway,
                     'eta_source'    => $source,
                     'ctl_type'      => $f->ctl_type,
                     'err_reasons'   => $errReasons,
