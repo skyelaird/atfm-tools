@@ -35,10 +35,25 @@ anything touching `src/` is shadow mode or a QA side-column, not a branch.
 - v0.7.37 PERTI retired, its page repurposed as ELDT QA
 
 **Open / next:**
-- CDM plugin round-trip still untested against a live EuroScope session —
-  the last real gate on 0.7 → 1.0
+- **CDM plugin round-trip still untested against a live EuroScope session —
+  the last real gate on 0.7 → 1.0.** Note the payload bug fixed in v0.7.43:
+  any plugin built after 2026-05-01 was discarding every CTOT we published,
+  so no earlier informal test could have worked.
+
+**CTOT delivery to pilots — two channels, by design:**
+- **Staffed airports: via ATC.** The CDM plugin puts the CTOT in the
+  controller's tag (TSAT = CTOT − taxi) and the controller issues start-up.
+- **Unstaffed: self-serve via `public/portal.html`.** Pilot looks up their
+  callsign, reads TOBT/TSAT/TTOT/CTOT, can set a manual TOBT. This is our
+  equivalent of VATSIM Spain's VDGS (`vdgs.vatsimspain.es`), which plays the
+  same role for vIFF but gates per-pilot behind VATSIM OAuth. Ours is
+  callsign lookup with no sign-in: `Auth\Gate::modifyFlight` already encodes
+  the right rule (own CID, or a controller connected to that airport) but
+  runs permissive until `AUTH_STRICT=true`.
 - **ELDT bias attributed (2026-09-02, n=1475 over 14 d).** Median TLDT error
-  −5.6 min decomposes as: **1.1 min** ALDT stamped late (rollout below 50 kt
+  **+5.6 min** — sign convention project-wide is `error = actual − predicted`,
+  so positive means the aircraft landed after our estimate, i.e. we predicted
+  early. It decomposes as: **1.1 min** ALDT stamped late (rollout below 50 kt
   plus the 2-min ingest quantum — measurement, not model) and **~4.5 min**
   in the terminal segment. Cruise, wind and descent above FL100 are
   exonerated: filed ETE median error is 0.0 and the bias is flat across
@@ -47,8 +62,9 @@ anything touching `src/` is shadow mode or a QA side-column, not a branch.
   segment matches. Aircraft cross the 40 nm ring at a median 360 kt GS and
   average ~155 kt over the last 40 nm; the model assumes ~220 kt and models
   no track-mile allowance for STAR/downwind/base/vectors.
-  Measured terminal excess, which is the correction table:
-  CYUL +5.8, CYYZ +5.0, CYVR +4.7, CYHZ +3.6, CYOW +3.3, CYWG +2.7, CYYC +2.1.
+  Measured terminal excess, which is the correction table (minutes to ADD
+  to the modelled last 40 nm): CYUL +5.8, CYYZ +5.0, CYVR +4.7, CYHZ +3.6,
+  CYOW +3.3, CYWG +2.7, CYYC +2.1.
   Diagnostics: `/api/v1/debug/landing-lag`, `/api/v1/debug/terminal-time`.
   **Correction not yet applied — approach undecided (see below).**
 - Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
@@ -376,11 +392,12 @@ docs/
   (deploy.sh now runs seed-airports.php after migrate on every deploy)
 - Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
 - ctot.html live testing with CDM plugin — needs a real session
-- **VGDS-style fallback channel** — if the CDM plugin round-trip doesn't
-  close (CTOTs not reaching pilots reliably), replicate VGDS's direct
-  controller-message delay delivery as an ops channel. Fallback, not a
-  replacement: the plugin path stays primary. Decide after the first live
-  plugin test.
+- **Portal hardening for self-serve delivery** — the unstaffed-airport
+  channel is `public/portal.html`, not a future VDGS clone: it already
+  shows TOBT/TSAT/TTOT/CTOT and accepts a manual TOBT. What it lacks is
+  per-pilot authorisation (`AUTH_STRICT=true` flips `Auth\Gate` from
+  permissive to own-CID-or-controlling-ATC). Turn that on before any
+  session where slot integrity matters.
 - **Per-flight uncertainty model for Westbound 2027** — Monte Carlo per
   flight, not curve-level smoothing. Design in `docs/w27-uncertainty-model.md`;
   σ_grid inputs now real (`docs/wind-skill-2026-spring.md`).
@@ -447,6 +464,16 @@ verifiable via `/api/v1/status`. Scheme: `MAJOR.MINOR.PATCH`.
 
 - Use "Claude" as the author name when adding tracked changes / comments
 - All times in UTC; JSON formatted with `format('c')` (ISO 8601 with offset)
+- **Prediction error sign is `actual − predicted`, everywhere.** Positive means
+  the aircraft landed AFTER our estimate, i.e. we predicted early. Applies to
+  `/api/v1/accuracy`, `/reports/summary`, `/reports/tldt-accuracy` and every
+  page that renders them. Unified in v0.7.45 — before that `tldt-accuracy`
+  was inverted, so the same measurement read `+9.4` on one panel and `−8.4`
+  on another.
+- **ELDT err and TLDT err are the same number unless a regulation is in
+  force.** TLDT is the frozen ELDT, so the two columns only diverge when the
+  allocator moved a flight off its frozen time to fit a slot. Don't read them
+  as independent evidence.
 - Never use `WidthType.PERCENTAGE` — breaks Google Docs (legacy from a
   separate skill, kept here as a general "stick to literal units" rule)
 - Cron picks minutes off `:00`/`:30` to avoid fleet-wide load spikes

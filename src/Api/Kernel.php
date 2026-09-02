@@ -2771,8 +2771,9 @@ final class Kernel
                     'last_gs_kts'     => $gs,
                     'est_to_go_min'   => round($toGoMin, 1),
                     'lag_min'         => $lagMin,
+                    // error = actual - predicted; positive = we predicted early
                     'tldt_err_min'    => $f->tldt
-                        ? round(($f->tldt->getTimestamp() - $aldtTs) / 60.0, 1)
+                        ? round(($aldtTs - $f->tldt->getTimestamp()) / 60.0, 1)
                         : null,
                 ];
             }
@@ -3570,12 +3571,18 @@ final class Kernel
                 $tldtEpoch = $f->tldt->getTimestamp();
                 $aldtEpoch = $f->aldt->getTimestamp();
                 $atotEpoch = $f->atot->getTimestamp();
-                $errMin = round(($tldtEpoch - $aldtEpoch) / 60, 1);
+                // CONVENTION (project-wide): error = actual - predicted.
+                // POSITIVE means the aircraft landed AFTER we said it would,
+                // i.e. we predicted early. Negative means we predicted late.
+                // Same sign on /api/v1/accuracy, /reports/summary and here —
+                // these three used to disagree, which made "+9.4" on one panel
+                // and "-8.4" on another the same measurement.
+                $errMin = round(($aldtEpoch - $tldtEpoch) / 60, 1);
 
                 // Also compute ELDT error if we have the locked source
                 $eldtErr = null;
                 if ($f->eldt_locked !== null) {
-                    $eldtErr = round(($f->eldt_locked->getTimestamp() - $aldtEpoch) / 60, 1);
+                    $eldtErr = round(($aldtEpoch - $f->eldt_locked->getTimestamp()) / 60, 1);
                 }
 
                 // Cap garbage errors
@@ -3605,7 +3612,7 @@ final class Kernel
                 if ($filedEte && $filedEte > 0) {
                     $filedEtaEpoch = $atotEpoch + ($filedEte * 60);
                     $filedEta = (new DateTimeImmutable('@' . $filedEtaEpoch))->format('c');
-                    $filedEtaErr = round(($filedEtaEpoch - $aldtEpoch) / 60, 1);
+                    $filedEtaErr = round(($aldtEpoch - $filedEtaEpoch) / 60, 1);
                 }
 
                 // Mid-connect detection: we observed less than half the filed
@@ -3678,7 +3685,7 @@ final class Kernel
                     // tier AND our independent GRIB estimate was closer to
                     // truth. Means we locked the wrong source.
                     if ($f->eldt_wind && $source !== 'WIND_GRIB') {
-                        $windErr = round(($f->eldt_wind->getTimestamp() - $aldtEpoch) / 60);
+                        $windErr = round(($aldtEpoch - $f->eldt_wind->getTimestamp()) / 60);
                         if (abs($windErr) < abs($errMin) - 3) {
                             $errReasons[] = sprintf(
                                 'wrong tier locked — GRIB calc was closer (GRIB %+dm vs %s lock %+dm)',

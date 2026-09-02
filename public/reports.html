@@ -250,9 +250,9 @@
 <p>The top row summarises the selected window:</p>
 <ul>
     <li><strong>Movements</strong> &mdash; completed arrivals (with ALDT) + departures (with ATOT).</li>
-    <li><strong>ELDT err</strong> &mdash; median prediction error. How far our landing estimate was from the actual landing, in minutes. Lower is better; target &le;3&thinsp;min.</li>
+    <li><strong>ELDT err</strong> &mdash; median prediction error, in minutes. <strong>Positive means we predicted early</strong> &mdash; the aircraft landed after our estimate. Lower magnitude is better; target &le;3&thinsp;min. Every error figure in this system uses the same sign: actual &minus; predicted.</li>
     <li><strong>Dwell</strong> &mdash; median time from pilot spawn to pushback. Indicates how long pilots sit at the gate before moving.</li>
-    <li><strong>TLDT err</strong> &mdash; median slot fidelity. How close the frozen landing slot matched reality.</li>
+    <li><strong>TLDT err</strong> &mdash; median slot fidelity: how close the frozen landing slot matched reality. <strong>This equals ELDT err whenever no regulation is in force</strong>, because TLDT is the frozen ELDT. The two diverge only when the allocator moved a flight off its frozen time to fit a slot.</li>
 </ul>
 <p>Values are <em>medians</em> (not means) to resist outliers. Numbers dimmed when sample size &lt;&thinsp;5.</p>
 
@@ -368,13 +368,13 @@ Per EUROCONTROL Airport CDM Implementation Manual v5.0.
                         <th data-sort="avg_exit_min" class="num grp-tint" title="Average AXIT (AIBT minus ALDT) in min">AXIT</th>
                         <th data-sort="median_dwell_min" class="num grp-tint" title="Median spawn-to-pushback time (AOBT minus created_at) in min">Dwell</th>
                         <th data-sort="eldt_sample_n" class="num grp-start" title="ELDT sample size">n</th>
-                        <th data-sort="eldt_err_min" class="num" title="Median (ALDT minus ELDT_locked) in min. Frozen at T-90m.">err</th>
+                        <th data-sort="eldt_err_min" class="num" title="Median landing-estimate error, frozen at T-90m. Positive = we predicted early.">err</th>
                         <th data-sort="eldt_pct_le3" class="num" title="% with error ≤ 3 min">&le;3</th>
                         <th data-sort="eldt_pct_3to5" class="num" title="% with error 3–5 min">3–5</th>
                         <th data-sort="eldt_pct_5to10" class="num" title="% with error 5–10 min">5–10</th>
                         <th data-sort="eldt_pct_gt10" class="num" title="% with error &gt; 10 min">&gt;10</th>
                         <th data-sort="tldt_sample_n" class="num grp-start grp-tint" title="TLDT sample size">n</th>
-                        <th data-sort="tldt_err_min" class="num grp-tint" title="Median (ALDT minus TLDT) in min">err</th>
+                        <th data-sort="tldt_err_min" class="num grp-tint" title="Median slot error. Positive = we predicted early. Identical to ELDT err unless a regulation moved the flight off its frozen time.">err</th>
                         <th data-sort="tldt_pct_le3" class="num grp-tint" title="% with error ≤ 3 min">&le;3</th>
                         <th data-sort="tldt_pct_3to5" class="num grp-tint" title="% with error 3–5 min">3–5</th>
                         <th data-sort="tldt_pct_5to10" class="num grp-tint" title="% with error 5–10 min">5–10</th>
@@ -430,7 +430,7 @@ Per EUROCONTROL Airport CDM Implementation Manual v5.0.
         </div>
         <div style="display:flex; gap:1rem; flex-wrap:wrap; margin-top:0.75rem;">
             <div class="table-wrap" style="flex:1; min-width:280px;">
-                <table><thead><tr><th>Source</th><th class="num" title="Sample size">n</th><th class="num" title="Median prediction error (TLDT minus ALDT) in minutes. Positive = predicted late, negative = predicted early.">Median</th><th class="num" title="Mean Absolute Error — average magnitude of prediction errors, ignoring direction.">MAE</th><th class="num" title="% with error ≤ 3 min">&le;3m</th><th class="num" title="% with error 3–5 min">3–5m</th><th class="num" title="% with error 5–10 min">5–10m</th><th class="num" title="% with error &gt; 10 min">&gt;10m</th></tr></thead>
+                <table><thead><tr><th>Source</th><th class="num" title="Sample size">n</th><th class="num" title="Median prediction error in minutes. Convention: error = actual &minus; predicted. Positive = aircraft landed AFTER our estimate (we predicted early); negative = we predicted late.">Median</th><th class="num" title="Mean Absolute Error — average magnitude of prediction errors, ignoring direction.">MAE</th><th class="num" title="% with error ≤ 3 min">&le;3m</th><th class="num" title="% with error 3–5 min">3–5m</th><th class="num" title="% with error 5–10 min">5–10m</th><th class="num" title="% with error &gt; 10 min">&gt;10m</th></tr></thead>
                 <tbody id="tldt-source-tbody"><tr><td colspan="8" class="empty-row">Loading...</td></tr></tbody></table>
             </div>
             <div class="table-wrap" style="flex:1; min-width:280px;">
@@ -842,7 +842,7 @@ async function refreshTldt() {
         const dim = ov.n < 5 ? ' style="opacity:0.4"' : '';
         $stats.innerHTML = [
             { lbl: 'Flights', val: ov.n || 0, tip: 'Number of flights with ATOT + TLDT + ALDT in window' },
-            { lbl: 'Median err', val: ov.median !== null ? (ov.median > 0 ? '+' : '') + ov.median + 'm' : '\u2014', style: errColor(ov.median), tip: 'Median (TLDT minus ALDT). Positive = predicted late, negative = early.' },
+            { lbl: 'Median err', val: ov.median !== null ? (ov.median > 0 ? '+' : '') + ov.median + 'm' : '\u2014', style: errColor(ov.median), tip: 'Median slot error. Positive = landed after the slot (we predicted early); negative = we predicted late.' },
             { lbl: 'MAE', val: ov.mae !== null ? ov.mae + 'm' : '\u2014', style: errColor(ov.mae), tip: 'Mean Absolute Error \u2014 average magnitude of prediction errors, ignoring sign.' },
             { lbl: '\u22643 min', val: ov.pct_le3 !== null ? ov.pct_le3 + '%' : '\u2014', style: pctColor(ov.pct_le3), tip: '% of predictions with absolute error \u2264 3 minutes' },
             { lbl: '3\u20135 min', val: ov.pct_3to5 !== null ? ov.pct_3to5 + '%' : '\u2014', tip: '% of predictions with absolute error between 3 and 5 minutes' },

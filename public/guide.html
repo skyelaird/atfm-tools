@@ -325,21 +325,27 @@ ILS_bonus      = 3 (only in IFR/LIFR conditions, for ILS-equipped runways)</pre>
 </div>
 
 <h3>How a CTOT Reaches the Pilot</h3>
-<p>We do not talk to pilots. The CDM EuroScope plugin does, and it polls us roughly every 15 seconds per active master airport.</p>
-<ol>
-    <li>The plugin fetches our list and <strong>wipes every CTOT it holds</strong>, then applies what we sent. Our response is a complete statement of the world: a callsign we omit is a callsign whose CTOT is released.</li>
-    <li>For each flight it accepts, it stops running its own departure sequencing and takes our time as given.</li>
-    <li>It derives the pilot-facing <strong>TSAT as CTOT &minus; taxi time</strong>. If its own computed take-off time slips past the CTOT but stays within <strong>CTOT + 7 min</strong>, it adjusts rather than re-sequencing. Past that, the slot is treated as missed.</li>
-</ol>
+<p>We never talk to pilots directly from the allocator. A slot only becomes real when a human or a panel puts it in front of the pilot, and there are two channels depending on whether the airport is staffed.</p>
 
-<p>Two things outrank us, and both are correct:</p>
-<ul>
-    <li><strong>An ECFMP restriction</strong> on the same flight &mdash; the plugin skips our CTOT entirely.</li>
-    <li><strong>A controller's per-flight "Disable CDM-Network"</strong> &mdash; a local override that we neither see nor should fight.</li>
-</ul>
+<h4>Staffed &mdash; via ATC</h4>
+<p>The CDM EuroScope plugin polls us roughly every 15&nbsp;s per active master airport and puts the CTOT in the controller's tag. The controller issues start-up against it. Mechanically, on each poll the plugin:</p>
+<ol>
+    <li><strong>Wipes every CTOT it holds</strong>, then applies what we sent. Our response is a complete statement of the world &mdash; a callsign we omit is a callsign whose CTOT is released.</li>
+    <li>For each flight it accepts, stops running its own departure sequencing and takes our time as given.</li>
+    <li>Derives the controller-facing <strong>TSAT as CTOT &minus; taxi time</strong>. If its own computed take-off time slips past the CTOT but stays within <strong>CTOT&nbsp;+&nbsp;7&nbsp;min</strong>, it adjusts rather than re-sequencing. Past that the slot is treated as missed.</li>
+</ol>
+<p>Two things outrank us, and both are correct: an <strong>ECFMP restriction</strong> on the same flight (the plugin skips our CTOT entirely), and a controller's per-flight <strong>"Disable CDM-Network"</strong> local override.</p>
 
 <div class="callout warn">
 <strong>Failing loudly is safer than failing quietly.</strong> If our endpoint errors, the plugin logs it and keeps the CTOTs it already had. If it answers 200 with a body that does not parse, the plugin clears every CTOT on that controller's screen. An outage is survivable; a malformed success is not.
+</div>
+
+<h4>Unstaffed &mdash; self-serve</h4>
+<p>Most of the time there is no ATC at the departure airport, and a slot nobody can read is not a slot. The <a href="/portal.html">pilot portal</a> is the fallback channel: a pilot enters their callsign and sees TOBT, TSAT, TTOT and CTOT, plus plain-language guidance on whether it is time to push. They can also set a manual TOBT when they are actually ready, which re-cascades TSAT/TTOT and re-computes the CTOT on the next allocator run (&le;&nbsp;2&nbsp;min).</p>
+<p>This mirrors <a href="https://vdgs.vatsimspain.es/vdgs/index.php">VATSIM Spain's VDGS</a>, which serves the same role for vIFF: a stand-side docking-guidance panel rendered on the web, so the pilot reads their own start-up time without a controller reading it to them.</p>
+
+<div class="callout">
+<strong>One difference worth knowing.</strong> VATSIM Spain gates their VDGS behind VATSIM OAuth, so a pilot can only see and act on their own flight. Our portal is callsign lookup with no sign-in &mdash; frictionless, but it means anyone can set anyone's TOBT. The authorisation is written (<code>Auth\Gate::modifyFlight</code> allows the flight's own CID, or a controller connected to that airport) but runs permissive until <code>AUTH_STRICT=true</code>. Turn it on before a session where slot integrity matters.
 </div>
 
 <h3>Shadow Mode</h3>
