@@ -78,6 +78,7 @@ final class Flight extends Model
         'eldt_perti',
         'eldt_wind',
         'had_atc_at_arrival',
+        'aldt_source',
         'departure_runway',
         'arrival_runway',
         'departure_gate',

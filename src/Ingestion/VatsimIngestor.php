@@ -10,6 +10,7 @@ use Atfm\Allocator\Phase;
 use Atfm\Models\Airport;
 use Atfm\Models\Flight;
 use Atfm\Models\PositionScratch;
+use Atfm\Models\RunwayThreshold;
 use DateTimeImmutable;
 use DateTimeZone;
 use GuzzleHttp\Client;
@@ -48,6 +49,9 @@ final class VatsimIngestor
     /** @var array<string, Airport> map icao → Airport model (for EtaEstimator) */
     private array $airportModelsByIcao = [];
 
+    /** @var array<string, list<array>> map icao → runway thresholds (for ALDT interpolation) */
+    private array $thresholdsByIcao = [];
+
     public function __construct(?Client $http = null)
     {
         $this->http = $http ?? new Client([
@@ -84,6 +88,18 @@ final class VatsimIngestor
                 'arrived_geofence_nm' => (int) $airport->arrived_geofence_nm,
             ];
             $this->airportModelsByIcao[$airport->icao] = $airport;
+        }
+
+        // Runway thresholds — used to place the touchdown point for ALDT
+        // interpolation, and to record which runway was actually used.
+        $this->thresholdsByIcao = [];
+        foreach (RunwayThreshold::all() as $thr) {
+            $this->thresholdsByIcao[$thr->airport_icao][] = [
+                'ident'   => $thr->runway_ident,
+                'lat'     => (float) $thr->threshold_lat,
+                'lon'     => (float) $thr->threshold_lon,
+                'heading' => (int) $thr->heading_deg,
+            ];
         }
 
         if (empty($this->airportsByIcao)) {
@@ -704,7 +720,17 @@ final class VatsimIngestor
             Flight::PHASE_ARRIVED,
         ], true)) {
             if ($flight->aldt === null) {
-                $flight->aldt = $now;
+                $interp = $this->interpolateTouchdown($flight, $adesAirport, $now);
+                if ($interp !== null) {
+                    $flight->aldt = $interp['at'];
+                    $flight->aldt_source = 'INTERP';
+                    if ($interp['runway'] !== null && $flight->arrival_runway === null) {
+                        $flight->arrival_runway = $interp['runway'];
+                    }
+                } else {
+                    $flight->aldt = $now;
+                    $flight->aldt_source = 'CYCLE';
+                }
             }
         }
 
@@ -1023,5 +1049,121 @@ final class VatsimIngestor
             return $m[1];
         }
         return null;
+    }
+
+    /**
+     * Place ALDT inside the bracket formed by two observations.
+     *
+     * We know touchdown happened after the last sample where the aircraft was
+     * still airborne by our own definition (GS > 50 kt) and at or before the
+     * current cycle, where it is on the ground inside the geofence. Stamping
+     * $now puts ALDT at the far end of that bracket: measured at a median of
+     * 1.1 min late (see /api/v1/debug/landing-lag), because it includes the
+     * rollout to below 50 kt plus up to one 2-minute ingest quantum.
+     *
+     * This projects the last airborne observation forward to the nearest
+     * runway threshold at its own observed groundspeed. On short final Vref is
+     * settled, so that projection is tight. The result is CLAMPED into the
+     * observation bracket: it is an interpolation between two things we saw,
+     * not an extrapolation past the last one. If the guards fail — the last
+     * sample was too far out, too high, or too fast to be short final — we
+     * fall back to the cycle stamp and say so in aldt_source.
+     *
+     * Returns ['at' => DateTimeImmutable, 'runway' => ?string] or null.
+     */
+    private function interpolateTouchdown(
+        Flight $flight,
+        ?array $adesAirport,
+        DateTimeImmutable $now
+    ): ?array {
+        if ($adesAirport === null) {
+            return null;
+        }
+
+        // Previous cycle's observation — this cycle's values have already
+        // overwritten the model attributes, so read the originals.
+        $prevLat = $flight->getOriginal('last_lat');
+        $prevLon = $flight->getOriginal('last_lon');
+        $prevGs  = $flight->getOriginal('last_groundspeed_kts');
+        $prevAlt = $flight->getOriginal('last_altitude_ft');
+        $prevAtRaw = $flight->getOriginal('last_position_at');
+        if ($prevLat === null || $prevLon === null || $prevGs === null || $prevAtRaw === null) {
+            return null;
+        }
+
+        $prevGs = (int) $prevGs;
+        $prevAlt = (int) $prevAlt;
+        $prevLat = (float) $prevLat;
+        $prevLon = (float) $prevLon;
+
+        try {
+            $prevAt = $prevAtRaw instanceof \DateTimeInterface
+                ? DateTimeImmutable::createFromInterface($prevAtRaw)
+                : new DateTimeImmutable((string) $prevAtRaw, new DateTimeZone('UTC'));
+        } catch (\Throwable $e) {
+            return null;
+        }
+
+        $gapSec = $now->getTimestamp() - $prevAt->getTimestamp();
+        if ($gapSec <= 0 || $gapSec > 300) {
+            return null; // no usable bracket (first sighting, or a long feed gap)
+        }
+
+        // Guards: the previous sample must look like short final.
+        $agl = $prevAlt - (int) $adesAirport['elevation_ft'];
+        if ($prevGs <= Phase::AIRBORNE_GS_THRESHOLD || $prevGs < 90 || $prevGs > 250) {
+            return null;
+        }
+        if ($agl < -200 || $agl > 2500) {
+            return null;
+        }
+
+        // Nearest threshold to the previous position is the landing runway.
+        $bestThr = null;
+        $bestDist = null;
+        foreach ($this->thresholdsByIcao[$adesAirport['icao']] ?? [] as $thr) {
+            $d = Geo::distanceNm($prevLat, $prevLon, $thr['lat'], $thr['lon']);
+            if ($bestDist === null || $d < $bestDist) {
+                $bestDist = $d;
+                $bestThr = $thr;
+            }
+        }
+
+        // No threshold data — fall back to the airport reference point, which
+        // sits roughly at the runway midpoint and so runs ~25 s long.
+        if ($bestThr === null) {
+            $bestDist = Geo::distanceNm(
+                $prevLat, $prevLon,
+                (float) $adesAirport['latitude'], (float) $adesAirport['longitude']
+            );
+        }
+        if ($bestDist === null || $bestDist > 8.0) {
+            return null;
+        }
+
+        $toGoSec = (int) round(($bestDist / max($prevGs, 1)) * 3600.0);
+        $estTs = $prevAt->getTimestamp() + $toGoSec;
+
+        // Clamp into the observation bracket.
+        if ($estTs <= $prevAt->getTimestamp() || $estTs > $now->getTimestamp()) {
+            return null;
+        }
+
+        // Only claim the runway when the aircraft was actually lined up with
+        // it — otherwise "nearest threshold" is just the closest bit of
+        // concrete, not an observation of which runway was used.
+        $runway = null;
+        if ($bestThr !== null && $flight->getOriginal('last_heading_deg') !== null) {
+            $hdg = (int) $flight->getOriginal('last_heading_deg');
+            $delta = abs((($hdg - $bestThr['heading']) + 540) % 360 - 180);
+            if ($delta <= 30) {
+                $runway = $bestThr['ident'];
+            }
+        }
+
+        return [
+            'at' => (new DateTimeImmutable('@' . $estTs))->setTimezone(new DateTimeZone('UTC')),
+            'runway' => $runway,
+        ];
     }
 }

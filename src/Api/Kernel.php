@@ -3712,6 +3712,7 @@ final class Kernel
                     'aldt'          => $f->aldt->format('c'),
                     'tldt_err_min'  => $errMin,
                     'eldt_err_min'  => $eldtErr,
+                    'aldt_source'   => $f->aldt_source,
                     'eta_source'    => $source,
                     'ctl_type'      => $f->ctl_type,
                     'err_reasons'   => $errReasons,

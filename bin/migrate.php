@@ -603,4 +603,16 @@ if (!$schema->hasTable('nonevent_slots')) {
     echo "✓ created nonevent_slots (v0.7.x)\n";
 }
 
+// v0.7.42 - how ALDT was derived: INTERP (projected to the threshold from
+// the last airborne observation, inside the observation bracket) or CYCLE
+// (the legacy stamp: whatever cycle first saw the aircraft slow inside the
+// geofence, which runs a median 1.1 min late).
+if ($schema->hasTable('flights') && ! $schema->hasColumn('flights', 'aldt_source')) {
+    $schema->table('flights', function ($t) {
+        $t->string('aldt_source', 12)->nullable()->after('aldt')
+          ->comment('INTERP | CYCLE - how the ALDT stamp was derived');
+    });
+    echo "✓ added flights.aldt_source (v0.7.42)\n";
+}
+
 echo "done.\n";
