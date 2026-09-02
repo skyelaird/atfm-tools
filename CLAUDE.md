@@ -67,6 +67,17 @@ minutes out, because he had declared 1750 and we were using our 1735 proxy.
   callsign lookup with no sign-in: `Auth\Gate::modifyFlight` already encodes
   the right rule (own CID, or a controller connected to that airport) but
   runs permissive until `AUTH_STRICT=true`.
+- **STAR truncation — the model discards the downwind (found 2026-09-02).**
+  `WindEta::alongRouteLegs()` keeps only waypoints closer to the field than the
+  aircraft is, which assumes a monotonic approach. RAGID6 into CYYZ passes
+  overhead at KEVNO (4.9 nm) and runs back out to DERLI (21.3 nm) for the 06
+  downwind — so at KEVNO the model keeps **no fixes** and reports 4.9 nm with
+  **45.2 nm left to fly**. The error grows as the aircraft approaches, which is
+  the worst shape for a flow tool. Separately, speed bands are allocated by
+  `alt/318` geometry rather than by position in the procedure, so STAR track
+  miles get flown at cruise/descent speeds — that one biases the frozen TLDT.
+  Fix needs no new data; see `docs/sessions/2026-09-02_star-truncation.md`.
+  **This is the top ETA priority, ahead of observed-TAS.**
 - **ELDT bias attributed (2026-09-02, n=1475 over 14 d).** Median TLDT error
   **+5.6 min** — sign convention project-wide is `error = actual − predicted`,
   so positive means the aircraft landed after our estimate, i.e. we predicted
