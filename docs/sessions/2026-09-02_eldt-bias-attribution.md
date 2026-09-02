@@ -65,3 +65,21 @@ suspects (wind, TAS, route resolution) are all enroute. Nobody looked at
 where in the flight the minutes were lost, because nothing measured
 segments. Two read-only diagnostic endpoints built from `position_scratch`
 answered it in one afternoon; both are cheap and should stay.
+
+## First post-cutover landings (same day, n=8)
+
+Eight landings after the v0.7.42 ALDT change: **all eight stamped INTERP,
+none fell back to CYCLE.** The guards (90–250 kt, ≤ 2500 ft AGL, within 8 nm
+of a threshold, bracket under 5 min) are satisfied by ordinary arrivals — the
+interpolation is the normal path, not an edge case.
+
+Median error +5.6 min, i.e. indistinguishable from the 14-day baseline. That
+is **not evidence the change did nothing**: the expected effect is ~1.1 min
+and n=8 cannot resolve it. Give it a few days before reading the number.
+
+**Caveat for whoever reads `/api/v1/debug/landing-lag` next:** it is now
+partly circular. It estimates touchdown by projecting the last airborne
+sample to the threshold — which is exactly how INTERP-stamped ALDTs are now
+computed — so it will report a lag near zero for those rows by construction.
+It remains meaningful only for CYCLE rows. The 1.1 min figure it produced was
+measured before the cutover and stands.
