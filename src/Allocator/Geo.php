@@ -475,6 +475,23 @@ final class Geo
             }
         }
 
+        // The nearest point can be the one BEHIND the aircraft when it sits
+        // between two fixes, and slicing from there makes the path double back.
+        // Observed live: a flight between TUKIR and RAGID snapped to TUKIR and
+        // its ETA jumped 17 minutes, then recovered when RAGID became nearer.
+        //
+        // If the aircraft is closer to the NEXT point than the leg between them,
+        // it has already passed this one, so start from the next.
+        if (isset($routeCoords[$bestIdx + 1])) {
+            [$aLat, $aLon] = $routeCoords[$bestIdx];
+            [$bLat, $bLon] = $routeCoords[$bestIdx + 1];
+            $legLen  = self::distanceNm($aLat, $aLon, $bLat, $bLon);
+            $toNext  = self::distanceNm($curLat, $curLon, $bLat, $bLon);
+            if ($toNext < $legLen) {
+                $bestIdx++;
+            }
+        }
+
         return array_values(array_slice($routeCoords, $bestIdx));
     }
 
