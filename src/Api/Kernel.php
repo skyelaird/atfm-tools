@@ -2668,6 +2668,131 @@ final class Kernel
             ]);
         });
 
+        // ------------------------------------------------------------------
+        //  Landing-detection lag (diagnostic)
+        // ------------------------------------------------------------------
+        //  ALDT is stamped on the first ingest cycle where Phase::compute
+        //  returns TAXI_IN/ARRIVED — i.e. the aircraft is already below the
+        //  50 kt airborne threshold inside the 5 nm geofence. That is after
+        //  touchdown AND after rollout, plus up to one 2-minute ingest
+        //  quantum. So ALDT is systematically LATE relative to the wheels-on
+        //  moment our ELDT actually predicts, which biases every accuracy
+        //  KPI in the same direction.
+        //
+        //  This endpoint sizes that bias from position_scratch (48 h
+        //  retention): take the last observed airborne sample on approach,
+        //  project it forward to the threshold at its own observed
+        //  groundspeed, and compare against the ALDT we stamped.
+        //
+        //  Read-only. Nothing here writes a milestone — the projected
+        //  touchdown is an estimate and is never stored as an actual.
+        // ------------------------------------------------------------------
+        $app->get('/api/v1/debug/landing-lag', function ($req, $res) {
+            $hours = max(1, min(48, (int) ($req->getQueryParams()['hours'] ?? 24)));
+            $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
+            $since = $now->modify("-{$hours} hours");
+
+            $airports = [];
+            foreach (Airport::all() as $a) {
+                $airports[$a->icao] = [
+                    'lat'  => (float) $a->latitude,
+                    'lon'  => (float) $a->longitude,
+                    'elev' => (int) ($a->elevation_ft ?? 0),
+                ];
+            }
+
+            $flights = Flight::whereNotNull('aldt')
+                ->where('aldt', '>=', $since->format('Y-m-d H:i:s'))
+                ->orderBy('aldt', 'desc')
+                ->limit(300)
+                ->get(['id','callsign','aircraft_type','adep','ades','aldt','tldt','eldt_locked']);
+
+            $rows = [];
+            foreach ($flights as $f) {
+                $apt = $airports[$f->ades] ?? null;
+                if ($apt === null) continue;
+
+                $aldtTs = $f->aldt->getTimestamp();
+                // Samples in the 20 min before the ALDT stamp.
+                $samples = \Atfm\Models\PositionScratch::where('flight_id', $f->id)
+                    ->where('observed_at', '>=', (new DateTimeImmutable('@' . ($aldtTs - 1200)))->format('Y-m-d H:i:s'))
+                    ->where('observed_at', '<=', $f->aldt->format('Y-m-d H:i:s'))
+                    ->orderBy('observed_at', 'asc')
+                    ->get();
+                if ($samples->count() < 2) continue;
+
+                // Last sample still airborne by our own definition.
+                $last = null;
+                foreach ($samples as $sm) {
+                    if ((int) $sm->groundspeed_kts > \Atfm\Allocator\Phase::AIRBORNE_GS_THRESHOLD) {
+                        $last = $sm;
+                    }
+                }
+                if ($last === null) continue;
+
+                $agl = (int) $last->altitude_ft - $apt['elev'];
+                $dist = Geo::distanceNm(
+                    (float) $last->lat, (float) $last->lon,
+                    $apt['lat'], $apt['lon']
+                );
+                $gs = (int) $last->groundspeed_kts;
+                if ($gs < 60 || $dist > 25 || $agl > 4000) continue; // not on final
+
+                // Project to the field at the observed groundspeed. Crude but
+                // it is built only from observed quantities.
+                $toGoMin = ($dist / max($gs, 1)) * 60.0;
+                $estTouchdown = $last->observed_at->getTimestamp() + (int) round($toGoMin * 60);
+                $lagMin = round(($aldtTs - $estTouchdown) / 60.0, 1);
+
+                $rows[] = [
+                    'callsign'        => $f->callsign,
+                    'aircraft_type'   => $f->aircraft_type,
+                    'ades'            => $f->ades,
+                    'aldt'            => $f->aldt->format('c'),
+                    'last_obs'        => $last->observed_at->format('c'),
+                    'last_agl_ft'     => $agl,
+                    'last_dist_nm'    => round($dist, 1),
+                    'last_gs_kts'     => $gs,
+                    'est_to_go_min'   => round($toGoMin, 1),
+                    'lag_min'         => $lagMin,
+                    'tldt_err_min'    => $f->tldt
+                        ? round(($f->tldt->getTimestamp() - $aldtTs) / 60.0, 1)
+                        : null,
+                ];
+            }
+
+            $lags = array_column($rows, 'lag_min');
+            sort($lags);
+            $n = count($lags);
+            $median = $n > 0
+                ? ($n % 2 ? $lags[intdiv($n, 2)] : ($lags[$n / 2 - 1] + $lags[$n / 2]) / 2)
+                : null;
+
+            $byApt = [];
+            foreach ($rows as $r) {
+                $byApt[$r['ades']][] = $r['lag_min'];
+            }
+            $aptStats = [];
+            foreach ($byApt as $icao => $v) {
+                sort($v);
+                $m = count($v);
+                $aptStats[$icao] = [
+                    'n'      => $m,
+                    'median' => $m % 2 ? $v[intdiv($m, 2)] : ($v[$m / 2 - 1] + $v[$m / 2]) / 2,
+                ];
+            }
+
+            return self::json($res, [
+                'generated_at' => $now->format('c'),
+                'hours'        => $hours,
+                'n'            => $n,
+                'median_lag_min' => $median,
+                'note'         => 'lag = ALDT stamp minus touchdown projected from the last observed airborne sample. Positive = we stamp ALDT after the wheels were down.',
+                'by_airport'   => $aptStats,
+                'flights'      => array_slice($rows, 0, 100),
+            ]);
+        });
+
         $app->get('/api/v1/debug/runway-thresholds', function ($req, $res) {
             return self::json($res, RunwayThreshold::orderBy('airport_icao')->orderBy('runway_ident')->get()->toArray());
         });
