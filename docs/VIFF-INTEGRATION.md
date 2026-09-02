@@ -268,3 +268,105 @@ already departed — equally uninformative.
 the VDGS, then `GET /ifps/depAirport?airport=<ADEP>` and look for the callsign.
 If `tobt` or `reqTobt` carries the pilot's value, the read-back leg closes
 today and the third ask to Roger disappears.
+
+---
+
+# Capability inventory and gap analysis
+
+Everything below about vIFF was **verified empirically on 2026-09-02** against
+the live system, not taken from documentation.
+
+## What we are trying to accomplish
+
+Estimate ELDT well enough to allocate **arrival** slots at seven Canadian
+airports, and get the resulting times in front of the people who act on them.
+Two halves, and only one of them works today:
+
+- **Prediction** — works, and is measured. GRIB-wind ELDT, route resolution,
+  a committed TLDT frozen at T-90, accuracy KPIs with the error attributed.
+- **Delivery** — has never once worked end to end. Until v0.7.43 our CTOT
+  payload could not even be parsed by a current CDM plugin.
+
+## What vIFF has (verified)
+
+| capability | endpoint / surface | notes |
+|---|---|---|
+| Airport restrictions | `/etfms/restrictions?type=ARR`, dashboard | public; ARR/DEP, capacity, HHMM window, runway, 5 h max |
+| Hourly capacity per airport | `/etfms/airports` | public; 777 airports, **45 Canadian**; already reflects active restrictions |
+| Per-flight CDM state | `/ifps/depAirport?airport=X` | public, per airport; tobt/obt/**reqTobt** + `cdmData.reqTobtType` = PILOT\|ATC |
+| Network flight list | `/etfms/relevant` | only flights vIFF is sequencing |
+| CTOT list | `/etfms/restricted` | what the plugin consumes |
+| Status / punctuality | `/ifps/allStatus`, `/ifps/allOnTime` | public, network-wide |
+| Master registry | `/airport` | icao + controller position |
+| VDGS pilot panel | `vats.im/vdgs` | per-pilot OAuth; TOBT edit (3), REA, prediction tool, reroute proposals |
+| Progressive regulation | airport config | auto-trigger at 80% of capacity |
+| ATIS-driven config | airport config | reads the ATIS for the runway in use |
+
+**The binding constraint: vIFF's A-CDM runs only where a controller has claimed
+the airport as master in the plugin.** Its Online ACDM list on 2026-09-02 was
+ten airports, every one bound to a live controller, none Canadian. A CYHZ ARR
+restriction authored that day regulated nobody.
+
+## What the CDM plugin has
+
+- Reads CTOTs every ~15 s per master; the response is authoritative (omission
+  releases). `customRestricted` overrides **only** that endpoint.
+- Derives the controller-facing **TSAT = CTOT − taxi**, and suppresses its own
+  departure sequencing for any flight carrying a CTOT.
+- Tolerance CTOT+7 before the slot is treated as missed.
+- Precedence: ECFMP > per-flight disable > CTOT > event slot > own sequencing.
+- URL hooks for `Rates`, `Taxizones`, `Slots` (a `vatcan,callsign,dep,dest,ctot`
+  text file landing as EV-SLOT) and `sidInterval`.
+- Sends pilots to `vats.im/vdgs` by default, via configurable PM text.
+
+## What we have that vIFF does not
+
+- **Unconditional coverage.** We ingest every in-scope flight from the VATSIM
+  feed regardless of who is online. vIFF sequences nothing without a master,
+  and the unstaffed case is the normal case in Canada.
+- **Wind-corrected arrival prediction.** Multi-level GRIB integration, route
+  resolution through the STAR, published procedure constraints.
+- **A committed arrival slot (TLDT)** frozen at T-90 — a *reservation* of
+  landing capacity, distinct from a departure CTOT.
+- **Measured accuracy**, with the residual error attributed to specific model
+  terms rather than assumed.
+
+## The gap
+
+1. **Delivery to pilots.** Roger declines to carry externally-generated CTOTs,
+   so the VDGS will not show ours. Our own portal is therefore the channel, and
+   the plugin's PM text must be repointed at it or pilots are sent somewhere
+   that structurally cannot see their slot.
+2. **Delivery to controllers** works, but only for those who set
+   `customRestricted` by hand.
+3. **Arrival slot reservation does not exist in vIFF at all.** This is the
+   actual difference between the two systems, and it is the thing Roger has on
+   his own roadmap as "bookable arrival slots".
+
+## Reading of Roger's position (2026-09-02 exchange)
+
+He declined two things specifically: **ad-hoc CTOTs**, and **accepting CTOTs
+generated elsewhere** — on the grounds that it loses the idea behind vIFF. He
+stated what *is* in scope: *"sources and types of regulations that result in
+assigning CTOTs"*.
+
+That sentence is the opening. He is not refusing inputs; he is refusing to
+cede CTOT authorship. A demand forecast expressed **as a regulation** is
+explicitly within the scope he described, while a CTOT is not.
+
+So the durable split is:
+
+- **vIFF owns the CTOT** — authored from constraints, delivered to plugin and
+  VDGS. Unchanged, and it is the half we are bad at.
+- **We own the arrival side** — predicting ELDT and reserving landing capacity
+  ahead of time, including for long-haul already airborne before any regulation
+  exists. That is the half vIFF does not attempt.
+
+The bridge is not "here are our CTOTs". It is "here is arrival demand and the
+capacity it consumes" — which vIFF's own allocator then regulates against.
+
+**Open question, to ask rather than assume:** what Roger means by "bookable
+arrival slots". It may be pilot-initiated booking (CTP-style) rather than
+system-reserved capacity based on predicted ELDT. Those are different products
+and the difference decides whether our TLDT work converges with his roadmap or
+runs parallel to it.
