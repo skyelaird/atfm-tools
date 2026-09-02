@@ -7,7 +7,7 @@
 
 ## Where we are (update this at the end of every session)
 
-**Live version:** 0.7.38 · prod auto-deploys from `main` within ~60 s ·
+**Live version:** 0.7.56 · prod auto-deploys from `main` within ~60 s ·
 verify at `/api/v1/status`. Last re-baselined **2026-09-02** after a
 summer with no attention.
 
@@ -33,6 +33,14 @@ anything touching `src/` is shadow mode or a QA side-column, not a branch.
 - v0.7.34 OBSERVED_POS forced for ARRIVING/DESCENT
 - v0.7.36 DISCONNECTED excluded from status counts (pill read 1713 vs 25)
 - v0.7.37 PERTI retired, its page repurposed as ELDT QA
+- v0.7.43 **CDM payload bug** — the penalising-regulation key moved twice; any
+  plugin built after 2026-05-01 was silently discarding every CTOT we
+  published. No earlier informal test could have worked.
+- v0.7.45 one error sign convention across the API (`actual − predicted`)
+- v0.7.46 `public/cdm-atc.html` — CDM plugin walkthrough for controllers
+- v0.7.49 vIFF constraint mirror (off by default)
+- v0.7.55 portal showed a refiling pilot their DISCONNECTED flight
+- v0.7.56 pilot TOBT adopted from the VDGS (off by default)
 
 **Open / next:**
 - **CDM plugin round-trip still untested against a live EuroScope session —
