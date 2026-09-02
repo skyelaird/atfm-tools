@@ -1,0 +1,88 @@
+{
+ "meta": {
+  "event": "26E",
+  "target_sector": "LFRR-W",
+  "n_flights_in_sector": 130,
+  "n_traced": 57,
+  "bin_minutes": 30,
+  "sector_polygon_source": "vIFF airblocks LF-RR-WU",
+  "wind_source": "winds-cache.json (T-72 vintage)",
+  "wind_fetched_utc": "2026-04-22T15:37:43.471839+00:00",
+  "wind_event_hour_utc": "2026-04-25T14:00:00+00:00",
+  "sebastian_mach": 0.82,
+  "sebastian_buckets_count": 13,
+  "note": "Compares Sebastian's CTP simulator baseline (M0.82, no wind) against our T-72 forecast (tier-aware Mach from PERTI fleet mix + 250mb wind from cache). Demonstrates the operational add of type-aware Mach + GRIB wind integration to existing CTP demand modelling."
+ },
+ "sebastian_baseline": [
+  {
+   "bin_minute": 1080,
+   "count": 8
+  },
+  {
+   "bin_minute": 1110,
+   "count": 11
+  },
+  {
+   "bin_minute": 1140,
+   "count": 13
+  },
+  {
+   "bin_minute": 1170,
+   "count": 12
+  },
+  {
+   "bin_minute": 1200,
+   "count": 14
+  },
+  {
+   "bin_minute": 1230,
+   "count": 13
+  },
+  {
+   "bin_minute": 1260,
+   "count": 12
+  },
+  {
+   "bin_minute": 1290,
+   "count": 4
+  },
+  {
+   "bin_minute": 1320,
+   "count": 1
+  }
+ ],
+ "our_t72": [
+  {
+   "bin_minute": 1110,
+   "count": 5
+  },
+  {
+   "bin_minute": 1140,
+   "count": 7
+  },
+  {
+   "bin_minute": 1170,
+   "count": 8
+  },
+  {
+   "bin_minute": 1200,
+   "count": 7
+  },
+  {
+   "bin_minute": 1230,
+   "count": 8
+  },
+  {
+   "bin_minute": 1260,
+   "count": 9
+  },
+  {
+   "bin_minute": 1290,
+   "count": 8
+  },
+  {
+   "bin_minute": 1320,
+   "count": 2
+  }
+ ]
+}

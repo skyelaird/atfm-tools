@@ -1,0 +1,288 @@
+{
+ "meta": {
+  "event": "26E",
+  "target_icao": "LFPG",
+  "n_flights": 127,
+  "cruise_tas_kt": 480,
+  "level_mb": "250",
+  "bin_minutes": 15,
+  "smooth_passes": 1,
+  "measurement_points": [
+   {
+    "label": "OEP",
+    "longitude": -50.0
+   },
+   {
+    "label": "030W",
+    "longitude": -30.0
+   },
+   {
+    "label": "EU entry",
+    "longitude": -10.0
+   },
+   {
+    "label": "arrival",
+    "longitude": null
+   }
+  ],
+  "note": "Same booked traffic measured at progressive corridor points. Demand curve shape evolves: tight at OEP (close to origin, less variability accumulated), wider at arrival (full route-time variability accumulated across the heterogeneous fleet)."
+ },
+ "series": {
+  "OEP": [
+   {
+    "bin_minute": 900,
+    "count": 1.0
+   },
+   {
+    "bin_minute": 915,
+    "count": 3.25
+   },
+   {
+    "bin_minute": 930,
+    "count": 5.5
+   },
+   {
+    "bin_minute": 945,
+    "count": 8.25
+   },
+   {
+    "bin_minute": 960,
+    "count": 10.75
+   },
+   {
+    "bin_minute": 975,
+    "count": 10.75
+   },
+   {
+    "bin_minute": 990,
+    "count": 10.25
+   },
+   {
+    "bin_minute": 1005,
+    "count": 10.5
+   },
+   {
+    "bin_minute": 1020,
+    "count": 10.5
+   },
+   {
+    "bin_minute": 1035,
+    "count": 11.75
+   },
+   {
+    "bin_minute": 1050,
+    "count": 13.25
+   },
+   {
+    "bin_minute": 1065,
+    "count": 13.0
+   },
+   {
+    "bin_minute": 1080,
+    "count": 10.75
+   },
+   {
+    "bin_minute": 1095,
+    "count": 6.0
+   },
+   {
+    "bin_minute": 1110,
+    "count": 1.5
+   }
+  ],
+  "030W": [
+   {
+    "bin_minute": 990,
+    "count": 0.25
+   },
+   {
+    "bin_minute": 1005,
+    "count": 1.75
+   },
+   {
+    "bin_minute": 1020,
+    "count": 5.0
+   },
+   {
+    "bin_minute": 1035,
+    "count": 7.75
+   },
+   {
+    "bin_minute": 1050,
+    "count": 9.0
+   },
+   {
+    "bin_minute": 1065,
+    "count": 10.75
+   },
+   {
+    "bin_minute": 1080,
+    "count": 11.5
+   },
+   {
+    "bin_minute": 1095,
+    "count": 10.0
+   },
+   {
+    "bin_minute": 1110,
+    "count": 10.0
+   },
+   {
+    "bin_minute": 1125,
+    "count": 12.25
+   },
+   {
+    "bin_minute": 1140,
+    "count": 13.5
+   },
+   {
+    "bin_minute": 1155,
+    "count": 13.0
+   },
+   {
+    "bin_minute": 1170,
+    "count": 11.25
+   },
+   {
+    "bin_minute": 1185,
+    "count": 7.5
+   },
+   {
+    "bin_minute": 1200,
+    "count": 3.0
+   },
+   {
+    "bin_minute": 1215,
+    "count": 0.5
+   }
+  ],
+  "EU entry": [
+   {
+    "bin_minute": 1095,
+    "count": 1.75
+   },
+   {
+    "bin_minute": 1110,
+    "count": 5.75
+   },
+   {
+    "bin_minute": 1125,
+    "count": 8.0
+   },
+   {
+    "bin_minute": 1140,
+    "count": 8.5
+   },
+   {
+    "bin_minute": 1155,
+    "count": 10.0
+   },
+   {
+    "bin_minute": 1170,
+    "count": 11.25
+   },
+   {
+    "bin_minute": 1185,
+    "count": 11.0
+   },
+   {
+    "bin_minute": 1200,
+    "count": 10.75
+   },
+   {
+    "bin_minute": 1215,
+    "count": 12.25
+   },
+   {
+    "bin_minute": 1230,
+    "count": 12.25
+   },
+   {
+    "bin_minute": 1245,
+    "count": 10.75
+   },
+   {
+    "bin_minute": 1260,
+    "count": 10.75
+   },
+   {
+    "bin_minute": 1275,
+    "count": 8.75
+   },
+   {
+    "bin_minute": 1290,
+    "count": 4.25
+   },
+   {
+    "bin_minute": 1305,
+    "count": 1.0
+   }
+  ],
+  "arrival": [
+   {
+    "bin_minute": 1155,
+    "count": 1.0
+   },
+   {
+    "bin_minute": 1170,
+    "count": 3.75
+   },
+   {
+    "bin_minute": 1185,
+    "count": 6.25
+   },
+   {
+    "bin_minute": 1200,
+    "count": 7.75
+   },
+   {
+    "bin_minute": 1215,
+    "count": 9.0
+   },
+   {
+    "bin_minute": 1230,
+    "count": 10.25
+   },
+   {
+    "bin_minute": 1245,
+    "count": 11.0
+   },
+   {
+    "bin_minute": 1260,
+    "count": 10.25
+   },
+   {
+    "bin_minute": 1275,
+    "count": 10.25
+   },
+   {
+    "bin_minute": 1290,
+    "count": 12.0
+   },
+   {
+    "bin_minute": 1305,
+    "count": 13.75
+   },
+   {
+    "bin_minute": 1320,
+    "count": 14.0
+   },
+   {
+    "bin_minute": 1335,
+    "count": 10.75
+   },
+   {
+    "bin_minute": 1350,
+    "count": 5.25
+   },
+   {
+    "bin_minute": 1365,
+    "count": 1.5
+   },
+   {
+    "bin_minute": 1380,
+    "count": 0.25
+   }
+  ]
+ }
+}
