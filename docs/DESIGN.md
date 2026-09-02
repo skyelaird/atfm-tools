@@ -293,6 +293,41 @@ declared value. Red gap ≥ 8/hr, yellow 4–7, green in tolerance.
 
 ---
 
+## 6b. CTOT scope by OpLevel, and the slot allocation model
+
+Migrated out of Claude's memory store 2026-09-02. The scope rules are
+implemented; the buffer-slot model below is design only.
+
+**CTOT scope:**
+- Level 1 (Steady State): No CTOTs. TLDT from frozen ELDT only.
+- Level 2 (Localized): CTOTs for ground flights at adjacent airports.
+- Level 3 (Regional): CTOTs for ground flights with ETE < 2h.
+- Long-haul airborne (ETE > 2h): Always exempt. TLDT = frozen ELDT.
+
+**TLDT assignment:**
+- Only at cruise with stable ELDT (vertical rate < 500fpm). Bad data = no TLDT.
+- TLDT = frozen ELDT. Immovable slot from physics.
+- Flights without TLDT count as soft demand (visible to FMP, not blocking committed capacity).
+
+**Slot allocation model (design, not yet implemented):**
+Per 15-minute window against declared rate:
+- **Committed** = flights with TLDT assigned
+- **Buffer** = capacity reserved for short-haul/late-filing flights that will get TLDT soon
+- **Available** = rate - committed - buffer (this is what the allocator can issue CTOTs against)
+
+Buffer behaviour:
+- Long-haul gets TLDT at T-4h → consumes committed slot
+- Short-haul (CYOW→CYYZ) departs → occupies buffer as soft demand
+- Short-haul reaches cruise T-40min → TLDT assigned, buffer converts to committed
+- Buffer shrinks as time window approaches — at T-5min unclaimed buffer releases
+- Buffer % configurable per airport (default ~20% of rate)
+
+**Key principle:** Don't CTOT against buffer — that capacity is reserved for the airborne short-haul that will claim it shortly. Only CTOT against available slots.
+
+**Joel's formulation:** "reserve x slots within a 15m window for jiggling TLDTs" — once a high-probability TLDT is assigned, the reserved allocation is reduced to serve short-haul feeders.
+
+---
+
 ## 7. How this interacts with vIFF and PERTI
 
 - **vIFF (CDM plugin)** is the consumer. It polls our

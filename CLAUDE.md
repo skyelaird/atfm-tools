@@ -5,6 +5,44 @@
 > left off without re-litigating decisions. **If you're adding context that
 > will be useful next session, put it here.**
 
+## Where we are (update this at the end of every session)
+
+**Live version:** 0.7.38 · prod auto-deploys from `main` within ~60 s ·
+verify at `/api/v1/status`. Last re-baselined **2026-09-02** after a
+summer with no attention.
+
+**Three workstreams, one trunk.** Everything lands on `main`: research
+validates concepts that feed the tools, QA finds gaps to repair, and
+branches would only delay integration for a solo operator. The gate on
+anything touching `src/` is shadow mode or a QA side-column, not a branch.
+
+| Stream | State | Where it lives |
+|---|---|---|
+| **Core ATFM** (0.7.x) | operational hardening. CTOT issuance works; not yet validated against a live CDM plugin session | `src/`, `public/dashboard.html`, `public/aar.html` |
+| **Non-event CTOT portal** (v0.7.0+) | shipped, open for validation. 4 slots/hr/ADES, OAuth + manual CID fallback | `docs/DESIGN-NONEVENT-CTOT.md`, `docs/USAGE-NONEVENT-CTOT.md` |
+| **26E / research** | post-event analyses published; wind-skill corpus analysed | `bin/26e-*.py`, `public/26e-*.html`, `docs/wind-skill-2026-spring.md` |
+
+**Shipped since the 0.6 line:**
+- v0.7.0 non-event CTOT portal — public flow management for CTP overflow
+- CDM plugin v2.28 contract compliance
+- 26E CTP airspace load estimator (CZQM/CZQX), live sector-occupancy map,
+  post-event analysis pages, per-flight Monte Carlo wind-uncertainty viz
+- `docs/nat-fl-allocation.md` — 5/3/5 FL stack, CTP 20/hr/track cap is binding
+- `docs/wind-skill-2026-spring.md` — D-3 GFS 250 mb RMSE 18.3 kt → ±3.7
+  flights at sector peak; morning-of refresh adds nothing actionable
+- v0.7.34 OBSERVED_POS forced for ARRIVING/DESCENT
+- v0.7.36 DISCONNECTED excluded from status counts (pill read 1713 vs 25)
+- v0.7.37 PERTI retired, its page repurposed as ELDT QA
+
+**Open / next:**
+- CDM plugin round-trip still untested against a live EuroScope session —
+  the last real gate on 0.7 → 1.0
+- ELDT bias: median error ~+6 min (we predict early), TLDT median −5 min.
+  Documented, sample still building, no correction applied
+- Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
+- Departures landing at an out-of-scope ADES revert to phase FILED
+  (display-only; outbound query filters on `atot`)
+
 ## Project in one sentence
 
 A lightweight, rate-based tactical CTOT allocator for VATSIM Canadian
@@ -18,6 +56,14 @@ from the VATSIM data feed. Serves the CDM EuroScope plugin via its
   algorithm, deployment, cron schedule, ETA cascade (§7.1)
 - `docs/GLOSSARY.md` — cross-system term reference (ICAO A-CDM, FAA TFMS,
   Eurocontrol, PERTI, ECFMP, vIFF, CDM plugin, our internal naming)
+- `docs/DESIGN.md` — rationale behind the choices, incl. CTOT scope by
+  OpLevel and the slot allocation model (§6b)
+- `docs/DESIGN-NONEVENT-CTOT.md` + `docs/USAGE-NONEVENT-CTOT.md` — the
+  non-event portal (v0.7.0+)
+- `docs/wind-skill-2026-spring.md` — GFS forecast skill vs lead time,
+  and what it means for CTP staffing decisions
+- `docs/nat-fl-allocation.md` — NAT FL stack + capacity model
+- `docs/w27-uncertainty-model.md` — Westbound 2027 per-flight MC design
 
 ## Stack
 
@@ -318,6 +364,14 @@ docs/
   (deploy.sh now runs seed-airports.php after migrate on every deploy)
 - Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
 - ctot.html live testing with CDM plugin — needs a real session
+- **VGDS-style fallback channel** — if the CDM plugin round-trip doesn't
+  close (CTOTs not reaching pilots reliably), replicate VGDS's direct
+  controller-message delay delivery as an ops channel. Fallback, not a
+  replacement: the plugin path stays primary. Decide after the first live
+  plugin test.
+- **Per-flight uncertainty model for Westbound 2027** — Monte Carlo per
+  flight, not curve-level smoothing. Design in `docs/w27-uncertainty-model.md`;
+  σ_grid inputs now real (`docs/wind-skill-2026-spring.md`).
 - ~~Wind-corrected ELDT~~ ✅ shipped v0.5.66
   (pure PHP multi-level GRIB: 250mb/300mb/500mb, authoritative in ETA
   cascade as WIND_GRIB conf 92. Level selected by cruise altitude.)
@@ -368,8 +422,8 @@ verifiable via `/api/v1/status`. Scheme: `MAJOR.MINOR.PATCH`.
 | Version | Milestone | Criteria |
 |---------|-----------|----------|
 | **0.5.x** | ETA & prediction quality | Shipped. GRIB wind, ETA cascade, TLDT validation, reports. |
-| **0.6.0** | CTOT issuance live | **Current.** Restriction creation UI on dashboard drawer with shadow-allocator preview + commit. FMP creates regulations in-browser, allocator issues real CTOTs. MIT planner on AAR page (v0.6.4+). Demand distribution on dashboard + reports (v0.6.13-v0.6.17). Metering fix catalog authoritative via Navigraph (36 MFs across 7 airports). |
-| **0.7.0** | Operational hardening | Multi-session validation, wake-mix phase 2, multi-FMP confidence. |
+| **0.6.x** | CTOT issuance live | Shipped. Restriction creation UI on dashboard drawer with shadow-allocator preview + commit. FMP creates regulations in-browser, allocator issues real CTOTs. MIT planner on AAR page (v0.6.4+). Demand distribution on dashboard + reports (v0.6.13-v0.6.17). Metering fix catalog authoritative via Navigraph (36 MFs across 7 airports). |
+| **0.7.x** | Operational hardening | **Current.** Non-event CTOT portal (v0.7.0), CDM plugin v2.28 contract compliance, 26E event tooling. Remaining: live CDM plugin validation, wake-mix phase 2, multi-FMP confidence. |
 | **1.0.0** | Production-ready | Running reliably during a real VATCAN event — CTOTs flowing, CDM plugin consuming, no manual intervention. |
 
 - **Patch** (0.6.1, 0.6.2…): one per push, always incremented, never skipped.
