@@ -392,6 +392,14 @@ docs/
   (deploy.sh now runs seed-airports.php after migrate on every deploy)
 - Phase-2 wake-mix correction for CYVR/CYYZ — needs historical aircraft mix
 - ctot.html live testing with CDM plugin — needs a real session
+- **Publish our slots to VATSIM Spain's VDGS (`vats.im/vdgs`)** — needs
+  coordination with Roger Puig (rpuig2001). The CDM plugin's default pilot
+  PM already points every pilot there, and their panel is per-pilot
+  OAuth-gated, so it is the natural place for a pilot to read a slot. We
+  would be pushing INTO their system rather than serving a pull, which is a
+  new outbound integration and needs their auth + a field mapping. Until
+  then, controllers must repoint `<PrivateMessage text>` at our portal or
+  pilots are sent somewhere that cannot see our CTOTs.
 - **Portal hardening for self-serve delivery** — the unstaffed-airport
   channel is `public/portal.html`, not a future VDGS clone: it already
   shows TOBT/TSAT/TTOT/CTOT and accepts a manual TOBT. What it lacks is

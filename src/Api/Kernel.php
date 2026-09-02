@@ -2027,7 +2027,13 @@ final class Kernel
             $r = new AirportRestriction();
             $r->restriction_id = AirportRestriction::generateId($airport->icao);
             $r->airport_id     = $airport->id;
-            $r->capacity       = (int) ($body['capacity'] ?? $airport->base_arrival_rate);
+            // Default must match /api/v1/allocator/preview, which uses the
+            // declared active rate. They disagreed: preview defaulted to
+            // active_arr_rate and commit to base_arrival_rate, so a client
+            // omitting capacity would be shown one regulation and get another.
+            $r->capacity       = (int) ($body['capacity']
+                ?? $airport->active_arr_rate
+                ?? $airport->base_arrival_rate);
             $r->reason         = (string) ($body['reason'] ?? 'ATC_CAPACITY');
             $r->op_level       = max(1, min(4, (int) ($body['op_level'] ?? 2)));
             $r->type           = (string) ($body['type']   ?? 'ARR');
