@@ -451,22 +451,14 @@ final class WindEta
         float $destLat, float $destLon,
         array $routeCoords
     ): array {
-        if (empty($routeCoords)) {
-            return [[$curLat, $curLon, $destLat, $destLon]];
-        }
-
-        $directDist = Geo::distanceNm($curLat, $curLon, $destLat, $destLon);
-        $ahead = [];
-        foreach ($routeCoords as [$wLat, $wLon]) {
-            if (Geo::distanceNm($wLat, $wLon, $destLat, $destLon) < $directDist) {
-                $ahead[] = [$wLat, $wLon];
-            }
-        }
-
+        // Sequence position, not distance-to-destination — see
+        // Geo::remainingRoutePoints(). The old filter kept only waypoints
+        // closer to the field than the aircraft, which silently deleted the
+        // downwind on any non-monotonic STAR.
+        $ahead = Geo::remainingRoutePoints($curLat, $curLon, $routeCoords);
         if (empty($ahead)) {
             return [[$curLat, $curLon, $destLat, $destLon]];
         }
-
         $legs = [[$curLat, $curLon, $ahead[0][0], $ahead[0][1]]];
         for ($j = 1; $j < count($ahead); $j++) {
             $legs[] = [$ahead[$j - 1][0], $ahead[$j - 1][1], $ahead[$j][0], $ahead[$j][1]];
@@ -474,12 +466,15 @@ final class WindEta
         $last = $ahead[count($ahead) - 1];
         $legs[] = [$last[0], $last[1], $destLat, $destLon];
 
-        $total = 0.0;
+        // Sanity: reject a mis-resolved route by leg length, NOT by comparing
+        // the total against direct distance. The old test bailed out whenever
+        // the path exceeded 1.3x direct, which is exactly what a legitimate
+        // downwind does — so the one case that most needed route following was
+        // the one case guaranteed to fall back to a straight line.
         foreach ($legs as [$fLat, $fLon, $tLat, $tLon]) {
-            $total += Geo::distanceNm($fLat, $fLon, $tLat, $tLon);
-        }
-        if ($total < $directDist || $total > $directDist * 1.30) {
-            return [[$curLat, $curLon, $destLat, $destLon]];
+            if (Geo::distanceNm($fLat, $fLon, $tLat, $tLon) > 600.0) {
+                return [[$curLat, $curLon, $destLat, $destLon]];
+            }
         }
 
         return $legs;

@@ -435,51 +435,80 @@ final class Geo
      *
      * @param array<array{float,float}> $routeCoords parsed waypoints
      */
+    /**
+     * Route points still to be flown, taken by SEQUENCE POSITION.
+     *
+     * Finds the route point nearest the aircraft and returns everything from
+     * there onward, in published order.
+     *
+     * This deliberately replaces the older test of "waypoints closer to the
+     * destination than the aircraft is", which assumed a monotonic approach.
+     * Real STARs are not monotonic: RAGID6 into CYYZ passes overhead the field
+     * at KEVNO (4.9 nm) and runs back out to DERLI (21.3 nm) for the runway 06
+     * downwind. Under the old test an aircraft at KEVNO kept no waypoints at
+     * all and was judged 4.9 nm from landing with 45.2 nm left to fly — and the
+     * error grew the closer it got. Sequence position handles it correctly:
+     * fixes behind the aircraft are behind it in the list, not merely farther
+     * from the field.
+     *
+     * Known limitation: if ATC gives a flight direct-to, it will not fly the
+     * remaining procedure and this over-counts. Assuming the published routing
+     * is still the better default — the alternative in place until 2026-09-02
+     * assumed a straight line to the threshold, which was wrong by up to 40 nm.
+     *
+     * @param  list<array{0: float, 1: float}> $routeCoords
+     * @return list<array{0: float, 1: float}>
+     */
+    public static function remainingRoutePoints(float $curLat, float $curLon, array $routeCoords): array
+    {
+        if (empty($routeCoords)) {
+            return [];
+        }
+
+        $bestIdx = 0;
+        $bestDist = INF;
+        foreach ($routeCoords as $i => [$wLat, $wLon]) {
+            $d = self::distanceNm($curLat, $curLon, $wLat, $wLon);
+            if ($d < $bestDist) {
+                $bestDist = $d;
+                $bestIdx = $i;
+            }
+        }
+
+        return array_values(array_slice($routeCoords, $bestIdx));
+    }
+
     public static function alongRouteDistanceNm(
         float $curLat, float $curLon,
         float $destLat, float $destLon,
         array $routeCoords
     ): float {
         $directDist = self::distanceNm($curLat, $curLon, $destLat, $destLon);
-        if (empty($routeCoords)) {
-            return $directDist;
-        }
-
-        // Compute each waypoint's distance to destination.
-        $wptDistToDest = [];
-        foreach ($routeCoords as [$wLat, $wLon]) {
-            $wptDistToDest[] = self::distanceNm($wLat, $wLon, $destLat, $destLon);
-        }
-
-        // Keep only waypoints that are AHEAD: closer to destination
-        // than the aircraft currently is. This filters out waypoints
-        // the aircraft has already passed.
-        $ahead = [];
-        foreach ($routeCoords as $i => [$wLat, $wLon]) {
-            if ($wptDistToDest[$i] < $directDist) {
-                $ahead[] = [$wLat, $wLon];
-            }
-        }
-
+        $ahead = self::remainingRoutePoints($curLat, $curLon, $routeCoords);
         if (empty($ahead)) {
-            // All waypoints are behind us — direct to dest.
             return $directDist;
         }
 
-        // Sum: cur → first_ahead → subsequent_ahead → dest.
         $dist = self::distanceNm($curLat, $curLon, $ahead[0][0], $ahead[0][1]);
         for ($i = 1; $i < count($ahead); $i++) {
-            $dist += self::distanceNm(
+            $leg = self::distanceNm(
                 $ahead[$i - 1][0], $ahead[$i - 1][1],
                 $ahead[$i][0], $ahead[$i][1]
             );
+            // A single leg this long means a mis-resolved fix, not a route.
+            if ($leg > 600.0) {
+                return $directDist;
+            }
+            $dist += $leg;
         }
-        $lastAhead = $ahead[count($ahead) - 1];
-        $dist += self::distanceNm($lastAhead[0], $lastAhead[1], $destLat, $destLon);
+        $last = $ahead[count($ahead) - 1];
+        $dist += self::distanceNm($last[0], $last[1], $destLat, $destLon);
 
-        // Sanity bounds: never shorter than direct, never more than
-        // 1.3x direct (catches garbage waypoints or route mismatches).
-        return max($directDist, min($dist, $directDist * 1.30));
+        // Floor at direct, but NO upper clamp against direct distance. The old
+        // 1.3x cap made a downwind impossible to represent: at 4.9 nm direct it
+        // limited the answer to 6.4 nm when 45.2 nm remained to fly. Garbage
+        // routes are now rejected by the per-leg test above instead.
+        return max($directDist, $dist);
     }
 
     private static function descentSegmentMinutes(float $distNm, float $fl100DistNm = 31.0, int $iasHighKt = 280): float
