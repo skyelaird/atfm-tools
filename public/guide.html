@@ -78,6 +78,7 @@
         <a href="/aar.html" class="pill">AAR</a>
         <a href="/reports.html" class="pill">reports</a>
         <a href="/eldt-qa.html" class="pill">eldt qa</a>
+        <a href="/cdm-atc.html" class="pill">ATC guide</a>
     </div>
 </header>
 
@@ -339,6 +340,8 @@ ILS_bonus      = 3 (only in IFR/LIFR conditions, for ILS-equipped runways)</pre>
 <div class="callout warn">
 <strong>Failing loudly is safer than failing quietly.</strong> If our endpoint errors, the plugin logs it and keeps the CTOTs it already had. If it answers 200 with a body that does not parse, the plugin clears every CTOT on that controller's screen. An outage is survivable; a malformed success is not.
 </div>
+
+<p>A step-by-step walkthrough for the controller side lives at <a href="/cdm-atc.html">CDM Plugin &mdash; ATC Quick Guide</a>.</p>
 
 <h4>Unstaffed &mdash; self-serve</h4>
 <p>Most of the time there is no ATC at the departure airport, and a slot nobody can read is not a slot. The <a href="/portal.html">pilot portal</a> is the fallback channel: a pilot enters their callsign and sees TOBT, TSAT, TTOT and CTOT, plus plain-language guidance on whether it is time to push. They can also set a manual TOBT when they are actually ready, which re-cascades TSAT/TTOT and re-computes the CTOT on the next allocator run (&le;&nbsp;2&nbsp;min).</p>

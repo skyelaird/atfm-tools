@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>atfm-tools — CDM Plugin: ATC Quick Guide</title>
+    <style>
+        :root {
+            --bg: #0f1419; --bg-elev: #1a2028; --bg-elev-hi: #242c38;
+            --border: #2a3340;
+            --text: #d7dee8; --text-dim: #8a94a3; --text-bright: #f0f4fa;
+            --accent: #5eead4; --accent-dim: #2a6b5f;
+            --warn: #facc15; --warn-dim: #5e4a0f;
+            --alert: #f87171; --alert-dim: #5e1f1f;
+            --ok: #4ade80; --ok-dim: #1e4a2e;
+            --info: #60a5fa; --info-dim: #1e3a5f;
+            --mono: "SF Mono", Consolas, Monaco, monospace;
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; font-size: 14px; line-height: 1.6; }
+        a { color: var(--accent); text-decoration: none; }
+        a:hover { text-decoration: underline; }
+        .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+        header { position: sticky; top: 0; z-index: 100; background: var(--bg-elev); border-bottom: 1px solid var(--border); padding: 0.65rem 1rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+        header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+        .utc-clock { font-size: 0.95rem; color: var(--accent); font-variant-numeric: tabular-nums; padding: 0 0.6rem; border-left: 1px solid var(--border); font-family: var(--mono); }
+        .pill { display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.2rem 0.6rem; border-radius: 999px; background: var(--bg-elev-hi); border: 1px solid var(--border); font-size: 0.75rem; color: var(--text-dim); text-decoration: none; }
+        .pill:hover { background: var(--accent-dim); color: var(--accent); border-color: var(--accent); }
+
+        main { max-width: 900px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+
+        h2 { color: var(--accent); font-size: 1.3rem; margin: 2.5rem 0 0.75rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); }
+        h3 { color: var(--text-bright); font-size: 1.05rem; margin: 1.5rem 0 0.5rem; }
+        h4 { color: var(--text); font-size: 0.95rem; margin: 1.2rem 0 0.4rem; }
+
+        p, li { color: var(--text); line-height: 1.65; }
+        ul, ol { padding-left: 1.3rem; }
+        li { margin-bottom: 0.3rem; }
+
+        code { font-family: var(--mono); background: var(--bg-elev-hi); padding: 0.15rem 0.4rem; border-radius: 3px; font-size: 0.9em; color: var(--accent); }
+
+        table { width: 100%; border-collapse: collapse; margin: 0.8rem 0 1.2rem; font-size: 0.88rem; }
+        th { text-align: left; padding: 0.5rem; background: var(--bg-elev-hi); border: 1px solid var(--border); color: var(--text-bright); font-weight: 600; }
+        td { padding: 0.5rem; border: 1px solid var(--border); vertical-align: top; }
+        tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+
+        .toc { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.5rem; margin: 1rem 0 2rem; }
+        .toc h3 { margin-top: 0; color: var(--text-bright); }
+        .toc ol { padding-left: 1.2rem; }
+        .toc li { margin-bottom: 0.2rem; }
+        .toc a { color: var(--accent); font-size: 0.9rem; }
+
+        .callout { background: var(--bg-elev); border-left: 3px solid var(--accent); padding: 0.7rem 1rem; margin: 1rem 0; border-radius: 0 6px 6px 0; }
+        .callout.warn { border-left-color: var(--warn); }
+        .callout.alert { border-left-color: var(--alert); }
+        .callout strong { color: var(--text-bright); }
+
+        .badge { display: inline-block; font-size: 0.7rem; padding: 0.15rem 0.5rem; border-radius: 4px; font-weight: 600; vertical-align: middle; }
+        .b-arr { background: var(--accent-dim); color: var(--accent); }
+        .b-dep { background: var(--info-dim); color: var(--info); }
+        .b-phase { background: var(--bg-elev-hi); color: var(--text-dim); border: 1px solid var(--border); }
+
+        .diagram { background: var(--bg-elev); border: 1px solid var(--border); border-radius: 6px; padding: 1rem; margin: 1rem 0; font-family: var(--mono); font-size: 0.82rem; line-height: 1.5; white-space: pre; overflow-x: auto; color: var(--text-dim); }
+        .diagram .hl { color: var(--accent); }
+        .diagram .dim { color: #555; }
+
+        @media (max-width: 640px) { main { padding: 1rem 0.5rem 3rem; } }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>atfm-tools <span style="color:var(--text-dim); font-weight:400;">CDM Plugin &mdash; ATC Quick Guide</span></h1>
+    <span class="utc-clock mono" id="utc-clock">&ndash;&ndash;:&ndash;&ndash;:&ndash;&ndash;Z</span>
+    <div style="display:flex; gap:0.5rem; margin-left:auto; align-items:center;">
+        <a href="/dashboard.html" class="pill">&larr; dashboard</a>
+        <a href="/guide.html" class="pill">FMP guide</a>
+        <a href="/portal.html" class="pill">pilot portal</a>
+    </div>
+</header>
+
+<main>
+<h2 style="margin-top:1rem; border:none; padding:0;">Working a CDM airport with atfm-tools</h2>
+<p>For aerodrome controllers (DEL / GND / TWR) at a Canadian scope airport while atfm-tools is issuing CTOTs. Read top to bottom &mdash; it follows one departure from connection to wheels-up. Verified against <code>rpuig2001/CDM</code> at <code>cc5a2bc</code>.</p>
+
+<div class="callout">
+<strong>The short version.</strong> We compute the slot; the plugin puts it in your tag as a TSAT; you approve start-up against it. You are the delivery channel &mdash; nothing we calculate reaches a pilot unless you pass it on, or point them at the portal.
+</div>
+
+<!-- ============================================================ -->
+<h2 id="setup">Before you start &mdash; once per session</h2>
+
+<ol>
+    <li><strong>Connect on a controlling position.</strong> The plugin refuses to act for <code>OBS</code> and other non-active positions. It accepts <code>_DEL</code>, <code>_GND</code>, <code>_TWR</code>, <code>_APP</code>, <code>_CTR</code> and <code>_FMP</code>.</li>
+    <li><strong>Point the CTOT feed at us.</strong> In <code>CDMconfig.xml</code>, set <code>&lt;customRestricted url="https://atfm.momentaryshutter.com/cdm/etfms/restricted"/&gt;</code> and leave <code>&lt;viffSystem&gt;</code> at its default. That override swaps <em>only</em> CTOT delivery &mdash; rates, relevant flights and everything else still come from vIFF.</li>
+    <li><strong>Set the pilot message.</strong> <code>&lt;CDM&gt;&lt;PrivateMessage text="&hellip;"/&gt;</code>. Out of the box the plugin sends pilots to <code>vats.im/vdgs</code>, which is VATSIM Spain's panel and knows nothing about our slots. Point it at <a href="/portal.html">our pilot portal</a> instead.</li>
+    <li><strong>Claim the airport:</strong> <code>.cdm master CYYZ</code>. Until you do, the plugin holds no flights for it and you will see nothing. <code>.cdm help</code> lists the rest (<code>lvo</code>, <code>realmode</code>, <code>server</code>, <code>remarks</code>, <code>rate</code>).</li>
+</ol>
+
+<!-- ============================================================ -->
+<h2 id="thread">The thread &mdash; one departure</h2>
+
+<h3>1. The flight appears</h3>
+<p>Pilot connects and files. We derive <strong>TOBT</strong> from the filed EOBT, or from spawn&nbsp;+&nbsp;20&nbsp;min when the EOBT is already stale &mdash; which on VATSIM it usually is. TSAT and TTOT cascade from there. Nothing is regulated yet; the tag shows times, not a slot.</p>
+
+<h3>2. A slot arrives &mdash; only if a regulation is active</h3>
+<p>When the FMP has a regulation running at the <em>destination</em>, our allocator issues a <strong>CTOT</strong> for this departure. The plugin polls us about every 15&nbsp;s per master airport, so it lands in your <code>CTOT</code> tag item within a quarter of a minute of being issued.</p>
+<p>No regulation means no CTOT, and that is the normal state. An empty CTOT column is not a fault.</p>
+
+<h3>3. Read the tag</h3>
+<table>
+    <tr><th>Item</th><th>What it is</th></tr>
+    <tr><td><code>EOBT</code></td><td>What the pilot filed. Treat as a rumour.</td></tr>
+    <tr><td><code>TOBT</code></td><td>When the aircraft is actually expected to be ready. The number that matters.</td></tr>
+    <tr><td><code>TSAT</code></td><td>Start-up approval time. <strong>This is what you issue against.</strong></td></tr>
+    <tr><td><code>TTOT</code></td><td>Target take-off = TOBT + taxi.</td></tr>
+    <tr><td><code>CTOT</code></td><td>Our slot, when one exists. TSAT is then derived backwards from it.</td></tr>
+    <tr><td><code>Network Sts</code></td><td>Where the flight sits in the CDM sequence.</td></tr>
+</table>
+<p>Colours do the nagging for you: TSAT flashes orange in its first minute and turns red once it is stale; TTOT goes red past TTOT&nbsp;+&nbsp;10; CTOT shows yellow when the flight is flagged REA.</p>
+
+<h3>4. Pilot calls ready</h3>
+<p>Use <strong>Ready TOBT</strong> on the TOBT item. If they are clearly not ready &mdash; still boarding, no pushback crew &mdash; <strong>Edit TOBT</strong> forward instead. Everything downstream re-cascades, and if the flight is regulated we recompute the CTOT on the next allocator run (&le;&nbsp;2&nbsp;min).</p>
+<div class="callout warn">
+Moving TOBT <em>earlier</em> than the aircraft can actually make it is the one change that reliably wastes a slot. An optimistic TOBT buys a slot the aircraft then misses, and the next flight cannot have it back.
+</div>
+
+<h3>5. Approve start-up at TSAT</h3>
+<p>Issue start-up against TSAT, then set the EuroScope ground state to <strong>STUP</strong>. That is what stamps <strong>ASAT</strong> and pushes it back through the plugin.</p>
+<div class="callout">
+<strong>ASAT exists only because you set that ground state.</strong> We never invent it &mdash; there is no position signal for "start-up approved", so an unset ground state means the milestone simply does not exist in the record.
+</div>
+
+<h3>6. Push and taxi</h3>
+<p>Ground states <code>PUSH</code> then <code>TAXI</code> as normal. Separately, we observe <strong>AOBT</strong> ourselves from the aircraft's own movement &mdash; the first report with groundspeed above zero at the stand. The two can disagree by a minute or two: ours feeds taxi-time statistics, yours drives the CDM sequence. Neither is wrong.</p>
+
+<h3>7. Take-off</h3>
+<p>We stamp <strong>ATOT</strong> from the position feed and measure it against the CTOT. Compliance shows up on the FMP's reports page, not yours.</p>
+
+<h3>8. If the slot slips</h3>
+<p>With one of our CTOTs attached, <strong>the plugin stops running its own departure sequencing for that flight</strong> &mdash; it takes our time as given. If its computed take-off drifts past the CTOT but stays inside <strong>CTOT&nbsp;+&nbsp;7&nbsp;min</strong>, it quietly adjusts. Past that the slot is missed: ask the FMP for a new one, or set a manual CTOT if you need to move the aircraft now.</p>
+
+<!-- ============================================================ -->
+<h2 id="actions">Actions on the CTOT item</h2>
+<table>
+    <tr><th>Action</th><th>Use it when</th></tr>
+    <tr><td><strong>Set Manual CTOT</strong></td><td>You need a specific take-off time for this flight regardless of what we said. Local to your session.</td></tr>
+    <tr><td><strong>Remove Manual CTOT</strong></td><td>Undo the above and fall back to ours.</td></tr>
+    <tr><td><strong>Disable CDM-Network</strong></td><td>Take one flight out of the automated flow entirely. We keep issuing; the plugin stops applying.</td></tr>
+    <tr><td><strong>Get FM as text</strong></td><td>You want the flow reason in words, to read to a pilot.</td></tr>
+    <tr><td><strong>Send VDGS PM</strong></td><td>Private-messages the pilot with your configured text. The cheapest way to get an unresponsive pilot watching their own times.</td></tr>
+</table>
+
+<h3>What outranks what</h3>
+<div class="diagram">ECFMP restriction  &gt;  Disable CDM-Network  &gt;  our CTOT  &gt;  event slot  &gt;  plugin's own sequencing</div>
+<p>If a flight carries an ECFMP restriction the plugin skips our CTOT for it completely. That is correct &mdash; the European measure is a real constraint and we are not modelling it.</p>
+
+<!-- ============================================================ -->
+<h2 id="gotchas">Four things that surprise people</h2>
+
+<ol>
+    <li><strong>Our list is authoritative on every poll.</strong> The plugin wipes all CTOTs and re-applies whatever we just sent. A callsign we omit is a callsign whose CTOT is released &mdash; that is how a lifted regulation clears your screen within 15&nbsp;s.</li>
+    <li><strong>An outage is safer than a bad response.</strong> If our server errors, the plugin logs it and keeps the CTOTs you already have. Only a valid-but-wrong response can clear them.</li>
+    <li><strong>Rates come from two places.</strong> The plugin merges its own <code>rate.txt</code> for departure sequencing, but the arrival rate that <em>shaped</em> your CTOTs is the one the FMP declared on our AAR page. If they disagree, the CTOT already reflects ours.</li>
+    <li><strong>No ATC at the departure airport is the normal case.</strong> Most regulated flights push without anyone to read them a TSAT. That is what the <a href="/portal.html">pilot portal</a> is for &mdash; a pilot enters their callsign and reads their own TOBT, TSAT and CTOT. Send them there early rather than explaining a slot over text.</li>
+</ol>
+
+<div class="callout alert">
+<strong>Still unproven.</strong> This round trip has not yet been exercised against a live EuroScope session. Until it has, treat a CTOT that fails to appear as a bug worth reporting rather than as pilot error &mdash; and tell the FMP what you saw.
+</div>
+
+</main>
+
+<script>
+function tick() {
+    const d = new Date();
+    const p = n => String(n).padStart(2, '0');
+    const el = document.getElementById('utc-clock');
+    if (el) el.textContent = p(d.getUTCHours()) + ':' + p(d.getUTCMinutes()) + ':' + p(d.getUTCSeconds()) + 'Z';
+}
+setInterval(tick, 1000); tick();
+</script>
+</body>
+</html>
