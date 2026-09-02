@@ -1196,11 +1196,19 @@ final class VatsimIngestor
         // whether the VATSIM feed reports true or magnetic heading, so the
         // safest thing is to depend on neither: the aircraft's track over the
         // final two observations is unambiguous.
+        // NOTE: $lat/$lon are locals of upsertFlight() and are NOT in scope
+        // here. An earlier version referenced them, which PHP evaluates to
+        // null, so this block never executed and arrival_runway was never
+        // recorded. The current position lives on the model — last_lat/last_lon
+        // were assigned this cycle's values before this method is called.
+        $curLat = $flight->last_lat !== null ? (float) $flight->last_lat : null;
+        $curLon = $flight->last_lon !== null ? (float) $flight->last_lon : null;
+
         $runway = null;
         if ($bestThr !== null && $bestThr['opp_lat'] !== null && $bestThr['opp_lon'] !== null
-            && $lat !== null && $lon !== null
+            && $curLat !== null && $curLon !== null
         ) {
-            $trackTrue = Geo::bearingDeg($prevLat, $prevLon, $lat, $lon);
+            $trackTrue = Geo::bearingDeg($prevLat, $prevLon, $curLat, $curLon);
             $rwyTrue   = Geo::bearingDeg(
                 $bestThr['lat'], $bestThr['lon'],
                 $bestThr['opp_lat'], $bestThr['opp_lon']
