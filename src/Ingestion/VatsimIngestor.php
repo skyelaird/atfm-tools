@@ -52,6 +52,19 @@ final class VatsimIngestor
     /** @var array<string, list<array>> map icao → runway thresholds (for ALDT interpolation) */
     private array $thresholdsByIcao = [];
 
+    /**
+     * Airports with an aerodrome/approach controller online this cycle.
+     *
+     * Used to stamp `had_atc_at_arrival`, which has existed unwritten since
+     * v0.5.13. It is the missing input for the question the terminal-transit
+     * work needs answered: is the ~5 min of unmodelled track miles in the last
+     * 40 nm actually ATC-generated (vectoring, downwind extension, sequencing),
+     * in which case it should not be applied to uncontrolled arrivals?
+     *
+     * @var array<string, true> map icao → true
+     */
+    private array $atcOnlineByIcao = [];
+
     public function __construct(?Client $http = null)
     {
         $this->http = $http ?? new Client([
@@ -118,6 +131,18 @@ final class VatsimIngestor
         $payload = json_decode((string) $res->getBody(), true);
         if (! is_array($payload) || ! isset($payload['pilots']) || ! is_array($payload['pilots'])) {
             throw new \RuntimeException('Unexpected VATSIM feed shape');
+        }
+
+        // Aerodrome ATC online this cycle, from the same snapshot. Only
+        // positions that actually shape an arrival path count: DEL/GND own the
+        // surface, and CTR is enroute, so neither vectors a final.
+        $this->atcOnlineByIcao = [];
+        foreach (($payload['controllers'] ?? []) as $ctl) {
+            $cs = strtoupper((string) ($ctl['callsign'] ?? ''));
+            if (! preg_match('/^([A-Z]{4})_(?:[A-Z0-9]+_)?(TWR|APP|DEP)$/', $cs, $m)) {
+                continue;
+            }
+            $this->atcOnlineByIcao[$m[1]] = true;
         }
 
         $pilots = $payload['pilots'];
@@ -727,6 +752,9 @@ final class VatsimIngestor
             Flight::PHASE_ARRIVED,
         ], true)) {
             if ($flight->aldt === null) {
+                // Record whether the destination was controlled at the moment
+                // of landing — see $atcOnlineByIcao.
+                $flight->had_atc_at_arrival = isset($this->atcOnlineByIcao[$ades]);
                 $interp = $this->interpolateTouchdown($flight, $adesAirport, $now);
                 if ($interp !== null) {
                     $flight->aldt = $interp['at'];
