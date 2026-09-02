@@ -192,3 +192,52 @@ TTOT and therefore into any CTOT.
 
 Both systems independently computed the same start-up window opening — 16:30
 from EOBT 1635, and 16:40 after TOBT moved to 1645. No shared code.
+
+### The decisive finding: A-CDM DISCONNECTED
+
+The VDGS badge on FAL57 read **A-CDM DISCONNECTED** throughout. Their own
+"Online ACDM Airports" list explains it — 10 entries, each bound to a live
+controller position:
+
+```
+EBBR_GND  EDDH_APP  ELLX_DEL  ENBR_D_APP  EYKA_TWR
+LEBL_GND  LEIB_GND  LEPA_GND  LROP_GND    OMDB_1_GND
+```
+
+No Canadian airport, and every entry is a controller. **vIFF's A-CDM process
+runs only where a controller has claimed the airport as master in the CDM
+plugin.** Without one there is no TSAT, no CTOT, no sequencing, and no
+presence in `/etfms/relevant`.
+
+Which means the CYHZ ARR/20 restriction was **inert**: a real constraint,
+authored correctly, that regulated nobody, because vIFF was sequencing no
+Canadian flights.
+
+Note also that the VDGS *degrades gracefully*: EOBT, taxi time and the
+start-up window all come from the flight plan plus airport config, not from
+A-CDM. A Canadian pilot can therefore read a plausible-looking panel and
+reasonably believe they are in a CDM process they are not in.
+
+### What this settles
+
+vIFF's Canadian coverage is exactly *"when a Canadian controller is plugged in
+as master"*. The unstaffed case is the normal case here, and it is precisely
+the case where flow management still has to work. We ingest every flight in
+scope from the VATSIM feed regardless of who is online.
+
+So the division of labour is settled on evidence, not preference:
+**vIFF holds the constraint — authored once by a human, visible network-wide —
+and we allocate, because we are the only one of the two that can see the
+traffic when nobody is plugged in.**
+
+It also reprioritises the asks to Roger. A write endpoint for CTOTs matters
+less than it appeared, since writing slots into a system that is not
+sequencing Canadian flights buys little. The valuable asks are now:
+
+1. **Can the VDGS display a CTOT that originated outside their A-CDM?** The
+   panel clearly renders without a master, so this may be cheap for him.
+2. **Can we read pilot TOBT** for flights vIFF is not sequencing? Three edits
+   on a live flight never surfaced in any public feed.
+
+Until either exists, the mitigation stands and needs nobody: point the CDM
+plugin's `<PrivateMessage text>` at our own portal for Canadian ops.
