@@ -37,6 +37,26 @@ final class Geo
      * Cruise flight time in minutes, rounded to nearest whole minute.
      * Uses filed TAS if sensible, else 450 kt default.
      */
+    /**
+     * Initial great-circle bearing, degrees TRUE.
+     *
+     * True by construction — it comes from coordinates, so magnetic variation
+     * never enters. Prefer this over any stored heading when comparing against
+     * runway geometry: `runway_thresholds.heading_deg` is MAGNETIC (it differs
+     * from the coordinate-derived bearing by exactly the local variation, e.g.
+     * CYHZ +18.0, CYOW +13.7), and it is not documented whether the VATSIM
+     * feed's heading is true or magnetic.
+     */
+    public static function bearingDeg(float $lat1, float $lon1, float $lat2, float $lon2): float
+    {
+        $lat1r = deg2rad($lat1);
+        $lat2r = deg2rad($lat2);
+        $dlon  = deg2rad($lon2 - $lon1);
+        $x = sin($dlon) * cos($lat2r);
+        $y = cos($lat1r) * sin($lat2r) - sin($lat1r) * cos($lat2r) * cos($dlon);
+        return fmod(rad2deg(atan2($x, $y)) + 360, 360);
+    }
+
     public static function flightMinutes(float $distanceNm, ?int $filedTas = null): int
     {
         $tas = ($filedTas !== null && $filedTas >= 120 && $filedTas <= 650)

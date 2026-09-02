@@ -95,10 +95,17 @@ final class VatsimIngestor
         $this->thresholdsByIcao = [];
         foreach (RunwayThreshold::all() as $thr) {
             $this->thresholdsByIcao[$thr->airport_icao][] = [
-                'ident'   => $thr->runway_ident,
-                'lat'     => (float) $thr->threshold_lat,
-                'lon'     => (float) $thr->threshold_lon,
-                'heading' => (int) $thr->heading_deg,
+                'ident'    => $thr->runway_ident,
+                'lat'      => (float) $thr->threshold_lat,
+                'lon'      => (float) $thr->threshold_lon,
+                // heading_deg is MAGNETIC (verified: it differs from the
+                // coordinate-derived bearing by exactly the local variation,
+                // e.g. CYHZ +18.0, CYOW +13.7). Keep the opposite threshold so
+                // we can derive a TRUE bearing and avoid the convention
+                // entirely — see interpolateTouchdown().
+                'heading'  => (int) $thr->heading_deg,
+                'opp_lat'  => $thr->opposite_threshold_lat !== null ? (float) $thr->opposite_threshold_lat : null,
+                'opp_lon'  => $thr->opposite_threshold_lon !== null ? (float) $thr->opposite_threshold_lon : null,
             ];
         }
 
@@ -1152,10 +1159,25 @@ final class VatsimIngestor
         // Only claim the runway when the aircraft was actually lined up with
         // it — otherwise "nearest threshold" is just the closest bit of
         // concrete, not an observation of which runway was used.
+        //
+        // Both sides of this comparison are TRUE bearings derived from
+        // coordinates, so magnetic variation never enters. The earlier version
+        // compared the feed's heading against threshold.heading_deg, which is
+        // magnetic — a systematic 11-18 deg error depending on airport, and
+        // sign-flipped at CYVR where variation is easterly. It is also unclear
+        // whether the VATSIM feed reports true or magnetic heading, so the
+        // safest thing is to depend on neither: the aircraft's track over the
+        // final two observations is unambiguous.
         $runway = null;
-        if ($bestThr !== null && $flight->getOriginal('last_heading_deg') !== null) {
-            $hdg = (int) $flight->getOriginal('last_heading_deg');
-            $delta = abs((($hdg - $bestThr['heading']) + 540) % 360 - 180);
+        if ($bestThr !== null && $bestThr['opp_lat'] !== null && $bestThr['opp_lon'] !== null
+            && $lat !== null && $lon !== null
+        ) {
+            $trackTrue = Geo::bearingDeg($prevLat, $prevLon, $lat, $lon);
+            $rwyTrue   = Geo::bearingDeg(
+                $bestThr['lat'], $bestThr['lon'],
+                $bestThr['opp_lat'], $bestThr['opp_lon']
+            );
+            $delta = abs(((($trackTrue - $rwyTrue) + 540) % 360) - 180);
             if ($delta <= 30) {
                 $runway = $bestThr['ident'];
             }
