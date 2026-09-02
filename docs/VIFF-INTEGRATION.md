@@ -365,6 +365,12 @@ So the durable split is:
 The bridge is not "here are our CTOTs". It is "here is arrival demand and the
 capacity it consumes" — which vIFF's own allocator then regulates against.
 
+See `docs/sessions/2026-09-02_viff-collaboration-framing.md` for the argument,
+the vocabulary that works with him, and why "ad-hoc CTOT" caused the
+misunderstanding — the short version being that VATSIM has no known population
+to allocate across, so every flight is a pop-up, and vIFF is already an
+all-pop-up system.
+
 **Open question, to ask rather than assume:** what Roger means by "bookable
 arrival slots". It may be pilot-initiated booking (CTP-style) rather than
 system-reserved capacity based on predicted ELDT. Those are different products
