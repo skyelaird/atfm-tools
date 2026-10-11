@@ -1,6 +1,6 @@
 {
  "meta": {
-  "generated_utc": "2026-10-11T10:51:05.016731Z",
+  "generated_utc": "2026-10-11T20:13:44.331721Z",
   "bin_minutes": 5,
   "metric": "instantaneous_occupancy_peak_in_bin",
   "cruise_mach": 0.82,
