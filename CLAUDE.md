@@ -7,7 +7,7 @@
 
 ## Where we are (update this at the end of every session)
 
-**Live version:** 0.7.74 · prod auto-deploys from `main` within ~60 s ·
+**Live version:** 0.7.75 · prod auto-deploys from `main` within ~60 s ·
 verify at `/api/v1/status`. Last re-baselined **2026-09-02** after a
 summer with no attention.
 

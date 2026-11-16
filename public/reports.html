@@ -884,7 +884,7 @@ async function refreshTldt() {
 
         // Flights table
         const $ftb = document.getElementById('tldt-flights-tbody');
-        $ftb.innerHTML = '';
+        const flightRows = [];
         const fmtTime = s => s ? s.replace(/T/, ' ').replace(/\+.*/, '').slice(11, 16) : '\u2014';
         for (const f of (d.flights || [])) {
             const errCls = Math.abs(f.tldt_err_min) <= 3 ? 'ok' : Math.abs(f.tldt_err_min) <= 5 ? 'warn' : 'alert';
@@ -955,7 +955,7 @@ async function refreshTldt() {
             const shortTag = f.short_haul
                 ? ' <span class="short-haul-tag" title="Flight time < 90 min — no cruise-GRIB window before T-90m freeze. Lock tier is inherently weaker.">short</span>'
                 : '';
-            $ftb.innerHTML += '<tr' + rowCls + '>' +
+            flightRows.push('<tr' + rowCls + '>' +
                 '<td class="tombstone">' +
                     '<div class="cs">' + f.callsign + partialTag + shortTag + '</div>' +
                     '<div class="meta">' + (f.aircraft_type || '?') + ' · ' +
@@ -969,8 +969,9 @@ async function refreshTldt() {
                 '<td class="aldt-cell">' + fmtTime(f.aldt) + '</td>' +
                 '<td class="pred">' + fmtTime(f.tldt) + tldtInline + whyMarker + tldtBar + '</td>' +
                 '<td><span class="src-chip src-' + src + '" title="' + (f.eta_source || 'UNKNOWN') + '">' + src + '</span></td>' +
-                '</tr>';
+                '</tr>');
         }
+        $ftb.innerHTML = flightRows.join('');
         if ((d.flights || []).length === 0) $ftb.innerHTML = '<tr><td colspan="7" class="empty-row">No TLDT data yet \u2014 need flights with ATOT + TLDT + ALDT.</td></tr>';
     } catch (e) {
         console.error('TLDT refresh failed:', e);
