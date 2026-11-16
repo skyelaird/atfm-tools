@@ -229,7 +229,7 @@
         <span class="pill active" data-hours="24">24h</span>
         <span class="pill" data-hours="48">48h</span>
         <span class="pill" data-hours="168">7d</span>
-        <span class="pill" data-hours="720" title="All tracked (capped at 30 days)">all</span>
+        <span class="pill" data-hours="720" title="Longer windows: add ?hours=N to the URL (up to 8760)">30d</span>
     </div>
     <div style="display:flex; gap:0.5rem; align-items:center;">
         <a href="/dashboard.html" class="pill">&larr; dashboard</a>
@@ -971,6 +971,9 @@ async function refreshTldt() {
                 '<td><span class="src-chip src-' + src + '" title="' + (f.eta_source || 'UNKNOWN') + '">' + src + '</span></td>' +
                 '</tr>');
         }
+        if (d.flights_total > flightRows.length) {
+            flightRows.push(`<tr><td colspan="7" class="empty-row">Newest ${flightRows.length.toLocaleString()} of ${d.flights_total.toLocaleString()} flights shown — stats above cover all of them.</td></tr>`);
+        }
         $ftb.innerHTML = flightRows.join('');
         if ((d.flights || []).length === 0) $ftb.innerHTML = '<tr><td colspan="7" class="empty-row">No TLDT data yet \u2014 need flights with ATOT + TLDT + ALDT.</td></tr>';
     } catch (e) {
@@ -990,6 +993,16 @@ document.querySelectorAll('#window-pills .pill').forEach(p => {
         // demand dist is forward-looking, has its own window pills — don't re-fire it
     });
 });
+
+// ?hours=N deep-links a window longer than the pills offer
+{
+    const h = parseInt(new URLSearchParams(location.search).get('hours'), 10);
+    if (h > 0) {
+        currentHours = Math.min(h, 8760);
+        document.querySelectorAll('#window-pills .pill').forEach(x =>
+            x.classList.toggle('active', Number(x.dataset.hours) === currentHours));
+    }
+}
 
 refresh();
 refreshTldt();

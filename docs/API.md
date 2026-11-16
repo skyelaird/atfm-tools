@@ -370,7 +370,7 @@ Per-airport KPI rollup for the reports page.
 
 | Param | Default | Description |
 |-------|---------|-------------|
-| `hours` | `24` | Lookback window (max 168 = 7 days) |
+| `hours` | `24` | Lookback window (max 8760 = 1 year) |
 
 **Response includes per airport:**
 

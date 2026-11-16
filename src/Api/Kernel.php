@@ -822,9 +822,9 @@ final class Kernel
         // destination → metering fix (ALL catalog fixes, including zero).
         // Direct-to filers resolved by bearing inference. Used by the
         // reports page Demand Distribution panel to inform MIT allocation.
-        // ?hours=N (default 24, max 720)
+        // ?hours=N (default 24, max 8760)
         $app->get('/api/v1/reports/demand-distribution', function ($req, $res) {
-            $hours = max(1, min(720, (int) ($req->getQueryParams()['hours'] ?? 24)));
+            $hours = max(1, min(8760, (int) ($req->getQueryParams()['hours'] ?? 24)));
             $scope = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
             $catalog = \Atfm\Allocator\MeteringFix::loadCatalog();
             $now = new DateTimeImmutable('now', new DateTimeZone('UTC'));
@@ -2215,9 +2215,9 @@ final class Kernel
         // backwards compat (`actual_exot_min`, `actual_exit_min`) but the
         // displayed labels in reports.html use the canonical AXOT/AXIT.
         //
-        // Query param: ?hours=N  (default 24, max 168)
+        // Query param: ?hours=N  (default 24, max 8760)
         $app->get('/api/v1/reports/summary', function ($req, $res) {
-            $hours = max(1, min(168, (int) ($req->getQueryParams()['hours'] ?? 24)));
+            $hours = max(1, min(8760, (int) ($req->getQueryParams()['hours'] ?? 24)));
             $now   = new DateTimeImmutable('now', new DateTimeZone('UTC'));
             $since = $now->modify("-{$hours} hours");
             $sinceStr = $since->format('Y-m-d H:i:s');
@@ -3564,7 +3564,7 @@ final class Kernel
         // within the 90m scope window, received a TLDT, and landed.
         // This is the gate for trusting CTOT issuance.
         $app->get('/api/v1/reports/tldt-accuracy', function ($req, $res) {
-            $hours = max(1, min(720, (int) ($req->getQueryParams()['hours'] ?? 48)));
+            $hours = max(1, min(8760, (int) ($req->getQueryParams()['hours'] ?? 48)));
             $now   = new DateTimeImmutable('now', new DateTimeZone('UTC'));
             $since = $now->modify("-{$hours} hours");
             $sinceStr = $since->format('Y-m-d H:i:s');
@@ -3820,7 +3820,9 @@ final class Kernel
                 'overall' => $computeStats($errors),
                 'by_source' => $sourceStats,
                 'by_airport' => $airportStats,
-                'flights' => $records,
+                // Stats cover every record; the per-flight list is newest-first and capped.
+                'flights' => array_slice($records, 0, 1000),
+                'flights_total' => count($records),
             ]);
         });
 
