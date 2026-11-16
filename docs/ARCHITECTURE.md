@@ -1246,7 +1246,12 @@ GET /api/v1/debug/aar              → current observed AAR per airport per runw
 `/home/ogzqox66/atfm-tools/public`
 **Database**: MariaDB 10.6, database `ogzqox66_atfm`
 
-PHP version: 8.2+ (confirmed 8.4 on srv19)
+PHP version: 8.4 (vendor/ was built requiring >= 8.4). The vhost "inherits"
+its PHP, which resolves to the **CloudLinux PHP Selector** for both LiteSpeed
+and cron's `/usr/bin/php`. WHC reset that selector to 7.4 on 2026-11-12 and
+took the site and every cron job down for 3.7 days. Check and restore with
+`selectorctl --user-current --user=ogzqox66` and `--set-user-current=8.4`.
+phpMyAdmin's "PHP version" is cpsrvd's own PHP and tells you nothing here.
 Composer: pre-installed globally
 MySQL client: present
 
