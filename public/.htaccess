@@ -13,6 +13,13 @@
     RewriteRule ^ index.php [QSA,L]
 </IfModule>
 
+# Make browsers revalidate pages so a deploy is seen on the next load.
+<IfModule mod_headers.c>
+    <FilesMatch "\.html$">
+        Header set Cache-Control "no-cache"
+    </FilesMatch>
+</IfModule>
+
 # php -- BEGIN cPanel-generated handler, do not edit
 # This domain inherits the “PHP” package.
 # php -- END cPanel-generated handler, do not edit

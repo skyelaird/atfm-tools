@@ -824,6 +824,7 @@ final class Kernel
         // reports page Demand Distribution panel to inform MIT allocation.
         // ?hours=N (default 24, max 8760)
         $app->get('/api/v1/reports/demand-distribution', function ($req, $res) {
+            ini_set('memory_limit', '512M');
             $hours = max(1, min(8760, (int) ($req->getQueryParams()['hours'] ?? 24)));
             $scope = ['CYVR','CYYC','CYWG','CYYZ','CYOW','CYUL','CYHZ'];
             $catalog = \Atfm\Allocator\MeteringFix::loadCatalog();
@@ -2217,6 +2218,7 @@ final class Kernel
         //
         // Query param: ?hours=N  (default 24, max 8760)
         $app->get('/api/v1/reports/summary', function ($req, $res) {
+            ini_set('memory_limit', '512M');
             $hours = max(1, min(8760, (int) ($req->getQueryParams()['hours'] ?? 24)));
             $now   = new DateTimeImmutable('now', new DateTimeZone('UTC'));
             $since = $now->modify("-{$hours} hours");
@@ -3564,6 +3566,7 @@ final class Kernel
         // within the 90m scope window, received a TLDT, and landed.
         // This is the gate for trusting CTOT issuance.
         $app->get('/api/v1/reports/tldt-accuracy', function ($req, $res) {
+            ini_set('memory_limit', '512M');
             $hours = max(1, min(8760, (int) ($req->getQueryParams()['hours'] ?? 48)));
             $now   = new DateTimeImmutable('now', new DateTimeZone('UTC'));
             $since = $now->modify("-{$hours} hours");
