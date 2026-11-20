@@ -97,6 +97,52 @@ So:
    transit times (Tier A) remain a cheap interim, subject to the upstream
    schema check.
 
+## 3c. Terminal paths built (2026-11-19) — `bin/build-terminal-paths.py`
+
+Builds `data/terminal-paths.json`: 282 runway paths for the 7 airports, STAR
+variant -> approach -> threshold, starting at the metering fix, with published
+constraints carried per point. Exact-first closure per `TERMINAL-PATH-MODEL.md`.
+
+**Coverage:** 55 direct + 33 transition = **88 exact (31%)**, 194 open. The
+design doc's 42% is not reproduced; denominators differ (it counted 212 STAR
+variants, this counts 282 runway paths, `06B`-style variants expanding to two
+runways), so do not read the gap as a regression. 95-ish of the open paths could
+not satisfy the intercept constraints and fall back to direct-to-IF (flagged
+`intercept_unresolved_direct_to_IF`).
+
+**Defects found in the inputs (builder works around them, importer should fix):**
+1. `procedures-v2.json` approach fix lists include **missed-approach and hold
+   fixes after the runway** (the importer keeps every `FIX` token on the line
+   and does not record where `RNW` occurs). 222 of the paths needed the list
+   cut after the fix nearest the threshold. Importer fix: record the index of
+   `RNW` and stop there.
+2. `OVERFLY` appears as a fix name on RNAV (RNVY) approaches. It is a flag
+   token, not a waypoint. Builder drops it; importer should set an
+   `overfly: true` on the preceding fix instead.
+3. 50 paths have no catalog feeder (STAR not in `star-catalog.json`), so they
+   start at the first STAR fix.
+
+**Sanity check, not validation.** Model time from the 40 nm ring at published
+speeds (no wind, no vectoring), median over variants (unweighted by traffic),
+against `/api/v1/debug/terminal-time` (48 h, n=227, minus ~1.1 min ALDT lag):
+
+| airport | exact-path model (n) | observed | gap | measured excess in CLAUDE.md |
+|---|---|---|---|---|
+| CYYZ | 10.6 (26) | 14.7 | +4.1 | +5.0 |
+| CYUL | 10.6 (8) | 15.5 | +5.0 | +5.8 |
+| CYOW | 8.7 (5) | 13.2 | +4.5 | +3.3 |
+| CYWG | 8.4 (5) | 12.1 | +3.7 | +2.7 |
+| CYVR | 12.1 (10) | 13.0 | +0.9 | +4.7 |
+| CYHZ | 13.8 (12) | 13.1 | -0.7 | +3.6 |
+| CYYC | 15.9 (22) | 14.1 | -1.8 | +2.1 |
+
+For CYYZ, CYUL, CYOW and CYWG the published path alone falls short of observed
+by roughly the measured vectoring/track-mile excess — the expected shape. CYVR,
+CYHZ and CYYC do not fit; small n, and the CYYC transition-spliced paths should
+be inspected first. **Open (synthetic-leg) paths overshoot at the big airports**
+(CYYZ median 21 min vs 14.7 observed): do not use constructed legs until they
+are validated against tracks. The exact paths are the trustworthy 31%.
+
 ## 4. Measurement before more building
 
 1. **Segment budgets, not final ETA** (per `TERMINAL-PATH-MODEL.md` caution):
