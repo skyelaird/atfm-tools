@@ -172,13 +172,16 @@ are validated against tracks. The exact paths are the trustworthy 31%.
 
 1. **Segment budgets, not final ETA** (per `TERMINAL-PATH-MODEL.md` caution):
    error at metering fix, error fix → threshold, split by phase.
-2. **Cadence.** Ingest is a 2-min cron; at ~450 kt that is ~15 nm between
-   samples. Sub-minute cadence was retired as undeliverable on shared hosting
-   (`CLAUDE.md` → "Retired ideas"). So high-rate capture must live *outside*
-   the PHP cron: `bin/aman-feed-logger.py` (this branch) polls the public feed
-   every 15 s for one airport and writes daily CSVs. Run it on a PC or small
-   always-on box; do not put it in cron.
-3. **Retention.** `position_scratch` is purged at 48 h. Add a daily rollup
+2. **Cadence (revised 2026-11-20).** Ingest is a 2-min cron; at ~450 kt that
+   is ~15 nm between samples, so feeder-fix crossings are interpolated (error
+   estimated at ~30 s, **not measured**). That is enough for the PoC and for
+   median transit-time tables. `bin/aman-feed-logger.py` (15 s, Python, runs
+   on a PC or always-on box, never in cron) is an **optional research tool**
+   for measuring that interpolation error; nothing depends on it. If 15 s
+   data is later needed on the server: a PHP script on the 1-min cron polling
+   4x with a 15 s sleep, flock against overlap, its own table. Untested on
+   WHC, and an earlier session judged sub-minute cadence undeliverable there.
+3. **Retention (the durable need, in PHP on the site).** `position_scratch` is purged at 48 h. Add a daily rollup
    (pattern: `compute-demand-history.php`) that keeps, per arrival: callsign,
    type class, STAR, runway, feeder-fix crossing time, ALDT, `had_atc_at_arrival`.
    Transit-time tables need weeks of this, not 48 h.
