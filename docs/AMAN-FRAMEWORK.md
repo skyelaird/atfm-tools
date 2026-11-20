@@ -92,10 +92,35 @@ So:
    `public/` (vanilla JS, no build) first. Plugin is the hardest piece to test
    — the CDM plugin round trip is still the open 0.7 → 1.0 gate — so build it
    last, after the PoC shows the predictor is worth displaying.
-4. **Do not feed Maestro/aman-dman.** Maestro computes its own ETAs from
-   ES; no documented channel lets us substitute ours. aman-dman profiles and
-   transit times (Tier A) remain a cheap interim, subject to the upstream
-   schema check.
+4. **Maestro data interface (Developer Guide v1.1, read 2026-11-20).**
+   *Corrects an earlier line here that said no channel exists.*
+   - **Output, supported:** in master mode Maestro writes
+     `MAESTRO_sequence_data.json` (`System_SaveType` 1 or 2, every 5-600 s,
+     default 15). Per aircraft: `initial_eta`, `eet_ff` (min), `eet_ff_to_rwy`
+     (s), `eet_ades` (s, runway time without delay), `sta_ff`, `ttlttg_ff`,
+     `rwy`, `rwy_seq`, `ff`, `state`, `delay_total`, plus winds, runway rates
+     and slots. The guide names reading this file from other applications as
+     the easiest integration. **Use: Maestro-as-baseline** for scoring (see §4).
+   - **Input, unsupported:** slave mode loads the same JSON from a file
+     (`System_LoadType` 1) or from a web server (`System_Web_Path_DL`,
+     `System_LoadInterval_Web` 30-600 s, auth optional). The guide says
+     externally produced files are "not supported and may lead to unexpected
+     results or crashes". Potentially a no-plugin display path (our server
+     serves the JSON, controllers see Maestro's timeline and TopSky labels).
+     **Untested; trial in a sweatbox first.** Our server would then also have
+     to produce the sequence (STA, `rwy_seq`, slots), not just ETAs. Whether
+     slave mode recomputes ETAs or only displays the received fields is
+     not stated.
+   - **DLL API (`MAESTROapi.h`/`.lib`):** only `IsInSequence`, `GetCurrentDelay`,
+     `GetTotalDelay`. Delays only, no ETAs. Not useful here.
+   - **Settings that show Maestro does more than raw ES extrapolation:**
+     winds at 10k ft and surface, `System_LandingSpeed` (140 kt), shortest
+     vectoring path for assigned headings, `System_Default_Feeder_Time`
+     (flat 15 min for aircraft with no feeder), `DELAYPATH`. The "ES does not
+     profile descents" inference is therefore **unconfirmed** until the
+     baseline is measured.
+   aman-dman profiles and transit times (Tier A) remain a cheap interim,
+   subject to the upstream schema check.
 
 ## 3c. Terminal paths built (2026-11-19) — `bin/build-terminal-paths.py`
 
