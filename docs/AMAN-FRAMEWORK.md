@@ -219,3 +219,5 @@ carries no altitude/speed constraints). A diff between the ESE STARs and
 (Maestro, euroscope-aman) diverge from the published procedure. The CZQM sector
 file was not in the folder available during this session
 (`CZQM-FIR/TestSectorFiles` is empty).
+
+See also: docs/AMAN-MAESTRO-TRANSITION.md (Maestro web pipeline, P0-P2, settings defects).
