@@ -29,6 +29,17 @@ auth, and P2 publishes from our own host.
 - Viewer ETA = `initial_eta + delay_total`. `eet_ades` is the current
   runway time without delay; `eet_ff`/`eet_ff_to_rwy` split it at the feeder.
 
+
+**Maestro data is ephemeral (Joel, 2026-11-20).** It exists only while a master
+session runs; the file at rest is just the last state. So the Maestro baseline
+is thin and session-dependent (CYHZ saw 7 arrivals in 48 h against 91 at CYYZ).
+**Primary scoring must therefore not depend on it:** score the predictor against
+ALDT from the feed across the busy airports, using an ES-style groundspeed
+extrapolation computed from the feed as the baseline. Use the P0 Maestro data
+as a spot check on whether that stand-in is faithful (event days, CTP). If the
+upload handler on `maestro.joelmorin.com` can archive each upload, that beats
+2-min polling; Joel to check.
+
 ## 2. Phases
 
 **P0 — harvest Maestro as the baseline (no EuroScope work, no credentials).**
