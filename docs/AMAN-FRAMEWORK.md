@@ -59,6 +59,44 @@ measure it before the synthesised base leg.
 **Tier C — own AMAN/sequencer.** Only if A+B leave a measured gap. Not
 recommended now.
 
+## 3b. Direction set by Joel (2026-11-19) — supersedes the tier order above where they conflict
+
+The end product is an **EuroScope plugin fed by our server**. The first step is
+a **proof of concept that predicts runway times, run on demand on the server**.
+So:
+
+1. **PoC = server only, no plugin.** `GET /api/v1/aman/predict?airport=XXXX`
+   (name tentative). On each request: fetch the public feed (cache ~15 s —
+   this gives fresh positions without a sub-minute cron, which hosting cannot
+   run), select inbounds within ~200 nm, and per flight:
+   - infer STAR + runway (filed route suffix such as `NUBER6/24L`, ATIS,
+     declared active config — in that order),
+   - build the path from `procedures-v2.json` (`TERMINAL-PATH-MODEL.md`),
+   - predict time over the feeder fix and over the threshold, P50 and P80,
+     using the ATC-conditional terminal correction,
+   - flag off-route (cross-track vs predicted path) and fall back to
+     direct-to-FF at lower confidence,
+   - also compute a **baseline** that mimics EuroScope: groundspeed
+     extrapolation along the filed route.
+   Persist every prediction (flight, horizon, source, P50/P80) so it can be
+   scored against ALDT. **That scoring table is the PoC's verdict**: error at
+   40/20/10 min before landing, by airport, model vs baseline vs current ELDT,
+   as segment budgets.
+2. **Sequencing / TTL-TTG** reuses the rate-based allocator rather than a new
+   sequencer: TTL/TTG = slot time − live ETA. Needs reading
+   `CtotAllocator` and `active_arr_rate` handling — **not yet read**.
+3. **Plugin = thin client.** Polls the endpoint (the CDM plugin already
+   consumes this server's feeds, so there is a precedent contract), shows
+   tag items (ETA, TTL/TTG, off-route flag). The one thing only a plugin does
+   is put these in ES radar labels; a timeline view can be a web page in
+   `public/` (vanilla JS, no build) first. Plugin is the hardest piece to test
+   — the CDM plugin round trip is still the open 0.7 → 1.0 gate — so build it
+   last, after the PoC shows the predictor is worth displaying.
+4. **Do not feed Maestro/aman-dman.** Maestro computes its own ETAs from
+   ES; no documented channel lets us substitute ours. aman-dman profiles and
+   transit times (Tier A) remain a cheap interim, subject to the upstream
+   schema check.
+
 ## 4. Measurement before more building
 
 1. **Segment budgets, not final ETA** (per `TERMINAL-PATH-MODEL.md` caution):
