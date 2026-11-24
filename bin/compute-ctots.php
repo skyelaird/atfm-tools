@@ -12,13 +12,32 @@ require __DIR__ . '/../vendor/autoload.php';
 // --shadow flag: run in dry-run mode (no DB writes, log what WOULD happen)
 $shadowMode = in_array('--shadow', $argv ?? [], true);
 
+// CTOT authority (v0.7.78). vIFF issues the regulations and CTOTs for our
+// airports; we only display them (public/viff-ctot.html). Our allocator keeps
+// running in shadow so it stays exercised and comparable — and ready if we
+// later become vIFF's external restriction source. Set CTOT_AUTHORITY=local
+// to issue our own CTOTs again.
+$authority = strtolower(trim((string) ($_ENV['CTOT_AUTHORITY'] ?? 'viff')));
+$forcedShadow = $authority !== 'local' && !$shadowMode;
+if ($forcedShadow) {
+    $shadowMode = true;
+}
+
 $start = microtime(true);
 $ts = gmdate('Y-m-d H:i:s');
 $modeLabel = $shadowMode ? 'SHADOW' : 'LIVE';
-echo "[compute-ctots] start {$ts}Z mode={$modeLabel}\n";
+echo "[compute-ctots] start {$ts}Z mode={$modeLabel} authority={$authority}\n";
 
 try {
-    $result = (new \Atfm\Allocator\CtotAllocator())->run($shadowMode);
+    $allocator = new \Atfm\Allocator\CtotAllocator();
+    if ($forcedShadow) {
+        // Anything we issued before the switch must not stay published.
+        $released = $allocator->releaseAllLive();
+        if ($released > 0) {
+            echo "[compute-ctots] authority={$authority}: released {$released} live allocation(s)\n";
+        }
+    }
+    $result = $allocator->run($shadowMode);
 } catch (\Throwable $e) {
     fwrite(STDERR, "[compute-ctots] ERROR: " . $e->getMessage() . "\n");
     fwrite(STDERR, $e->getTraceAsString() . "\n");

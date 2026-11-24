@@ -82,6 +82,16 @@
 
 <main>
 <h2 style="margin-top:1rem; border:none; padding:0;">Working a CDM airport with atfm-tools</h2>
+<div class="callout alert">
+<strong>vIFF now issues our CTOTs (v0.7.78).</strong> Regulations for our airports are created in vIFF, and the CDM plugin receives the CTOTs from vIFF directly. atfm-tools no longer issues slots; it only displays vIFF's on the <a href="/viff-ctot.html">vIFF CTOT list</a>. So:
+<ul style="margin:0.4rem 0 0;">
+    <li><strong>Leave <code>&lt;customRestricted url=""/&gt;</code> empty.</strong> If it still points at atfm-tools, the plugin replaces vIFF's CTOTs with our empty list and every slot disappears from your tags.</li>
+    <li><strong>Keep the default pilot message</strong> (<code>vats.im/vdgs</code>). That panel shows vIFF's slots; our portal does not.</li>
+    <li>Turn on <code>&lt;Server mode="true"/&gt;</code> and claim the airport with <code>.cdm master</code> so your TOBT/TSAT reach vIFF.</li>
+</ul>
+The rest of this page describes the earlier setup, where atfm-tools issued the CTOTs. It applies again only if the FMP sets <code>CTOT_AUTHORITY=local</code>.
+</div>
+
 <p>For aerodrome controllers (DEL / GND / TWR) at a Canadian scope airport while atfm-tools is issuing CTOTs. Read top to bottom &mdash; it follows one departure from connection to wheels-up. Verified against <code>rpuig2001/CDM</code> at <code>cc5a2bc</code>.</p>
 
 <div class="callout">

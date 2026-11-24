@@ -7,7 +7,7 @@
 
 ## Where we are (update this at the end of every session)
 
-**Live version:** 0.7.77 · prod auto-deploys from `main` within ~60 s ·
+**Live version:** 0.7.78 · prod auto-deploys from `main` within ~60 s ·
 verify at `/api/v1/status`. Last re-baselined **2026-09-02** after a
 summer with no attention.
 
@@ -41,6 +41,7 @@ anything touching `src/` is shadow mode or a QA side-column, not a branch.
 - v0.7.49 vIFF constraint mirror (off by default)
 - v0.7.55 portal showed a refiling pilot their DISCONNECTED flight
 - v0.7.56 pilot TOBT adopted from the VDGS (off by default)
+- v0.7.78 **vIFF is the CTOT authority** — allocator forced to shadow, `public/viff-ctot.html` shows vIFF's CTOTs (see below)
 
 **Open / next:**
 - **CDM plugin round-trip still untested against a live EuroScope session —
@@ -56,6 +57,29 @@ pilot sets on `vats.im/vdgs` shows up there within a cycle. Shipped as
 `VIFF_PILOT_TOBT_ENABLED=true`. Without it the two systems silently disagree:
 the VDGS told a pilot his start-up window was open while we still had him 13
 minutes out, because he had declared 1750 and we were using our 1735 proxy.
+
+**CTOT authority: vIFF (decided 2026-11-24, v0.7.78).** Regulations for our
+airports are authored in vIFF and vIFF issues the CTOTs; the CDM plugin gets
+them straight from vIFF (`Server mode="true"`, `customRestricted` empty).
+Roger Puig confirmed all Canadian flights are already processed and CYHZ was
+registered as a vIFF master live on 2026-11-23. What changed here:
+- `bin/compute-ctots.php` reads `CTOT_AUTHORITY` (default `viff`). Anything
+  but `local` forces shadow mode and first calls
+  `CtotAllocator::releaseAllLive()` so pre-switch CTOTs stop being published.
+  The allocator keeps running for comparison — and so we are ready if vIFF's
+  external-restriction-source option later makes **us** the source.
+  `NoneventCtotAllocator` (portal self-booking) is not gated.
+- `/api/v1/viff/ctots?view=destination|origin&airport=XXXX|ALL` +
+  `public/viff-ctot.html`: read-only, `src/Ingestion/ViffCtotFeed.php`,
+  30 s shared disk cache in `data/cache/`, stale-on-error. Destination view =
+  vIFF `/etfms/restricted` (US clearance delivery issues it as an EDCT);
+  origin view = `/ifps/depAirport` with TOBT/TSAT/TTOT (CTR top-down, no plugin).
+- `cdm-atc.html` and `portal.html` carry a notice; the old advice to point
+  `customRestricted`/`PrivateMessage` at us is now wrong — an empty
+  `customRestricted` list would wipe vIFF's CTOTs from the plugin.
+- **Known gap (Roger, 2026-11-24):** US→Canada flights count in vIFF demand
+  but are not yet regulated (vIFF zone handling). Until he fixes it, a CY
+  ARR regulation loads all delay onto non-US departures.
 
 **CTOT delivery to pilots — two channels, by design:**
 - **Staffed airports: via ATC.** The CDM plugin puts the CTOT in the

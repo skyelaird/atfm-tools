@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>atfm-tools — vIFF CTOT list</title>
+    <style>
+        :root {
+            --bg: #0f1419; --bg-elev: #1a2028; --bg-elev-hi: #242c38;
+            --border: #2a3340;
+            --text: #d7dee8; --text-dim: #8a94a3; --text-bright: #f0f4fa;
+            --accent: #5eead4; --accent-dim: #2a6b5f;
+            --warn: #facc15; --warn-dim: #5e4a0f;
+            --alert: #f87171; --alert-dim: #5e1f1f;
+            --ok: #4ade80; --ok-dim: #1e4a2e;
+            --info: #60a5fa; --info-dim: #1e3a5f;
+            --mono: "SF Mono", Consolas, Monaco, monospace;
+        }
+        * { box-sizing: border-box; }
+        html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; font-size: 14px; }
+        .mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+        a { color: var(--accent); text-decoration: none; }
+
+        header { background: var(--bg-elev); border-bottom: 1px solid var(--border); padding: 0.6rem 1rem; display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+        header h1 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--text-bright); }
+        .utc-clock { font-size: 0.95rem; color: var(--accent); padding: 0 0.6rem; border-left: 1px solid var(--border); font-family: var(--mono); }
+        .pill { margin-left: auto; padding: 0.25rem 0.7rem; border-radius: 3px; background: var(--bg-elev-hi); border: 1px solid var(--border); color: var(--text-dim); font-size: 0.78rem; }
+        .pill:hover { color: var(--text); }
+
+        main { max-width: 1200px; margin: 0 auto; padding: 1rem; }
+
+        .controls { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.75rem; }
+        .seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+        .seg button { background: var(--bg-elev); color: var(--text-dim); border: 0; padding: 0.5rem 0.9rem; cursor: pointer; font-size: 0.85rem; }
+        .seg button + button { border-left: 1px solid var(--border); }
+        .seg button.on { background: var(--accent-dim); color: var(--text-bright); }
+        select, input[type=text] { background: var(--bg-elev); color: var(--text-bright); border: 1px solid var(--border); border-radius: 6px; padding: 0.45rem 0.7rem; font-family: var(--mono); font-size: 0.9rem; }
+        select:focus, input:focus { border-color: var(--accent); outline: none; }
+        label.chk { color: var(--text-dim); font-size: 0.82rem; display: inline-flex; gap: 0.35rem; align-items: center; cursor: pointer; }
+        .grow { flex: 1; }
+
+        .note { border: 1px solid var(--info-dim); background: rgba(96,165,250,0.05); color: var(--text); border-radius: 6px; padding: 0.6rem 0.85rem; font-size: 0.82rem; margin-bottom: 0.75rem; line-height: 1.45; }
+        .note b { color: var(--info); }
+
+        .status { display: flex; gap: 1rem; align-items: center; font-size: 0.78rem; color: var(--text-dim); margin-bottom: 0.5rem; flex-wrap: wrap; }
+        .status .stale { color: var(--warn); }
+        .status .err { color: var(--alert); }
+
+        table { width: 100%; border-collapse: collapse; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+        th { text-align: left; color: var(--accent); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.04em; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); background: var(--bg-elev); white-space: nowrap; }
+        td { padding: 0.4rem 0.6rem; border-bottom: 1px solid var(--border); font-family: var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+        tbody tr:hover { background: var(--bg-elev-hi); }
+        td.cs { color: var(--text-bright); font-weight: 600; }
+        td.ctot { color: var(--warn); font-weight: 700; }
+        td.dim, span.dim { color: var(--text-dim); }
+        tr.due td.ctot { color: var(--ok); }
+        tr.late td.ctot { color: var(--alert); }
+        .tag { display: inline-block; padding: 0.05rem 0.4rem; border-radius: 3px; font-size: 0.7rem; font-family: var(--mono); border: 1px solid var(--border); color: var(--text-dim); }
+        .tag.ok { color: var(--ok); border-color: var(--ok-dim); }
+        .tag.warn { color: var(--warn); border-color: var(--warn-dim); }
+        .tag.alert { color: var(--alert); border-color: var(--alert-dim); }
+        .empty { text-align: center; padding: 2.5rem 1rem; color: var(--text-dim); font-family: inherit; }
+        .legend { font-size: 0.74rem; color: var(--text-dim); margin-top: 0.6rem; line-height: 1.6; }
+        .legend .k { font-family: var(--mono); }
+    </style>
+</head>
+<body>
+
+<header>
+    <h1>atfm-tools <span style="color:var(--text-dim); font-weight:400;">vIFF CTOT list</span></h1>
+    <span class="utc-clock mono" id="utc-clock">––:––:––Z</span>
+    <a class="pill" href="/dashboard.html">← dashboard</a>
+</header>
+
+<main>
+    <div class="controls">
+        <div class="seg" role="tablist" aria-label="View">
+            <button id="v-destination" data-view="destination">By destination</button>
+            <button id="v-origin" data-view="origin">By origin</button>
+        </div>
+        <select id="airport" aria-label="Airport"><option value="ALL">All airports</option></select>
+        <label class="chk" id="ctot-only-wrap"><input type="checkbox" id="ctot-only"> CTOT only</label>
+        <span class="grow"></span>
+        <input type="text" id="cs-filter" placeholder="Filter callsign / airport" autocomplete="off" spellcheck="false" aria-label="Filter">
+    </div>
+
+    <div class="note" id="note"></div>
+
+    <div class="status">
+        <span id="count">—</span>
+        <span id="age">—</span>
+        <span id="next">—</span>
+        <span id="stale" class="stale"></span>
+        <span id="err" class="err"></span>
+    </div>
+
+    <table>
+        <thead id="thead"></thead>
+        <tbody id="tbody"><tr><td class="empty" colspan="12">Loading…</td></tr></tbody>
+    </table>
+
+    <div class="legend">
+        <span class="k">CTOT</span> calculated take-off time from vIFF &middot;
+        <span class="k">Window</span> CTOT −5 / +10 min &middot;
+        <span style="color:var(--ok)">green</span> CTOT window open now &middot;
+        <span style="color:var(--alert)">red</span> window closed (CTOT +10 passed) &middot;
+        <span class="k">INF</span> pilot already informed by an ATC unit &middot;
+        Times UTC. Refreshes every 30 s. Read-only — vIFF is the source; nothing here changes a slot.
+    </div>
+</main>
+
+<script>
+(function () {
+    'use strict';
+
+    const REFRESH_S = 30;
+    const params = new URLSearchParams(location.search);
+    const state = {
+        view: params.get('view') === 'origin' ? 'origin' : 'destination',
+        airport: (params.get('airport') || 'ALL').toUpperCase(),
+        ctotOnly: params.get('ctot') === '1',
+        filter: '',
+        data: null,
+        nextAt: 0,
+        timer: null,
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+    // ---- time helpers (HHMM strings, UTC) ----
+    const toMin = (hhmm) => (hhmm && hhmm.length === 4) ? (+hhmm.slice(0, 2)) * 60 + (+hhmm.slice(2)) : null;
+    const fmt = (m) => { m = ((m % 1440) + 1440) % 1440; return String(Math.floor(m / 60)).padStart(2, '0') + String(m % 60).padStart(2, '0'); };
+    const nowMin = () => { const d = new Date(); return d.getUTCHours() * 60 + d.getUTCMinutes(); };
+    // Signed minutes from now to t, wrapped into −720..+720 so a 2350 CTOT at 0005 reads as −15.
+    const delta = (t) => { if (t === null) return null; let d = t - nowMin(); if (d > 720) d -= 1440; if (d < -720) d += 1440; return d; };
+
+    function syncUrl() {
+        const p = new URLSearchParams();
+        p.set('view', state.view);
+        if (state.airport !== 'ALL') p.set('airport', state.airport);
+        if (state.view === 'origin' && state.ctotOnly) p.set('ctot', '1');
+        history.replaceState(null, '', location.pathname + '?' + p.toString());
+    }
+
+    function renderControls() {
+        $('v-destination').classList.toggle('on', state.view === 'destination');
+        $('v-origin').classList.toggle('on', state.view === 'origin');
+        $('ctot-only-wrap').style.display = state.view === 'origin' ? '' : 'none';
+        $('ctot-only').checked = state.ctotOnly;
+        $('note').innerHTML = state.view === 'destination'
+            ? '<b>By destination</b> — every flight on the network holding a vIFF CTOT into the selected airport, wherever it departs. ' +
+              'A departure controller (including US clearance delivery) includes the CTOT in the clearance — in US terms, an <b>EDCT</b>. ' +
+              'Flights without a regulation do not appear here.'
+            : '<b>By origin</b> — departures still on the ground at the selected airport, with the CDM times (TOBT, TSAT, TTOT) published by the airport\'s CDM master and any CTOT. ' +
+              'For a controller issuing start-up without the CDM plugin, e.g. CTR working the field top-down: approve start-up at TSAT; where there is a CTOT, the aircraft must be airborne inside its window.';
+    }
+
+    function columns() {
+        return state.view === 'destination'
+            ? ['Callsign', 'From', 'To', 'EOBT', 'CTOT', 'Window', 'In', 'Regulation', 'ATFCM', '']
+            : ['Callsign', 'From', 'To', 'EOBT', 'TOBT', 'TSAT', 'TTOT', 'CTOT', 'Window', 'Regulation', 'Rwy / SID', 'CDM', ''];
+    }
+
+    function rowClass(f) {
+        const d = delta(toMin(f.ctot));
+        if (d === null) return '';
+        if (d < -10) return 'late';
+        if (d <= 5) return 'due';
+        return '';
+    }
+
+    function windowCell(f) {
+        const c = toMin(f.ctot);
+        return c === null ? '<td class="dim">—</td>' : '<td class="dim">' + fmt(c - 5) + '–' + fmt(c + 10) + '</td>';
+    }
+
+    function inCell(f) {
+        const d = delta(toMin(f.ctot));
+        if (d === null) return '<td class="dim">—</td>';
+        return '<td class="' + (d < 0 ? 'dim' : '') + '">' + (d >= 0 ? '+' : '') + d + 'm</td>';
+    }
+
+    function statusTag(s) {
+        if (!s) return '<span class="dim">—</span>';
+        const cls = /COMPLY|ACTIV/.test(s) ? 'ok' : (/FLS|SUSP|NON/.test(s) ? 'alert' : 'warn');
+        return '<span class="tag ' + cls + '">' + esc(s) + '</span>';
+    }
+
+    const t = (v) => v ? '<td>' + esc(v) + '</td>' : '<td class="dim">—</td>';
+
+    function renderTable() {
+        const cols = columns();
+        $('thead').innerHTML = '<tr>' + cols.map((c) => '<th>' + esc(c) + '</th>').join('') + '</tr>';
+
+        const d = state.data;
+        if (!d) return;
+        const q = state.filter.trim().toUpperCase();
+        let rows = d.flights || [];
+        if (state.view === 'origin' && state.ctotOnly) rows = rows.filter((f) => f.ctot);
+        if (q) rows = rows.filter((f) => (f.callsign + ' ' + f.adep + ' ' + f.ades).includes(q));
+
+        $('count').textContent = rows.length + ' flight' + (rows.length === 1 ? '' : 's');
+
+        if (!rows.length) {
+            const where = state.airport === 'ALL' ? 'our airports' : state.airport;
+            const msg = state.view === 'destination'
+                ? 'No flights currently hold a vIFF CTOT into ' + esc(where) + '.'
+                : 'No departures on the ground at ' + esc(where) + (state.ctotOnly ? ' with a CTOT' : '') + '.';
+            $('tbody').innerHTML = '<tr><td class="empty" colspan="' + cols.length + '">' + msg + '</td></tr>';
+            return;
+        }
+
+        $('tbody').innerHTML = rows.map((f) => {
+            const inf = f.informed ? '<span class="tag ok" title="Pilot informed">INF</span>' : '';
+            const excl = f.excluded ? ' <span class="tag" title="Excluded from regulation">EXCL</span>' : '';
+            if (state.view === 'destination') {
+                return '<tr class="' + rowClass(f) + '">' +
+                    '<td class="cs">' + esc(f.callsign) + '</td>' + t(f.adep) + t(f.ades) + t(f.eobt) +
+                    '<td class="ctot">' + esc(f.ctot || '—') + '</td>' + windowCell(f) + inCell(f) +
+                    t(f.regulation) + '<td>' + statusTag(f.atfcm_status) + '</td><td>' + inf + excl + '</td></tr>';
+            }
+            return '<tr class="' + rowClass(f) + '">' +
+                '<td class="cs">' + esc(f.callsign) + '</td>' + t(f.adep) + t(f.ades) + t(f.eobt) + t(f.tobt) + t(f.tsat) + t(f.ttot) +
+                (f.ctot ? '<td class="ctot">' + esc(f.ctot) + '</td>' : '<td class="dim">—</td>') + windowCell(f) +
+                t(f.regulation) + t(f.dep_info) + '<td>' + statusTag(f.cdm_status) + '</td><td>' + inf + excl + '</td></tr>';
+        }).join('');
+    }
+
+    function renderStatus() {
+        const d = state.data;
+        $('age').textContent = d && d.age_s !== null && d.age_s !== undefined ? 'vIFF data ' + d.age_s + ' s old' : '';
+        $('stale').textContent = d && d.stale ? '⚠ showing last good copy — vIFF not answering' : '';
+        $('err').textContent = d && d.error && !d.stale ? d.error : '';
+    }
+
+    function fillAirports(scope) {
+        const sel = $('airport');
+        if (sel.options.length > 1 || !scope) return;
+        scope.forEach((icao) => {
+            const o = document.createElement('option');
+            o.value = icao; o.textContent = icao;
+            sel.appendChild(o);
+        });
+        sel.value = scope.includes(state.airport) ? state.airport : 'ALL';
+        state.airport = sel.value;
+    }
+
+    async function load() {
+        clearTimeout(state.timer);
+        try {
+            const url = '/api/v1/viff/ctots?view=' + encodeURIComponent(state.view) + '&airport=' + encodeURIComponent(state.airport);
+            const resp = await fetch(url, { cache: 'no-store' });
+            const body = await resp.json();
+            if (!resp.ok) throw new Error(body.error || ('HTTP ' + resp.status));
+            fillAirports(body.scope);
+            state.data = body;
+            $('err').textContent = '';
+        } catch (e) {
+            $('err').textContent = 'Could not load: ' + e.message;
+        }
+        renderStatus();
+        renderTable();
+        state.nextAt = Date.now() + REFRESH_S * 1000;
+        state.timer = setTimeout(load, REFRESH_S * 1000);
+    }
+
+    function tick() {
+        const d = new Date();
+        $('utc-clock').textContent = d.toISOString().slice(11, 19) + 'Z';
+        const s = Math.max(0, Math.round((state.nextAt - Date.now()) / 1000));
+        $('next').textContent = state.nextAt ? 'next refresh ' + s + ' s' : '';
+        // Re-colour due/late rows as the clock moves, without refetching.
+        if (d.getUTCSeconds() === 0) renderTable();
+    }
+
+    // ---- wiring ----
+    document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
+        if (state.view === b.dataset.view) return;
+        state.view = b.dataset.view;
+        state.data = null;
+        $('tbody').innerHTML = '<tr><td class="empty" colspan="12">Loading…</td></tr>';
+        renderControls(); syncUrl(); renderTable(); load();
+    }));
+    $('airport').addEventListener('change', (e) => {
+        state.airport = e.target.value;
+        syncUrl(); load();
+    });
+    $('ctot-only').addEventListener('change', (e) => {
+        state.ctotOnly = e.target.checked;
+        syncUrl(); renderTable();
+    });
+    $('cs-filter').addEventListener('input', (e) => { state.filter = e.target.value; renderTable(); });
+
+    renderControls();
+    renderTable();
+    load();
+    setInterval(tick, 1000);
+    tick();
+})();
+</script>
+</body>
+</html>

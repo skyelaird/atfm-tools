@@ -38,3 +38,6 @@ Thumbs.db
 /.claude/
 
 bin/experiments/*.db
+
+# Runtime caches written by cron and API (never commit)
+data/cache/

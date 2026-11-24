@@ -387,6 +387,29 @@ final class CtotAllocator
     }
 
     /**
+     * Release every live allocation this allocator owns (any flight carrying a
+     * ctl_restriction_id), regardless of shadow mode. Used when vIFF is the CTOT
+     * authority: the allocator then runs shadow-only, so its own stale-release
+     * step never persists and anything issued before the switch would otherwise
+     * stay published forever. Idempotent — returns 0 once nothing is left.
+     */
+    public function releaseAllLive(): int
+    {
+        $live = Flight::query()
+            ->where(function ($q) {
+                $q->whereNotNull('ctot')->orWhereNotNull('tldt');
+            })
+            ->whereNotNull('ctl_restriction_id')
+            ->whereNotIn('phase', [Flight::PHASE_ARRIVED, Flight::PHASE_WITHDRAWN])
+            ->get();
+        foreach ($live as $flight) {
+            $this->clearAllocation($flight);
+            $flight->save();
+        }
+        return $live->count();
+    }
+
+    /**
      * Wipe an existing allocation off a flight (used by Step 1's
      * release branches). Doesn't touch state we should never override
      * here, like phase or ALDT.

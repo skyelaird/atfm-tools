@@ -59,8 +59,51 @@ final class Kernel
         self::registerEmergencyEndpoints($app);
         self::registerAuthEndpoints($app);
         self::registerNoneventCtotEndpoints($app);
+        self::registerViffCtotView($app);
 
         return $app;
+    }
+
+    // ------------------------------------------------------------------
+    //  vIFF CTOT view (v0.7.78) — read-only mirror of vIFF's CTOTs and
+    //  CDM times for our airports. vIFF is the CTOT authority; this is
+    //  what public/viff-ctot.html renders. See Ingestion\ViffCtotFeed.
+    //
+    //  GET /api/v1/viff/ctots?view=destination|origin&airport=CYHZ|ALL
+    // ------------------------------------------------------------------
+
+    private static function registerViffCtotView(App $app): void
+    {
+        $app->get('/api/v1/viff/ctots', function ($req, $res) {
+            $q = $req->getQueryParams();
+            $view = strtolower((string) ($q['view'] ?? 'destination'));
+            if (!in_array($view, ['destination', 'origin'], true)) {
+                return self::json($res->withStatus(400), ['error' => 'view must be destination or origin']);
+            }
+
+            $scope = Airport::orderBy('icao')->pluck('icao')->map(fn ($i) => strtoupper((string) $i))->all();
+            $airport = strtoupper(trim((string) ($q['airport'] ?? 'ALL')));
+            if ($airport !== 'ALL' && $airport !== '') {
+                if (!in_array($airport, $scope, true)) {
+                    return self::json($res->withStatus(400), ['error' => 'airport not in scope', 'scope' => $scope]);
+                }
+                $selected = [$airport];
+            } else {
+                $airport = 'ALL';
+                $selected = $scope;
+            }
+
+            $feed = new \Atfm\Ingestion\ViffCtotFeed();
+            $out = $view === 'destination' ? $feed->byDestination($selected) : $feed->byOrigin($selected);
+
+            return self::json($res->withHeader('Cache-Control', 'no-store'), [
+                'source'    => 'vIFF',
+                'view'      => $view,
+                'airport'   => $airport,
+                'scope'     => $scope,
+                'cache_ttl' => \Atfm\Ingestion\ViffCtotFeed::CACHE_TTL,
+            ] + $out);
+        });
     }
 
     /**
