@@ -2250,7 +2250,7 @@ final class Kernel
 
     private static function registerReportsEndpoints(App $app): void
     {
-        // City-pair history (v0.7.79, both directions v0.7.80).
+        // City-pair history (v0.7.79, both directions v0.7.80, filed ETE v0.7.81).
         //   GET /api/v1/reports/city-pairs?adep=CYHZ&ades_prefix=K&hours=8760
         //   GET /api/v1/reports/city-pairs?ades=CYHZ&adep_prefix=K&hours=8760
         // Give adep or ades (or both). Rows are grouped by adep × ades ×
@@ -2289,6 +2289,9 @@ final class Kernel
                     . 'SUM(CASE WHEN atot IS NOT NULL THEN 1 ELSE 0 END) AS departed, '
                     . 'SUM(CASE WHEN aldt IS NOT NULL THEN 1 ELSE 0 END) AS landed, '
                     . 'COUNT(DISTINCT callsign) AS callsigns, '
+                    // Filed ETE of flights that flew, sanity-bounded 5 min–20 h.
+                    . 'SUM(CASE WHEN atot IS NOT NULL AND fp_enroute_time_min BETWEEN 5 AND 1200 THEN 1 ELSE 0 END) AS ete_n, '
+                    . 'AVG(CASE WHEN atot IS NOT NULL AND fp_enroute_time_min BETWEEN 5 AND 1200 THEN fp_enroute_time_min END) AS ete_avg, '
                     . 'MIN(created_at) AS first_seen, MAX(created_at) AS last_seen'
                 )
                 ->groupBy('adep', 'ades', 'aircraft_type', 'flight_rules')
@@ -2303,6 +2306,8 @@ final class Kernel
                     'departed'      => (int) $r->departed,
                     'landed'        => (int) $r->landed,
                     'callsigns'     => (int) $r->callsigns,
+                    'ete_n'         => (int) $r->ete_n,
+                    'ete_avg_min'   => $r->ete_avg !== null ? round((float) $r->ete_avg, 1) : null,
                     'first_seen'    => $iso($r->first_seen),
                     'last_seen'     => $iso($r->last_seen),
                 ])
