@@ -2250,53 +2250,69 @@ final class Kernel
 
     private static function registerReportsEndpoints(App $app): void
     {
-        // City-pair history (v0.7.79): departures from one of our airports,
-        // grouped by destination × aircraft type × flight rules.
+        // City-pair history (v0.7.79, both directions v0.7.80).
         //   GET /api/v1/reports/city-pairs?adep=CYHZ&ades_prefix=K&hours=8760
-        // `departed` counts flights with an ATOT (they actually flew);
-        // `filed` counts every flight row, which includes refiles and
-        // no-shows (WITHDRAWN/DISCONNECTED) — use `departed` for demand.
+        //   GET /api/v1/reports/city-pairs?ades=CYHZ&adep_prefix=K&hours=8760
+        // Give adep or ades (or both). Rows are grouped by adep × ades ×
+        // aircraft type × flight rules. `departed` = flights with an ATOT,
+        // `landed` = flights with an ALDT; `filed` includes refiles and
+        // no-shows (WITHDRAWN/DISCONNECTED) — use departed/landed for demand.
         $app->get('/api/v1/reports/city-pairs', function ($req, $res) {
             $q = $req->getQueryParams();
-            $adep = strtoupper(trim((string) ($q['adep'] ?? '')));
-            if (!preg_match('/^[A-Z0-9]{4}$/', $adep)) {
-                return self::json($res->withStatus(400), ['error' => 'adep (4-letter ICAO) required']);
+            $icao = fn ($v) => strtoupper(trim((string) $v));
+            $pfx  = fn ($v) => strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) $v));
+            $adep = $icao($q['adep'] ?? '');
+            $ades = $icao($q['ades'] ?? '');
+            foreach (['adep' => $adep, 'ades' => $ades] as $k => $v) {
+                if ($v !== '' && !preg_match('/^[A-Z0-9]{4}$/', $v)) {
+                    return self::json($res->withStatus(400), ['error' => "$k must be a 4-letter ICAO"]);
+                }
             }
-            $prefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) ($q['ades_prefix'] ?? '')));
-            $hours  = max(1, min(8760 * 3, (int) ($q['hours'] ?? 8760)));
-            $since  = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
+            if ($adep === '' && $ades === '') {
+                return self::json($res->withStatus(400), ['error' => 'adep or ades required']);
+            }
+            $adepPrefix = $pfx($q['adep_prefix'] ?? '');
+            $adesPrefix = $pfx($q['ades_prefix'] ?? '');
+            $hours = max(1, min(8760 * 3, (int) ($q['hours'] ?? 8760)));
+            $since = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
                 ->modify("-{$hours} hours")->format('Y-m-d H:i:s');
 
-            $query = Flight::query()
-                ->where('adep', $adep)
-                ->where('created_at', '>=', $since);
-            if ($prefix !== '') {
-                $query->where('ades', 'like', $prefix . '%');
-            }
+            $query = Flight::query()->where('created_at', '>=', $since);
+            if ($adep !== '') { $query->where('adep', $adep); }
+            if ($ades !== '') { $query->where('ades', $ades); }
+            if ($adepPrefix !== '') { $query->where('adep', 'like', $adepPrefix . '%'); }
+            if ($adesPrefix !== '') { $query->where('ades', 'like', $adesPrefix . '%'); }
+
+            $iso = fn ($v) => $v ? (new DateTimeImmutable((string) $v, new DateTimeZone('UTC')))->format('c') : null;
             $rows = $query->selectRaw(
-                    'ades, aircraft_type, flight_rules, COUNT(*) AS filed, '
+                    'adep, ades, aircraft_type, flight_rules, COUNT(*) AS filed, '
                     . 'SUM(CASE WHEN atot IS NOT NULL THEN 1 ELSE 0 END) AS departed, '
+                    . 'SUM(CASE WHEN aldt IS NOT NULL THEN 1 ELSE 0 END) AS landed, '
                     . 'COUNT(DISTINCT callsign) AS callsigns, '
                     . 'MIN(created_at) AS first_seen, MAX(created_at) AS last_seen'
                 )
-                ->groupBy('ades', 'aircraft_type', 'flight_rules')
+                ->groupBy('adep', 'ades', 'aircraft_type', 'flight_rules')
                 ->orderByDesc('departed')
                 ->get()
                 ->map(fn ($r) => [
+                    'adep'          => $r->adep,
                     'ades'          => $r->ades,
                     'aircraft_type' => $r->aircraft_type,
                     'flight_rules'  => $r->flight_rules,
                     'filed'         => (int) $r->filed,
                     'departed'      => (int) $r->departed,
+                    'landed'        => (int) $r->landed,
                     'callsigns'     => (int) $r->callsigns,
-                    'first_seen'    => $r->first_seen ? (new DateTimeImmutable((string) $r->first_seen, new DateTimeZone('UTC')))->format('c') : null,
-                    'last_seen'     => $r->last_seen ? (new DateTimeImmutable((string) $r->last_seen, new DateTimeZone('UTC')))->format('c') : null,
+                    'first_seen'    => $iso($r->first_seen),
+                    'last_seen'     => $iso($r->last_seen),
                 ])
                 ->all();
 
             return self::json($res, [
-                'adep'        => $adep,
-                'ades_prefix' => $prefix,
+                'adep'        => $adep ?: null,
+                'ades'        => $ades ?: null,
+                'adep_prefix' => $adepPrefix ?: null,
+                'ades_prefix' => $adesPrefix ?: null,
                 'window'      => ['hours' => $hours, 'since' => $since . 'Z'],
                 'groups'      => count($rows),
                 'rows'        => $rows,
