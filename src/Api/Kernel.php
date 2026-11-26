@@ -2250,6 +2250,59 @@ final class Kernel
 
     private static function registerReportsEndpoints(App $app): void
     {
+        // City-pair history (v0.7.79): departures from one of our airports,
+        // grouped by destination × aircraft type × flight rules.
+        //   GET /api/v1/reports/city-pairs?adep=CYHZ&ades_prefix=K&hours=8760
+        // `departed` counts flights with an ATOT (they actually flew);
+        // `filed` counts every flight row, which includes refiles and
+        // no-shows (WITHDRAWN/DISCONNECTED) — use `departed` for demand.
+        $app->get('/api/v1/reports/city-pairs', function ($req, $res) {
+            $q = $req->getQueryParams();
+            $adep = strtoupper(trim((string) ($q['adep'] ?? '')));
+            if (!preg_match('/^[A-Z0-9]{4}$/', $adep)) {
+                return self::json($res->withStatus(400), ['error' => 'adep (4-letter ICAO) required']);
+            }
+            $prefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', (string) ($q['ades_prefix'] ?? '')));
+            $hours  = max(1, min(8760 * 3, (int) ($q['hours'] ?? 8760)));
+            $since  = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
+                ->modify("-{$hours} hours")->format('Y-m-d H:i:s');
+
+            $query = Flight::query()
+                ->where('adep', $adep)
+                ->where('created_at', '>=', $since);
+            if ($prefix !== '') {
+                $query->where('ades', 'like', $prefix . '%');
+            }
+            $rows = $query->selectRaw(
+                    'ades, aircraft_type, flight_rules, COUNT(*) AS filed, '
+                    . 'SUM(CASE WHEN atot IS NOT NULL THEN 1 ELSE 0 END) AS departed, '
+                    . 'COUNT(DISTINCT callsign) AS callsigns, '
+                    . 'MIN(created_at) AS first_seen, MAX(created_at) AS last_seen'
+                )
+                ->groupBy('ades', 'aircraft_type', 'flight_rules')
+                ->orderByDesc('departed')
+                ->get()
+                ->map(fn ($r) => [
+                    'ades'          => $r->ades,
+                    'aircraft_type' => $r->aircraft_type,
+                    'flight_rules'  => $r->flight_rules,
+                    'filed'         => (int) $r->filed,
+                    'departed'      => (int) $r->departed,
+                    'callsigns'     => (int) $r->callsigns,
+                    'first_seen'    => $r->first_seen ? (new DateTimeImmutable((string) $r->first_seen, new DateTimeZone('UTC')))->format('c') : null,
+                    'last_seen'     => $r->last_seen ? (new DateTimeImmutable((string) $r->last_seen, new DateTimeZone('UTC')))->format('c') : null,
+                ])
+                ->all();
+
+            return self::json($res, [
+                'adep'        => $adep,
+                'ades_prefix' => $prefix,
+                'window'      => ['hours' => $hours, 'since' => $since . 'Z'],
+                'groups'      => count($rows),
+                'rows'        => $rows,
+            ]);
+        });
+
         // Compact per-airport rollup for the reports page.
         //
         // Note on terminology — per EUROCONTROL Airport CDM Implementation
