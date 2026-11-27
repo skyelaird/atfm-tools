@@ -456,9 +456,25 @@ function toggleRwy(icao, ident) {
     // this, single-RWY A/D would still inherit the dual-parallel dep rate
     // from the config, yielding AAR + ADR totals that exceed what one
     // runway can actually deliver.
-    st.configName = 'Manual';
-    st.selectedConfig = null;
+    // v0.7.83: a human override that lands on a declared configuration
+    // (same runways, same roles) takes that configuration's declared rates.
+    // Only a combination no configuration describes falls to the heuristic.
+    const match = matchDeclaredConfig(icao);
+    st.configName = match ? `${match.label} (manual)` : 'Manual';
+    st.selectedConfig = match;
     refreshCard(icao);
+}
+
+function matchDeclaredConfig(icao) {
+    const st = aptState[icao];
+    const cfgs = configsByApt[icao]?.configs || [];
+    const active = Object.entries(st.runways).filter(([, r]) => r.role !== 'off');
+    for (const cfg of cfgs) {
+        const want = Object.entries(cfg.runways || {});
+        if (want.length !== active.length) continue;
+        if (want.every(([id, info]) => st.runways[id] && st.runways[id].role === info.role)) return cfg;
+    }
+    return null;
 }
 
 function propose(icao) { autoPropose(icao); refreshCard(icao); }
@@ -680,6 +696,7 @@ async function computeRates(icao) {
     const declaredDep = cfg?.declared_dep_rate || null;
 
     let achievableArr = 0, calmArr = 0, details = [];
+    const arrRateByRwy = {};
     for (const [ident, r] of arrRwys) {
         try {
             // Fetch wind-adjusted and calm (zero headwind) rates in parallel
@@ -695,6 +712,7 @@ async function computeRates(icao) {
             const rate = Math.round(d.aar * adFactor);
             const calmRate = Math.round(dCal.aar * adFactor);
             achievableArr += rate; calmArr += calmRate;
+            arrRateByRwy[ident] = rate;
             details.push(`${ident}:${rate}A`);
         } catch (e) {}
     }
@@ -720,27 +738,24 @@ async function computeRates(icao) {
         details.push('(-40% crossing dep)');
     }
 
-    // ADR: prefer declared. Fall back to legacy heuristic only if no config
-    // is selected (manual runway toggles with no matching config).
+    // ADR: the declared rate whenever a configuration is selected (auto or
+    // a manual selection that matches one). Declared single-runway configs
+    // already give that runway's balanced mixed-mode capacity (RATES-
+    // VALIDATION §0: CYHZ 14/32 18/18, 05/23 22/22, ...).
     //
-    // Single-runway A/D caveat: when the same runway does both arrivals
-    // AND departures (primary_arr === primary_dep OR the only active
-    // runway has A/D role), the *declared* ADR from the config represents
-    // that runway's dedicated-dep capacity — which is NOT deliverable
-    // alongside the declared AAR. Interleaved ops share one runway's
-    // time between arr and dep (FAA FOA §7). Cap ADR at ~12/hr in that
-    // case (a single runway gets ~2 min between arrivals for dep windows).
-    const singleRwyAD = arrRwys.length === 1 && depRwys.length === 1
-                        && arrRwys[0][0] === depRwys[0][0]
-                        && arrRwys[0][1].role === 'A/D';
-
+    // Fallback (no matching configuration): a dedicated departure runway
+    // gets 20/hr; an A/D runway alternates arrival-departure, so it gets
+    // one departure per arrival gap — ADR = that runway's arrival rate.
+    // The 0.6 factor above already opened those gaps. (Before v0.7.83 the
+    // fallback also took 40% of the time again and capped A/D at 12/hr,
+    // and it overrode declared single-runway configs, giving e.g. 22/12.)
     let totalDep = 0;
-    if (declaredDep !== null && !singleRwyAD) {
+    if (declaredDep !== null) {
         totalDep = declaredDep;
         for (const [ident, r] of depRwys) details.push(`${ident}:${r.role === 'A/D' ? 'mixed' : 'D'}`);
     } else {
         for (const [ident, r] of depRwys) {
-            const rate = r.role === 'D' ? 20 : Math.min(Math.round(achievableArr * 0.4 / 0.6), 12);
+            const rate = r.role === 'D' ? 20 : (arrRateByRwy[ident] ?? 0);
             totalDep += rate; details.push(`${ident}:${rate}D`);
         }
     }
