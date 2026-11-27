@@ -765,8 +765,24 @@ updateClock();
 function renderStatus(s) {
     $('ingest-age').textContent = ageShort(s.last_ingest_at);
     $('pill-ingest').className = 'pill ' + freshnessClass(s.last_ingest_at, 420, 900);
-    $('alloc-age').textContent = ageShort(s.last_allocation_at);
-    $('pill-alloc').className = 'pill ' + freshnessClass(s.last_allocation_at, 420, 900);
+    // v0.7.82: while vIFF issues CTOTs our allocator runs shadow-only and
+    // records no runs, so an allocation age would only ever read stale.
+    const allocPill = $('pill-alloc');
+    if (s.ctot_authority === 'viff') {
+        allocPill.querySelector('.label').textContent = 'CTOT';
+        $('alloc-age').textContent = 'vIFF';
+        allocPill.className = 'pill';
+        allocPill.style.cursor = 'pointer';
+        allocPill.title = 'CTOTs are issued by vIFF; our allocator runs in shadow. Click for the vIFF CTOT list.';
+        allocPill.onclick = () => { window.location.href = '/viff-ctot.html'; };
+    } else {
+        allocPill.querySelector('.label').textContent = 'alloc';
+        $('alloc-age').textContent = ageShort(s.last_allocation_at);
+        allocPill.className = 'pill ' + freshnessClass(s.last_allocation_at, 420, 900);
+        allocPill.style.cursor = '';
+        allocPill.title = '';
+        allocPill.onclick = null;
+    }
     $('flight-count').textContent = s.active_flight_count ?? 0;
     $('ctot-count').textContent = s.active_ctot_count ?? 0;
     $('pill-ctots').className = (s.active_ctot_count > 0) ? 'pill warn' : 'pill';

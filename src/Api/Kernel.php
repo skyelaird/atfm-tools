@@ -1605,6 +1605,9 @@ final class Kernel
                 'last_ingest_at'       => $lastFlightUpdate,
                 'last_ingest_stats'    => $ingestStats,
                 'last_allocation_at'   => $lastRun?->started_at?->format('c'),
+                // v0.7.82: who issues CTOTs. Same default as bin/compute-ctots.php;
+                // anything but 'local' means vIFF and our allocator runs shadow-only.
+                'ctot_authority'       => strtolower(trim((string) ($_ENV['CTOT_AUTHORITY'] ?? 'viff'))) === 'local' ? 'local' : 'viff',
                 'last_allocation_stats' => $lastRun ? [
                     'airports_considered' => (int) $lastRun->airports_considered,
                     'restrictions_active' => (int) $lastRun->restrictions_active,
